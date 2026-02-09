@@ -37,6 +37,8 @@ func (a *API) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/player/mute", a.postOnly(a.handleMute))
 	mux.HandleFunc("/api/player/unmute", a.postOnly(a.handleUnmute))
 	mux.HandleFunc("/api/player/mute/toggle", a.postOnly(a.handleToggleMute))
+
+	mux.HandleFunc("/api/collections", a.handleCollections)
 }
 
 func (a *API) handleStatus(w http.ResponseWriter, r *http.Request) {
@@ -149,4 +151,15 @@ func writeOK(w http.ResponseWriter) {
 func writeJSON(w http.ResponseWriter, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(v)
+}
+
+func (a *API) handleCollections(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	writeJSON(w, map[string]any{
+		"note": "collections mock works",
+	})
 }

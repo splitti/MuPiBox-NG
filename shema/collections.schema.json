@@ -1,0 +1,104 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mupibox.local/schema/collections.schema.json",
+  "title": "MuPiBox Collections",
+  "description": "Declarative grouping of playable sources. No playback or resume state.",
+
+  "type": "object",
+  "required": ["version", "collections"],
+
+  "properties": {
+    "version": {
+      "type": "integer",
+      "minimum": 1
+    },
+
+    "collections": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/collection" }
+    }
+  },
+
+  "additionalProperties": false,
+
+  "$defs": {
+    "collection": {
+      "type": "object",
+      "required": ["id", "name", "items"],
+
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+$",
+          "description": "Stable internal identifier"
+        },
+
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Display name for UI"
+        },
+
+        "icon": {
+          "type": "string",
+          "description": "Optional icon name for UI"
+        },
+
+        "description": {
+          "type": "string"
+        },
+
+        "items": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/item" }
+        }
+      },
+
+      "additionalProperties": false
+    },
+
+    "item": {
+      "type": "object",
+      "required": ["source", "type", "id"],
+
+      "properties": {
+        "source": {
+          "type": "string",
+          "enum": [
+            "local",
+            "spotify",
+            "amazon",
+            "podcast",
+            "m3u"
+          ],
+          "description": "Data source backend"
+        },
+
+        "type": {
+          "type": "string",
+          "enum": [
+            "artist",
+            "album",
+            "playlist",
+            "track",
+            "show",
+            "episode",
+            "series",
+            "stream"
+          ],
+          "description": "Semantic type, resolved by backend"
+        },
+
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Source-specific identifier"
+        }
+      },
+
+      "additionalProperties": false
+    }
+  }
+}
