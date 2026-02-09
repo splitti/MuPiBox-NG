@@ -1,3 +1,3 @@
-module mupibix-ng
+module mupibox
 
 go 1.19

@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"mupibix-ng/internal/catalog"
-	"mupibix-ng/internal/state"
+	"mupibox/internal/catalog"
+	"mupibox/internal/state"
 )
 
 type HomeItem struct {
@@ -263,7 +263,7 @@ func main() {
 	// Static
 	http.Handle("/", http.FileServer(http.Dir("webui/static")))
 
-	log.Println("mupibix-ng läuft auf http://localhost:8080")
+	log.Println("mupibox läuft auf http://localhost:8080")
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
 
