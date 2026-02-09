@@ -199,7 +199,7 @@ func main() {
 	// --------------------------------------------------
 	// PLAYER API (NEU)
 	// --------------------------------------------------
-	player.RegisterHTTP(http.DefaultServeMux, p)
+	player.NewAPI(p).Register(http.DefaultServeMux)
 
 	// --------------------------------------------------
 	// Static UI
