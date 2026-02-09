@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=800, height=480, initial-scale=1.0, user-scalable=no">
+<title>mupibix-ng</title>
+
+<style>
+@font-face {
+  font-family: "InterUI";
+  src: url("/fonts/Inter_24pt-Light.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Seasons";
+  src: url("/fonts/SEASANS.TTF") format("truetype");
+}
+
+:root{
+  --bg:#0f172a;
+  --panel:#1e293b;
+  --panel-pressed:#334155;
+  --radius:22px;
+
+  --tile-w:240px;
+  --tile-h:300px;
+  --tile-cover-h:215px;
+}
+
+html,body{
+  margin:0;
+  width:800px;
+  height:480px;
+  background:var(--bg);
+  color:#fff;
+  font-family:"InterUI",system-ui,sans-serif;
+  overflow:hidden;
+}
+
+.hidden{display:none}
+
+/* ========== STATUSBAR ========== */
+#statusbar{
+  height:40px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  padding:6px 12px;
+  background:linear-gradient(to bottom,rgba(2,6,23,.95),rgba(2,6,23,0));
+}
+
+#status-left,#status-right{
+  display:flex;
+  align-items:center;
+  gap:12px;
+}
+
+.icon{ width:24px; height:24px; opacity:.9 }
+#time{ opacity:.85 }
+
+/* ========== VOLUME ========== */
+#volume{
+  display:flex;
+  flex-direction:column;
+  gap:3px;
+  height:32px;
+  width:26px;
+  touch-action:none;
+}
+.vol-bar{
+  height:4px;
+  border-radius:2px;
+  background:rgba(255,255,255,.25);
+}
+.vol-bar.active.low{background:#22c55e}
+.vol-bar.active.mid{background:#eab308}
+.vol-bar.active.high{background:#ef4444}
+#volume.muted .vol-bar{
+  background:rgba(255,255,255,.15)!important;
+}
+
+/* ========== HOME ========== */
+#home-scroll{
+  height:calc(100% - 40px);
+  overflow-y:auto;
+  padding:18px;
+}
+.section-title{
+  font-family:"Seasons","InterUI",sans-serif;
+  font-size:22px;
+  margin-bottom:16px;
+}
+.tile-row{
+  display:flex;
+  gap:20px;
+}
+.tile{
+  width:var(--tile-w);
+  height:var(--tile-h);
+  background:var(--panel);
+  border-radius:var(--radius);
+  overflow:hidden;
+  position:relative;
+}
+.tile.started{
+  box-shadow:inset 0 0 0 3px rgba(34,197,94,.55);
+}
+.tile-cover{
+  width:100%;
+  height:var(--tile-cover-h);
+  object-fit:cover;
+}
+.tile-meta{
+  padding:12px;
+  text-align:center;
+}
+.tile-series{
+  font-size:14px;
+  opacity:.7;
+}
+.tile-title{
+  font-size:18px;
+}
+.progress-bar{
+  position:absolute;
+  left:14px; right:14px; bottom:10px;
+  height:6px;
+  background:rgba(255,255,255,.25);
+  border-radius:4px;
+}
+.progress-fill{
+  width:100%;
+  height:100%;
+  background:#22c55e;
+}
+</style>
+</head>
+
+<body>
+
+<!-- STATUSBAR -->
+<div id="statusbar">
+  <div id="status-left">
+    <img src="/icons/home.svg" class="icon">
+  </div>
+  <div id="status-right">
+    <img id="wifi" class="icon hidden">
+    <img id="battery" class="icon hidden">
+    <div id="volume"></div>
+    <span id="time">--:--</span>
+  </div>
+</div>
+
+<!-- HOME -->
+<div id="home-scroll">
+  <div class="section-title">Weiter abspielen</div>
+  <div class="tile-row">
+
+    <div class="tile started">
+      <img class="tile-cover" src="/covers/placeholder.png">
+      <div class="tile-meta">
+        <div class="tile-series">Benjamin Blümchen</div>
+        <div class="tile-title">Folge 12 – Der Zoo brennt</div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill"></div></div>
+    </div>
+
+    <div class="tile started">
+      <img class="tile-cover" src="/covers/placeholder.png">
+      <div class="tile-meta">
+        <div class="tile-series">Die drei ???</div>
+        <div class="tile-title">Folge 42 – Der Superpapagei</div>
+      </div>
+      <div class="progress-bar"><div class="progress-fill"></div></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+/* ===== CLOCK ===== */
+const timeEl=document.getElementById("time");
+setInterval(()=>{
+  const d=new Date();
+  timeEl.innerText=d.getHours().toString().padStart(2,"0")+":"+
+                   d.getMinutes().toString().padStart(2,"0");
+},1000);
+
+/* ===== VOLUME + MUTE ===== */
+const vol=document.getElementById("volume");
+let volume=4, muted=false, startY=null, muteTimer=null;
+
+for(let i=10;i>=1;i--){
+  const b=document.createElement("div");
+  b.className="vol-bar";
+  b.dataset.level=i;
+  vol.appendChild(b);
+}
+const bars=[...document.querySelectorAll(".vol-bar")];
+
+function renderVolume(){
+  vol.classList.toggle("muted",muted);
+  bars.forEach(b=>{
+    const l=+b.dataset.level;
+    b.className="vol-bar";
+    if(!muted && l<=volume){
+      b.classList.add("active");
+      if(l<=4)b.classList.add("low");
+      else if(l<=7)b.classList.add("mid");
+      else b.classList.add("high");
+    }
+  });
+}
+renderVolume();
+
+vol.addEventListener("pointerdown",e=>{
+  startY=e.clientY;
+  muteTimer=setTimeout(()=>{
+    muted=!muted;
+    renderVolume();
+    fetch(`/api/volume?level=${muted?0:volume*10}`,{method:"POST"});
+  },700);
+});
+
+vol.addEventListener("pointermove",e=>{
+  if(startY===null)return;
+  const d=startY-e.clientY;
+  if(Math.abs(d)>12){
+    clearTimeout(muteTimer);
+    muted=false;
+    if(d>0 && volume<10)volume++;
+    if(d<0 && volume>0)volume--;
+    startY=e.clientY;
+    renderVolume();
+    fetch(`/api/volume?level=${volume*10}`,{method:"POST"});
+  }
+});
+
+vol.addEventListener("pointerup",()=>{
+  clearTimeout(muteTimer);
+  startY=null;
+});
+</script>
+
+</body>
+</html>

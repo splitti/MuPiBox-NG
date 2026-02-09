@@ -1,0 +1,132 @@
+{
+  "categories": [
+    {
+      "id": "audiobooks",
+      "title": "Meine Hörbücher",
+      "items": [
+        {
+          "id": "die_drei_fragezeichen",
+          "display_name": "Die drei ???",
+          "type": "artist",
+          "resume": true,
+
+          "sources": [
+            {
+              "type": "spotify",
+              "priority": 1,
+              "artistId": "1XYZ_DREI_FRAGEZEICHEN"
+            },
+            {
+              "type": "local",
+              "priority": 2,
+              "path": "/music/hoerbuecher/die_drei_fragezeichen",
+              "cover_path": "/covers/die_drei_fragezeichen.jpg"
+            }
+          ]
+        },
+
+        {
+          "id": "benjamin_bluemchen",
+          "display_name": "Benjamin Blümchen",
+          "type": "artist",
+          "resume": true,
+
+          "sources": [
+            {
+              "type": "amazon",
+              "priority": 1,
+              "artistUrl": "https://music.amazon.de/artists/BENJAMIN123"
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "music",
+      "title": "Meine Musik",
+      "items": [
+        {
+          "id": "phil_collins",
+          "display_name": "Phil Collins",
+          "type": "artist",
+
+          "sources": [
+            {
+              "type": "spotify",
+              "priority": 1,
+              "artistId": "4l1XPHILCOLLINS"
+            }
+          ]
+        },
+
+        {
+          "id": "party_playlist",
+          "display_name": "Party 🎉",
+          "type": "playlist",
+
+          "play_behavior": {
+            "shuffle": true,
+            "repeat": true
+          },
+
+          "sources": [
+            {
+              "type": "amazon",
+              "priority": 1,
+              "playlistUrl": "https://music.amazon.de/playlists/PARTY123"
+            }
+          ]
+        },
+
+        {
+          "id": "einschlafen",
+          "display_name": "Einschlafen 🌙",
+          "type": "playlist",
+
+          "play_behavior": {
+            "shuffle": true,
+            "repeat": true,
+            "start_at": "resume"
+          },
+
+          "resume": true,
+
+          "sources": [
+            {
+              "type": "amazon",
+              "priority": 1,
+              "playlistUrl": "https://music.amazon.de/playlists/SLEEP123"
+            },
+            {
+              "type": "local",
+              "priority": 2,
+              "path": "/music/playlists/einschlafen"
+            }
+          ]
+        }
+      ]
+    },
+
+    {
+      "id": "podcasts",
+      "title": "Podcasts",
+      "items": [
+        {
+          "id": "checker_tobi",
+          "display_name": "Checker Tobi",
+          "type": "podcast",
+          "resume": true,
+
+          "sources": [
+            {
+              "type": "rss",
+              "priority": 1,
+              "url": "https://example.com/checker-tobi/feed.xml"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

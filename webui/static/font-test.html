@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=800, height=480, initial-scale=1.0">
+<title>mupibix-ng – Font Vergleich</title>
+
+<style>
+/* === Fonts === */
+@font-face {
+  font-family: "InterExtraLight";
+  src: url("/fonts/Inter_24pt-ExtraLight.ttf") format("truetype");
+}
+@font-face {
+  font-family: "InterLight";
+  src: url("/fonts/Inter_24pt-Light.ttf") format("truetype");
+}
+@font-face {
+  font-family: "Seasons";
+  src: url("/fonts/SEASANS.TTF") format("truetype");
+}
+
+/* === Base === */
+html, body {
+  margin: 0;
+  width: 800px;
+  height: 480px;
+  background: #0f172a;
+  color: #ffffff;
+  font-family: system-ui, sans-serif;
+}
+
+.wrapper {
+  padding: 20px;
+}
+
+h1 {
+  font-size: 26px;
+  margin-bottom: 12px;
+  opacity: 0.9;
+}
+
+/* === Comparison grid === */
+.grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+}
+
+/* === Card === */
+.card {
+  background: #1e293b;
+  border-radius: 16px;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.font-name {
+  font-size: 16px;
+  opacity: 0.7;
+}
+
+/* === Test text === */
+.sample {
+  line-height: 1.25;
+}
+
+.size-xl { font-size: 26px; }
+.size-lg { font-size: 22px; }
+.size-md { font-size: 18px; }
+.size-sm { font-size: 15px; opacity: 0.9; }
+
+/* === Width test === */
+.width-test {
+  background: #020617;
+  border-radius: 10px;
+  padding: 8px;
+  font-size: 18px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* === Specific fonts === */
+.inter-extralight { font-family: "InterExtraLight", sans-serif; }
+.inter-light      { font-family: "InterLight", sans-serif; }
+.seasons          { font-family: "Seasons", sans-serif; }
+
+</style>
+</head>
+
+<body>
+<div class="wrapper">
+
+  <h1>Schriftarten-Vergleich (800×480)</h1>
+
+  <div class="grid">
+
+    <!-- Inter ExtraLight -->
+    <div class="card inter-extralight">
+      <div class="font-name">Inter · ExtraLight</div>
+
+      <div class="sample size-xl">Die drei ???</div>
+      <div class="sample size-lg">Benjamin Blümchen</div>
+      <div class="sample size-md">Weiter abspielen</div>
+      <div class="sample size-sm">Track 7 · 03:12</div>
+
+      <div class="width-test">
+        Die drei ??? – Folge 42 · Der Superpapagei
+      </div>
+    </div>
+
+    <!-- Inter Light -->
+    <div class="card inter-light">
+      <div class="font-name">Inter · Light</div>
+
+      <div class="sample size-xl">Die drei ???</div>
+      <div class="sample size-lg">Benjamin Blümchen</div>
+      <div class="sample size-md">Weiter abspielen</div>
+      <div class="sample size-sm">Track 7 · 03:12</div>
+
+      <div class="width-test">
+        Die drei ??? – Folge 42 · Der Superpapagei
+      </div>
+    </div>
+
+    <!-- Seasons -->
+    <div class="card seasons">
+      <div class="font-name">Seasons</div>
+
+      <div class="sample size-xl">Die drei ???</div>
+      <div class="sample size-lg">Benjamin Blümchen</div>
+      <div class="sample size-md">Weiter abspielen</div>
+      <div class="sample size-sm">Track 7 · 03:12</div>
+
+      <div class="width-test">
+        Die drei ??? – Folge 42 · Der Superpapagei
+      </div>
+    </div>
+
+  </div>
+</div>
+</body>
+</html>
