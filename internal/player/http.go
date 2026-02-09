@@ -159,7 +159,48 @@ func (a *API) handleCollections(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	writeJSON(w, map[string]any{
-		"note": "collections mock works",
+	writeJSON(w, []map[string]any{
+		{
+			"id":    "favorites",
+			"title": "Favoriten",
+			"items": []map[string]any{
+				{
+					"key":      "local:album:benjamin_bluemchen_12",
+					"cover":    "/covers/placeholder.png",
+					"series":   "Benjamin Blümchen",
+					"title":    "Folge 12 – Der Zoo brennt",
+					"progress": 0.42,
+					"duration": 3000,
+					"badges":   []string{"resume"},
+					"playable": true,
+				},
+				{
+					"key":      "local:album:benjamin_bluemchen_18",
+					"cover":    "/covers/placeholder.png",
+					"series":   "Benjamin Blümchen",
+					"title":    "Folge 18 – als Pilot",
+					"progress": nil,
+					"duration": nil,
+					"badges":   []string{"album"},
+					"playable": true,
+				},
+			},
+		},
+		{
+			"id":    "goodnight",
+			"title": "Gute Nacht",
+			"items": []map[string]any{
+				{
+					"key":      "spotify:playlist:goodnight",
+					"cover":    "/covers/placeholder.png",
+					"series":   "Spotify",
+					"title":    "Schlaflieder",
+					"progress": nil,
+					"duration": nil,
+					"badges":   []string{"shuffle"},
+					"playable": true,
+				},
+			},
+		},
 	})
 }
