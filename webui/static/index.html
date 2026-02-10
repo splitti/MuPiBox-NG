@@ -245,6 +245,10 @@ async function loadCollections(){
         </div>
       `;
 
+      tile.addEventListener("click", () => {
+        console.log("tile clicked:", item.key);
+      });
+      
       if(item.progress !== null){
         const bar=document.createElement("div");
         bar.className="progress-bar";
