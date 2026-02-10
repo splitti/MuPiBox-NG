@@ -92,6 +92,7 @@ html,body{
 .tile-row{
   display:flex;
   gap:20px;
+  margin-bottom:26px;
 }
 .tile{
   width:var(--tile-w);
@@ -100,9 +101,6 @@ html,body{
   border-radius:var(--radius);
   overflow:hidden;
   position:relative;
-}
-.tile.started{
-  box-shadow:inset 0 0 0 3px rgba(34,197,94,.55);
 }
 .tile-cover{
   width:100%;
@@ -128,9 +126,9 @@ html,body{
   border-radius:4px;
 }
 .progress-fill{
-  width:100%;
   height:100%;
   background:#22c55e;
+  border-radius:4px;
 }
 </style>
 </head>
@@ -143,8 +141,6 @@ html,body{
     <img src="/icons/home.svg" class="icon">
   </div>
   <div id="status-right">
-    <img id="wifi" class="icon hidden">
-    <img id="battery" class="icon hidden">
     <div id="volume"></div>
     <span id="time">--:--</span>
   </div>
@@ -152,28 +148,7 @@ html,body{
 
 <!-- HOME -->
 <div id="home-scroll">
-  <div class="section-title">Weiter abspielen</div>
-  <div class="tile-row">
-
-    <div class="tile started">
-      <img class="tile-cover" src="/covers/placeholder.png">
-      <div class="tile-meta">
-        <div class="tile-series">Benjamin Blümchen</div>
-        <div class="tile-title">Folge 12 – Der Zoo brennt</div>
-      </div>
-      <div class="progress-bar"><div class="progress-fill"></div></div>
-    </div>
-
-    <div class="tile started">
-      <img class="tile-cover" src="/covers/placeholder.png">
-      <div class="tile-meta">
-        <div class="tile-series">Die drei ???</div>
-        <div class="tile-title">Folge 42 – Der Superpapagei</div>
-      </div>
-      <div class="progress-bar"><div class="progress-fill"></div></div>
-    </div>
-
-  </div>
+  <!-- wird dynamisch gefüllt -->
 </div>
 
 <script>
@@ -181,8 +156,9 @@ html,body{
 const timeEl=document.getElementById("time");
 setInterval(()=>{
   const d=new Date();
-  timeEl.innerText=d.getHours().toString().padStart(2,"0")+":"+
-                   d.getMinutes().toString().padStart(2,"0");
+  timeEl.innerText=
+    d.getHours().toString().padStart(2,"0")+":"+
+    d.getMinutes().toString().padStart(2,"0");
 },1000);
 
 /* ===== VOLUME + MUTE ===== */
@@ -217,7 +193,7 @@ vol.addEventListener("pointerdown",e=>{
   muteTimer=setTimeout(()=>{
     muted=!muted;
     renderVolume();
-    fetch(`/api/volume?level=${muted?0:volume*10}`,{method:"POST"});
+    fetch(`/api/player/volume?level=${muted?0:volume*10}`,{method:"POST"});
   },700);
 });
 
@@ -231,7 +207,7 @@ vol.addEventListener("pointermove",e=>{
     if(d<0 && volume>0)volume--;
     startY=e.clientY;
     renderVolume();
-    fetch(`/api/volume?level=${volume*10}`,{method:"POST"});
+    fetch(`/api/player/volume?level=${volume*10}`,{method:"POST"});
   }
 });
 
@@ -239,6 +215,54 @@ vol.addEventListener("pointerup",()=>{
   clearTimeout(muteTimer);
   startY=null;
 });
+
+/* ===== COLLECTIONS (OPTION A) ===== */
+async function loadCollections(){
+  const res = await fetch("/api/collections");
+  const collections = await res.json();
+
+  const root = document.getElementById("home-scroll");
+  root.innerHTML = "";
+
+  collections.forEach(col=>{
+    const title=document.createElement("div");
+    title.className="section-title";
+    title.innerText=col.title;
+    root.appendChild(title);
+
+    const row=document.createElement("div");
+    row.className="tile-row";
+
+    col.items.forEach(item=>{
+      const tile=document.createElement("div");
+      tile.className="tile";
+
+      tile.innerHTML=`
+        <img class="tile-cover" src="${item.cover}">
+        <div class="tile-meta">
+          <div class="tile-series">${item.series}</div>
+          <div class="tile-title">${item.title}</div>
+        </div>
+      `;
+
+      if(item.progress !== null){
+        const bar=document.createElement("div");
+        bar.className="progress-bar";
+        const fill=document.createElement("div");
+        fill.className="progress-fill";
+        fill.style.width=Math.round(item.progress*100)+"%";
+        bar.appendChild(fill);
+        tile.appendChild(bar);
+      }
+
+      row.appendChild(tile);
+    });
+
+    root.appendChild(row);
+  });
+}
+
+loadCollections();
 </script>
 
 </body>
