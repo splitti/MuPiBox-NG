@@ -10,11 +10,13 @@ fi
 REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CONFIGURE_WAVESHARE=0
 START_SERVICES=1
+QUIET_BOOT=1
 
 for arg in "$@"; do
     case "$arg" in
         --waveshare-5-dsi) CONFIGURE_WAVESHARE=1 ;;
         --no-start) START_SERVICES=0 ;;
+        --keep-boot-console) QUIET_BOOT=0 ;;
         -h|--help)
             cat <<'EOF'
 Usage: sudo bash scripts/install-dietpi.sh [options]
@@ -22,6 +24,7 @@ Usage: sudo bash scripts/install-dietpi.sh [options]
 Options:
   --waveshare-5-dsi  Add the device-tree overlay for the Waveshare 5-inch 800x480 DSI LCD / LCD (B).
   --no-start         Install and enable services, but do not start them now.
+  --keep-boot-console Keep kernel, DietPi and login messages visible on tty1.
 
 Display handling is generic by default. On a normal Raspberry Pi with the official
 Raspberry Pi Touch Display, do not pass a display option: let the firmware/kernel
@@ -150,6 +153,10 @@ fi
 install -m 0644 deploy/mupibox-ng.service /etc/systemd/system/mupibox-ng.service
 install -m 0644 deploy/mupibox-ui.service /etc/systemd/system/mupibox-ui.service
 
+if [[ "$QUIET_BOOT" -eq 1 ]]; then
+    bash scripts/configure-quiet-boot.sh
+fi
+
 if [[ "$CONFIGURE_WAVESHARE" -eq 1 ]]; then
     sh scripts/configure-waveshare-5-dsi.sh
 fi
@@ -171,6 +178,7 @@ Installed components:
   config:  /etc/mupibox-ng/config.json
   music:   /srv/mupibox/music
   native UI: Qt Quick via EGLFS/KMS (no Chromium/browser)
+  boot display: quiet appliance boot unless --keep-boot-console was used
 
 Display policy:
   - No display-specific mode is forced by default.

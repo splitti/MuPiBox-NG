@@ -4,6 +4,8 @@
 
 ## 0.1.0-dev – 16.09.2026
 
+- Native Qt-Quick-Oberfläche an das Web-Frontend angeglichen (Navigation, Medienkarten und Playerleiste).
+- Reversible Quiet-Boot-Konfiguration blendet Kernel-/DietPi-Konsole aus und zeigt den Startscreen früher.
 - Neustart auf `rebuild/go-foundation`, Prototyp vollständig unter `legacy/prototype` erhalten.
 - Vorgaben, Bestandsprüfung, Architektur und LXC-Abgleich dokumentiert.
 - Go-Dienst mit eingebetteter Weboberfläche und lokalen Ordnersammlungen.

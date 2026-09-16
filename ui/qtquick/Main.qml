@@ -5,75 +5,137 @@ Window {
     id: root
     visible: true
     visibility: Window.FullScreen
-    color: "#120817"
+    color: "#0b0d11"
     title: "MuPiBox"
 
-    // The UI is designed in a stable 800x480 logical coordinate system and
-    // scaled as one unit to the actual display. This keeps the first hardware
-    // build usable on different DSI/HDMI panels without hard-coding a mode.
     property real uiScale: Math.min(width / 800, height / 480)
     property var apiCandidates: ["http://127.0.0.1:8090", "http://127.0.0.1:8080"]
     property int apiIndex: 0
     property string apiBase: apiCandidates[apiIndex]
     property bool backendOnline: false
+    property bool pending: false
+    property bool statusRequestRunning: false
     property string backendState: "Verbinde …"
     property string clockText: "--:--"
     property var categories: []
+    property var playerState: ({
+        "queue": [],
+        "index": 0,
+        "position": 0,
+        "duration": 0,
+        "volume": 30,
+        "max_volume": 60,
+        "state": "stopped",
+        "folder": "",
+        "folder_id": "",
+        "cover": ""
+    })
+    property string transientMessage: ""
+    property bool adminHintVisible: false
 
     function localized(labels, fallback) {
         if (!labels) return fallback || ""
         return labels.de || labels.en || fallback || ""
     }
 
-    function getJson(path, done, failed) {
+    function coverUrl(path) {
+        if (!path) return ""
+        if (path.indexOf("http://") === 0 || path.indexOf("https://") === 0 || path.indexOf("file:") === 0)
+            return path
+        return apiBase + (path.charAt(0) === "/" ? "" : "/") + path
+    }
+
+    function currentTrack() {
+        var queue = playerState.queue || []
+        var index = Number(playerState.index || 0)
+        return index >= 0 && index < queue.length ? queue[index] : null
+    }
+
+    function formatTime(seconds) {
+        var value = Math.max(0, Math.floor(Number(seconds || 0)))
+        return Math.floor(value / 60) + ":" + String(value % 60).padStart(2, "0")
+    }
+
+    function showMessage(message) {
+        transientMessage = message || ""
+        messageTimer.restart()
+    }
+
+    function requestJson(method, path, payload, done, failed) {
         var xhr = new XMLHttpRequest()
-        xhr.open("GET", apiBase + path)
+        xhr.open(method, apiBase + path)
+        xhr.setRequestHeader("Accept", "application/json")
+        if (payload !== undefined && payload !== null)
+            xhr.setRequestHeader("Content-Type", "application/json")
         xhr.onreadystatechange = function() {
             if (xhr.readyState !== XMLHttpRequest.DONE) return
             if (xhr.status >= 200 && xhr.status < 300) {
                 backendOnline = true
                 backendState = "Verbunden"
-                try { done(JSON.parse(xhr.responseText)) } catch (e) { if (failed) failed() }
+                try {
+                    done(JSON.parse(xhr.responseText))
+                } catch (error) {
+                    if (failed) failed()
+                }
             } else if (failed) {
                 failed()
             }
         }
-        try { xhr.send() } catch (e) { if (failed) failed() }
+        try {
+            xhr.send(payload !== undefined && payload !== null ? JSON.stringify(payload) : "")
+        } catch (error) {
+            if (failed) failed()
+        }
     }
 
-    function refreshLegacyLibrary(failed) {
-        getJson("/api/library", function(folders) {
-            var result = []
-            for (var i = 0; folders && i < folders.length; ++i) {
-                var folder = folders[i]
-                result.push({"id": folder.id, "labels": {"de": folder.name, "en": folder.name}})
-            }
-            categories = result
-            backendOnline = true
-            backendState = "Verbunden"
-        }, failed)
-    }
-
-    function refreshAt(index) {
+    function tryApi(index, done, failed) {
         apiIndex = index
         apiBase = apiCandidates[index]
-        getJson("/api/home", function(data) {
-            if (data && data.categories) categories = data.categories
+        requestJson("GET", "/api/health", null, function() {
+            done()
         }, function() {
-            // Compatibility with the earlier foundation branch while /api/home is being merged.
-            refreshLegacyLibrary(function() {
-                if (index + 1 < apiCandidates.length) {
-                    refreshAt(index + 1)
-                } else {
-                    backendOnline = false
-                    backendState = "Backend offline"
-                }
-            })
+            if (index + 1 < apiCandidates.length)
+                tryApi(index + 1, done, failed)
+            else
+                failed()
         })
     }
 
-    function refresh() {
-        refreshAt(apiIndex)
+    function refreshHome() {
+        requestJson("GET", "/api/home", null, function(data) {
+            categories = data && data.categories ? data.categories : []
+        }, function() {
+            backendOnline = false
+            backendState = "Offline"
+        })
+    }
+
+    function refreshStatus() {
+        if (statusRequestRunning) return
+        statusRequestRunning = true
+        requestJson("GET", "/api/status", null, function(data) {
+            playerState = data || playerState
+            statusRequestRunning = false
+        }, function() {
+            backendOnline = false
+            backendState = "Offline"
+            statusRequestRunning = false
+            tryApi(0, function() {
+                refreshHome()
+            }, function() {})
+        })
+    }
+
+    function command(payload) {
+        if (pending || !backendOnline) return
+        pending = true
+        requestJson("POST", "/api/command", payload, function(data) {
+            playerState = data || playerState
+            pending = false
+        }, function() {
+            pending = false
+            showMessage("Befehl konnte nicht ausgeführt werden.")
+        })
     }
 
     function updateClock() {
@@ -82,11 +144,19 @@ Window {
 
     Component.onCompleted: {
         updateClock()
-        refreshAt(0)
+        tryApi(0, function() {
+            refreshHome()
+            refreshStatus()
+        }, function() {
+            backendOnline = false
+            backendState = "Offline"
+        })
     }
 
-    Timer { interval: 3000; running: true; repeat: true; onTriggered: root.refresh() }
+    Timer { interval: 750; running: true; repeat: true; onTriggered: root.refreshStatus() }
+    Timer { interval: 5000; running: true; repeat: true; onTriggered: root.refreshHome() }
     Timer { interval: 30000; running: true; repeat: true; onTriggered: root.updateClock() }
+    Timer { id: messageTimer; interval: 6000; repeat: false; onTriggered: root.transientMessage = "" }
 
     Item {
         id: canvas
@@ -97,148 +167,593 @@ Window {
 
         Rectangle {
             anchors.fill: parent
-            color: "#16091d"
+            color: "#0b0d11"
         }
 
         Rectangle {
-            id: topBar
-            anchors.top: parent.top
+            id: statusBar
             anchors.left: parent.left
             anchors.right: parent.right
-            height: 46
-            color: "#250f31"
+            anchors.top: parent.top
+            height: 34
+            color: "#0a0c10"
+            border.color: "#20242c"
 
-            Text {
+            Row {
                 anchors.left: parent.left
-                anchors.leftMargin: 18
+                anchors.leftMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
-                text: "MuPiBox"
-                color: "#ffd3c7"
-                font.pixelSize: 22
-                font.bold: true
-            }
+                spacing: 7
 
-            Rectangle {
-                anchors.centerIn: parent
-                width: stateText.implicitWidth + 24
-                height: 27
-                radius: 14
-                color: root.backendOnline ? "#3a2750" : "#5a233a"
+                Rectangle {
+                    width: 22
+                    height: 22
+                    radius: 7
+                    color: "#f59aca"
+                    Text {
+                        anchors.centerIn: parent
+                        text: "m"
+                        color: "#312331"
+                        font.pixelSize: 15
+                        font.bold: true
+                    }
+                }
+
                 Text {
-                    id: stateText
-                    anchors.centerIn: parent
-                    text: root.backendState
-                    color: "white"
+                    anchors.verticalCenter: parent.verticalCenter
+                    text: "MuPiBox"
+                    color: "#f7f7fa"
                     font.pixelSize: 13
+                    font.bold: true
                 }
             }
 
-            Text {
+            Row {
                 anchors.right: parent.right
-                anchors.rightMargin: 18
+                anchors.rightMargin: 10
                 anchors.verticalCenter: parent.verticalCenter
-                text: root.clockText
-                color: "white"
-                font.pixelSize: 20
-                font.bold: true
-            }
-        }
+                spacing: 12
 
-        Column {
-            anchors.top: topBar.bottom
-            anchors.topMargin: 28
-            anchors.left: parent.left
-            anchors.leftMargin: 24
-            anchors.right: parent.right
-            anchors.rightMargin: 24
-            spacing: 18
+                Text {
+                    text: root.backendState
+                    color: root.backendOnline ? "#9aa3b2" : "#f59aca"
+                    font.pixelSize: 10
+                }
+                Text { text: "WLAN —"; color: "#9aa3b2"; font.pixelSize: 10 }
+                Text { text: "Akku —"; color: "#9aa3b2"; font.pixelSize: 10 }
 
-            Text {
-                text: "Was möchtest du hören?"
-                color: "#fff7fb"
-                font.pixelSize: 30
-                font.bold: true
-            }
+                Rectangle {
+                    width: 48
+                    height: 28
+                    radius: 7
+                    color: clockTouch.pressed ? "#202632" : "transparent"
 
-            Text {
-                text: root.categories.length ? "Deine Inhalte sind geladen." : "MuPiBox bereitet deine Inhalte vor …"
-                color: "#bfaec8"
-                font.pixelSize: 17
-            }
+                    Text {
+                        anchors.centerIn: parent
+                        text: root.clockText
+                        color: "#d8dce4"
+                        font.pixelSize: 11
+                    }
 
-            Flickable {
-                width: parent.width
-                height: 150
-                contentWidth: categoryRow.width
-                contentHeight: height
-                clip: true
-                boundsBehavior: Flickable.StopAtBounds
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.leftMargin: 4
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: 1
+                        height: 2
+                        width: clockTouch.pressed ? (parent.width - 8) * Math.min(1, clockTouch.heldMs / 5000) : 0
+                        radius: 1
+                        color: "#f59aca"
+                    }
 
-                Row {
-                    id: categoryRow
-                    spacing: 14
+                    MouseArea {
+                        id: clockTouch
+                        anchors.fill: parent
+                        property int heldMs: 0
+                        onPressed: {
+                            heldMs = 0
+                            holdProgress.start()
+                        }
+                        onReleased: {
+                            holdProgress.stop()
+                            heldMs = 0
+                        }
+                        onCanceled: {
+                            holdProgress.stop()
+                            heldMs = 0
+                        }
+                    }
 
-                    Repeater {
-                        model: root.categories
-                        delegate: Rectangle {
-                            width: 170
-                            height: 120
-                            radius: 16
-                            color: touch.pressed ? "#674078" : "#392348"
-                            border.color: "#5b3b6d"
-                            property var categoryData: modelData
-
-                            Text {
-                                anchors.centerIn: parent
-                                width: parent.width - 24
-                                text: root.localized(categoryData.labels, categoryData.id)
-                                horizontalAlignment: Text.AlignHCenter
-                                wrapMode: Text.WordWrap
-                                color: "#fff8fc"
-                                font.pixelSize: 22
-                                font.bold: true
+                    Timer {
+                        id: holdProgress
+                        interval: 50
+                        repeat: true
+                        onTriggered: {
+                            clockTouch.heldMs += interval
+                            if (clockTouch.heldMs >= 5000) {
+                                stop()
+                                root.adminHintVisible = true
+                                clockTouch.heldMs = 0
                             }
-
-                            MouseArea { id: touch; anchors.fill: parent }
                         }
                     }
                 }
             }
+        }
 
-            Text {
-                text: "Native Qt-Quick-Oberfläche · kein Browser"
-                color: "#8f7a9a"
-                font.pixelSize: 14
+        Flickable {
+            id: contentFlick
+            anchors.top: statusBar.bottom
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.bottom: playerBar.top
+            contentWidth: width
+            contentHeight: Math.max(height, categoryColumn.implicitHeight + 18)
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            flickDeceleration: 1800
+
+            Column {
+                id: categoryColumn
+                width: contentFlick.width
+                y: 10
+                spacing: 12
+
+                Text {
+                    visible: root.categories.length === 0
+                    width: parent.width - 28
+                    x: 14
+                    text: root.backendOnline ? "Noch keine Kategorien eingerichtet." : "MuPiBox verbindet sich …"
+                    color: "#9aa3b2"
+                    font.pixelSize: 13
+                }
+
+                Repeater {
+                    model: root.categories
+
+                    delegate: Item {
+                        width: categoryColumn.width
+                        height: categoryContent.implicitHeight
+                        property var categoryData: modelData
+
+                        Column {
+                            id: categoryContent
+                            width: parent.width
+                            spacing: 5
+
+                            Text {
+                                x: 14
+                                width: parent.width - 28
+                                text: root.localized(categoryData.labels, categoryData.id)
+                                color: "#f7f7fa"
+                                font.pixelSize: 20
+                                font.bold: true
+                                elide: Text.ElideRight
+                            }
+
+                            Repeater {
+                                model: categoryData.rows || []
+
+                                delegate: Item {
+                                    width: categoryContent.width
+                                    height: 132
+                                    property var rowData: modelData
+
+                                    Text {
+                                        x: 14
+                                        y: 0
+                                        width: parent.width - 120
+                                        text: root.localized(rowData.labels, rowData.id)
+                                        color: "#d8dce4"
+                                        font.pixelSize: 12
+                                        font.bold: true
+                                        elide: Text.ElideRight
+                                    }
+
+                                    Text {
+                                        anchors.right: parent.right
+                                        anchors.rightMargin: 14
+                                        y: 2
+                                        text: String((rowData.items || []).length) + " Inhalte"
+                                        color: "#9aa3b2"
+                                        font.pixelSize: 9
+                                    }
+
+                                    Flickable {
+                                        id: mediaFlick
+                                        x: 0
+                                        y: 22
+                                        width: parent.width
+                                        height: 110
+                                        contentWidth: Math.max(width, mediaRow.width + 28)
+                                        contentHeight: height
+                                        clip: true
+                                        boundsBehavior: Flickable.StopAtBounds
+                                        flickDeceleration: 1800
+
+                                        Row {
+                                            id: mediaRow
+                                            x: 14
+                                            spacing: 10
+
+                                            Text {
+                                                visible: (rowData.items || []).length === 0
+                                                width: 180
+                                                height: 100
+                                                text: "Noch keine Inhalte."
+                                                color: "#9aa3b2"
+                                                font.pixelSize: 12
+                                            }
+
+                                            Repeater {
+                                                model: rowData.items || []
+
+                                                delegate: Rectangle {
+                                                    width: 132
+                                                    height: 106
+                                                    radius: 12
+                                                    color: mediaTouch.pressed ? "#202632" : "#141820"
+                                                    border.width: root.playerState.folder_id === String(mediaData.command && mediaData.command.folder_id || "") ? 2 : 1
+                                                    border.color: root.playerState.folder_id === String(mediaData.command && mediaData.command.folder_id || "") ? "#f59aca" : "transparent"
+                                                    clip: true
+                                                    property var mediaData: modelData
+
+                                                    Rectangle {
+                                                        id: coverBackground
+                                                        anchors.left: parent.left
+                                                        anchors.right: parent.right
+                                                        anchors.top: parent.top
+                                                        height: 76
+                                                        color: index % 3 === 0 ? "#50405e" : (index % 3 === 1 ? "#285a57" : "#755141")
+
+                                                        Image {
+                                                            id: mediaCover
+                                                            anchors.fill: parent
+                                                            source: root.coverUrl(mediaData.cover || "")
+                                                            fillMode: Image.PreserveAspectCrop
+                                                            asynchronous: true
+                                                            cache: true
+                                                            visible: source !== ""
+                                                        }
+
+                                                        Text {
+                                                            anchors.centerIn: parent
+                                                            visible: mediaCover.source === ""
+                                                            text: "♫"
+                                                            color: "#e8d9ef"
+                                                            font.pixelSize: 34
+                                                        }
+                                                    }
+
+                                                    Text {
+                                                        x: 9
+                                                        y: 80
+                                                        width: parent.width - 18
+                                                        text: mediaData.title || "Ohne Titel"
+                                                        color: "#f7f7fa"
+                                                        font.pixelSize: 11
+                                                        font.bold: true
+                                                        elide: Text.ElideRight
+                                                    }
+
+                                                    Text {
+                                                        x: 9
+                                                        y: 94
+                                                        width: parent.width - 18
+                                                        text: mediaData.subtitle || mediaData.kind || ""
+                                                        color: "#9aa3b2"
+                                                        font.pixelSize: 8
+                                                        elide: Text.ElideRight
+                                                    }
+
+                                                    MouseArea {
+                                                        id: mediaTouch
+                                                        anchors.fill: parent
+                                                        enabled: root.backendOnline && !root.pending && !!mediaData.command
+                                                        onClicked: root.command(mediaData.command)
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
             }
         }
 
         Rectangle {
+            id: playerBar
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            height: 76
-            color: "#21102a"
-            border.color: "#3a2545"
-
-            Text {
-                anchors.left: parent.left
-                anchors.leftMargin: 22
-                anchors.verticalCenter: parent.verticalCenter
-                text: "♫  Such dir etwas aus"
-                color: "white"
-                font.pixelSize: 18
-                font.bold: true
-            }
+            height: 88
+            color: "#11151c"
+            border.color: "#2a313d"
 
             Rectangle {
+                id: miniArt
+                x: 10
+                anchors.verticalCenter: parent.verticalCenter
                 width: 54
                 height: 54
-                radius: 27
-                anchors.right: parent.right
-                anchors.rightMargin: 18
+                radius: 10
+                color: "#594568"
+                clip: true
+
+                Image {
+                    id: nowCover
+                    anchors.fill: parent
+                    source: root.coverUrl(root.playerState.cover || "")
+                    fillMode: Image.PreserveAspectCrop
+                    asynchronous: true
+                    visible: source !== ""
+                }
+
+                Text {
+                    anchors.centerIn: parent
+                    visible: nowCover.source === ""
+                    text: "♫"
+                    color: "#e8d9ef"
+                    font.pixelSize: 28
+                }
+            }
+
+            Column {
+                x: 76
                 anchors.verticalCenter: parent.verticalCenter
-                color: "#ffd3c7"
-                Text { anchors.centerIn: parent; text: "▶"; color: "#24142b"; font.pixelSize: 24 }
+                width: 205
+                spacing: 3
+
+                Text {
+                    width: parent.width
+                    text: {
+                        var track = root.currentTrack()
+                        return track ? track.title : "Such dir etwas aus"
+                    }
+                    color: "#f7f7fa"
+                    font.pixelSize: 13
+                    font.bold: true
+                    elide: Text.ElideRight
+                }
+                Text {
+                    width: parent.width
+                    text: root.playerState.folder || "Deine Medien warten auf dich."
+                    color: "#9aa3b2"
+                    font.pixelSize: 9
+                    elide: Text.ElideRight
+                }
+                Text {
+                    width: parent.width
+                    text: {
+                        var queue = root.playerState.queue || []
+                        if (!queue.length) return ""
+                        var states = {"playing": "Wiedergabe", "paused": "Pausiert", "stopped": "Gestoppt", "error": "Fehler"}
+                        return String(Number(root.playerState.index || 0) + 1) + " / " + String(queue.length) + " · " + (states[root.playerState.state] || "")
+                    }
+                    color: "#9aa3b2"
+                    font.pixelSize: 9
+                    elide: Text.ElideRight
+                }
+            }
+
+            Row {
+                id: transport
+                x: 292
+                anchors.verticalCenter: parent.verticalCenter
+                spacing: 7
+
+                Rectangle {
+                    width: 42; height: 42; radius: 21
+                    color: previousTouch.pressed ? "#303745" : "#202632"
+                    opacity: root.backendOnline && (root.playerState.queue || []).length ? 1 : 0.4
+                    Text { anchors.centerIn: parent; text: "❮❮"; color: "#f7f7fa"; font.pixelSize: 14 }
+                    MouseArea {
+                        id: previousTouch
+                        anchors.fill: parent
+                        enabled: root.backendOnline && (root.playerState.queue || []).length > 0
+                        onClicked: root.command({"action": "previous"})
+                    }
+                }
+
+                Rectangle {
+                    width: 48; height: 48; radius: 24
+                    color: toggleTouch.pressed ? "#ffb8d8" : "#f59aca"
+                    opacity: root.backendOnline && (root.playerState.queue || []).length ? 1 : 0.4
+                    Text {
+                        anchors.centerIn: parent
+                        text: root.playerState.state === "playing" ? "Ⅱ" : "▶"
+                        color: "#2c1f2e"
+                        font.pixelSize: 18
+                    }
+                    MouseArea {
+                        id: toggleTouch
+                        anchors.fill: parent
+                        enabled: root.backendOnline && (root.playerState.queue || []).length > 0
+                        onClicked: root.command({"action": "toggle"})
+                    }
+                }
+
+                Rectangle {
+                    width: 42; height: 42; radius: 21
+                    color: nextTouch.pressed ? "#303745" : "#202632"
+                    opacity: root.backendOnline && (root.playerState.queue || []).length ? 1 : 0.4
+                    Text { anchors.centerIn: parent; text: "❯❯"; color: "#f7f7fa"; font.pixelSize: 14 }
+                    MouseArea {
+                        id: nextTouch
+                        anchors.fill: parent
+                        enabled: root.backendOnline && (root.playerState.queue || []).length > 0
+                        onClicked: root.command({"action": "next"})
+                    }
+                }
+            }
+
+            Item {
+                x: 460
+                y: 12
+                width: 330
+                height: 64
+
+                Row {
+                    width: parent.width
+                    height: 27
+                    spacing: 6
+
+                    Text {
+                        width: 28
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: root.formatTime(root.playerState.position)
+                        color: "#9aa3b2"
+                        font.pixelSize: 8
+                    }
+
+                    Rectangle {
+                        id: seekTrack
+                        width: 248
+                        height: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        radius: 2
+                        color: "#303745"
+
+                        Rectangle {
+                            height: parent.height
+                            radius: parent.radius
+                            color: "#f59aca"
+                            width: parent.width * Math.min(1, Number(root.playerState.position || 0) / Math.max(1, Number(root.playerState.duration || 0)))
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -10
+                            enabled: root.backendOnline && Number(root.playerState.duration || 0) > 0
+                            onReleased: function(mouse) {
+                                var localX = Math.max(0, Math.min(seekTrack.width, mouse.x + 10))
+                                root.command({"action": "seek", "value": Math.round(localX / seekTrack.width * Number(root.playerState.duration || 0))})
+                            }
+                        }
+                    }
+
+                    Text {
+                        width: 36
+                        anchors.verticalCenter: parent.verticalCenter
+                        horizontalAlignment: Text.AlignRight
+                        text: root.formatTime(root.playerState.duration)
+                        color: "#9aa3b2"
+                        font.pixelSize: 8
+                    }
+                }
+
+                Row {
+                    y: 34
+                    width: parent.width
+                    height: 28
+                    spacing: 7
+
+                    Text {
+                        width: 18
+                        anchors.verticalCenter: parent.verticalCenter
+                        text: "🔊"
+                        color: "#9aa3b2"
+                        font.pixelSize: 11
+                    }
+
+                    Rectangle {
+                        id: volumeTrack
+                        width: 270
+                        height: 4
+                        anchors.verticalCenter: parent.verticalCenter
+                        radius: 2
+                        color: "#303745"
+
+                        Rectangle {
+                            height: parent.height
+                            radius: parent.radius
+                            color: "#f59aca"
+                            width: parent.width * Math.min(1, Number(root.playerState.volume || 0) / Math.max(1, Number(root.playerState.max_volume || 60)))
+                        }
+
+                        MouseArea {
+                            anchors.fill: parent
+                            anchors.margins: -10
+                            enabled: root.backendOnline
+                            onReleased: function(mouse) {
+                                var localX = Math.max(0, Math.min(volumeTrack.width, mouse.x + 10))
+                                root.command({"action": "volume", "value": Math.round(localX / volumeTrack.width * Number(root.playerState.max_volume || 60))})
+                            }
+                        }
+                    }
+
+                    Text {
+                        width: 28
+                        anchors.verticalCenter: parent.verticalCenter
+                        horizontalAlignment: Text.AlignRight
+                        text: String(root.playerState.volume || 0)
+                        color: "#9aa3b2"
+                        font.pixelSize: 9
+                    }
+                }
+            }
+        }
+
+        Rectangle {
+            visible: root.transientMessage !== ""
+            anchors.left: parent.left
+            anchors.leftMargin: 12
+            anchors.right: parent.right
+            anchors.rightMargin: 12
+            anchors.bottom: playerBar.top
+            anchors.bottomMargin: 10
+            height: 42
+            radius: 10
+            color: "#682f45"
+            border.color: "#ffacc9"
+            z: 80
+            Text {
+                anchors.fill: parent
+                anchors.margins: 10
+                text: root.transientMessage
+                color: "#f7f7fa"
+                font.pixelSize: 12
+                verticalAlignment: Text.AlignVCenter
+                elide: Text.ElideRight
+            }
+        }
+
+        Rectangle {
+            visible: root.adminHintVisible
+            anchors.fill: parent
+            color: "#cc0b0d11"
+            z: 90
+
+            Rectangle {
+                anchors.centerIn: parent
+                width: 500
+                height: 190
+                radius: 18
+                color: "#161a22"
+                border.color: "#2a313d"
+
+                Column {
+                    anchors.fill: parent
+                    anchors.margins: 22
+                    spacing: 14
+                    Text { text: "Administration"; color: "#f7f7fa"; font.pixelSize: 24; font.bold: true }
+                    Text {
+                        width: parent.width
+                        text: "Öffne auf Handy oder Computer:\nhttp://<Box-IP>:8090/admin/"
+                        color: "#d8dce4"
+                        font.pixelSize: 17
+                        wrapMode: Text.WordWrap
+                    }
+                    Rectangle {
+                        width: 130; height: 42; radius: 12
+                        color: closeAdmin.pressed ? "#ffb8d8" : "#f59aca"
+                        Text { anchors.centerIn: parent; text: "Schließen"; color: "#2c1f2e"; font.pixelSize: 14; font.bold: true }
+                        MouseArea { id: closeAdmin; anchors.fill: parent; onClicked: root.adminHintVisible = false }
+                    }
+                }
             }
         }
 
@@ -258,7 +773,12 @@ Window {
             }
 
             Behavior on opacity { NumberAnimation { duration: 450 } }
-            Timer { interval: 2300; running: true; repeat: false; onTriggered: splash.opacity = 0 }
+            Timer {
+                interval: 2300
+                running: true
+                repeat: false
+                onTriggered: splash.opacity = 0
+            }
         }
     }
 }

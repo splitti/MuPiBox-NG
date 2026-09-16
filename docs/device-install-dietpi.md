@@ -173,3 +173,19 @@ grep '"listen"' /etc/mupibox-ng/config.json
 ```
 
 Die native Player-Oberfläche und die Browser-/Adminoberfläche verwenden dasselbe Backend und dieselben persistenten Daten.
+
+
+## Ruhiger Appliance-Boot
+
+Der Installer richtet standardmäßig einen ruhigen Geräte-Boot ein:
+
+- Kernel- und systemd-Statusmeldungen werden auf dem Display unterdrückt.
+- `getty@tty1` wird maskiert, damit keine Login-/DietPi-Ausgabe vor der Oberfläche erscheint.
+- Die originale Raspberry-Pi-`cmdline.txt` wird einmal als `.mupibox-backup` gesichert.
+- SSH bleibt für Wartung und Wiederherstellung verfügbar.
+- Der native Qt-Quick-Startscreen erscheint, während das Backend parallel startet.
+
+Für ein Diagnosegerät mit sichtbarer Bootkonsole kann der Installer mit
+`--keep-boot-console` aufgerufen werden. Eine vorhandene Installation kann
+mit `sudo bash scripts/configure-quiet-boot.sh` nachträglich umgestellt werden;
+die Änderung wird nach einem Neustart wirksam.

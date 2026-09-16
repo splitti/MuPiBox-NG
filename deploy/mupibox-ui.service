@@ -1,7 +1,8 @@
 [Unit]
 Description=MuPiBox-NG native Qt Quick touchscreen UI
-After=mupibox-ng.service systemd-user-sessions.service
+After=local-fs.target systemd-user-sessions.service
 Wants=mupibox-ng.service
+Before=getty@tty1.service
 Conflicts=getty@tty1.service
 
 [Service]
