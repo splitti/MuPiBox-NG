@@ -1,0 +1,10 @@
+/bin/
+/music/
+/var/
+/config.local.json
+*.log
+*.test
+.env
+.env.*
+credentials*.json
+/dev-access-check.txt

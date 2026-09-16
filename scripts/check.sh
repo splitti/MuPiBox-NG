@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+cd "$(dirname "$0")/.."
+go vet ./...
+go test -race ./...
+CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -o bin/mupibox-linux-arm64 ./cmd/mupibox
