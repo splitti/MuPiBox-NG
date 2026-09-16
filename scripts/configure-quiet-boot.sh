@@ -27,6 +27,15 @@ if [[ ! -e "$BACKUP" ]]; then
 fi
 
 read -r line < "$CMDLINE"
+
+# Keep serial diagnostics, but move the visible kernel console away from the
+# appliance display. tty1 remains reserved for the framebuffer splash and Qt.
+if [[ " $line " == *" console=tty1 "* ]]; then
+    line="${line//console=tty1/console=tty3}"
+elif [[ " $line " != *" console=tty3 "* ]]; then
+    line="$line console=tty3"
+fi
+
 for option in quiet splash loglevel=0 systemd.show_status=false vt.global_cursor_default=0 logo.nologo; do
     case " $line " in
         *" $option "*) ;;
@@ -44,6 +53,7 @@ MuPiBox quiet boot configured.
 
 Kernel command line: $CMDLINE
 Backup:              $BACKUP
+visible console:      tty3
 tty1 getty:           masked
 
 A reboot is required. SSH remains available for recovery.

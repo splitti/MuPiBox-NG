@@ -49,7 +49,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y \
     ca-certificates curl git build-essential pkg-config \
-    mpv alsa-utils \
+    mpv alsa-utils fbi \
     qmlscene-qt6 qml6-module-qtquick qml6-module-qtquick-window qml6-module-qtqml \
     qt6-qpa-plugins libqt6opengl6 libgl1-mesa-dri libegl1 libgbm1 \
     fonts-dejavu-core
@@ -151,6 +151,7 @@ if [[ "$ACTUAL_SPLASH_SHA256" != "$EXPECTED_SPLASH_SHA256" ]]; then
 fi
 
 install -m 0644 deploy/mupibox-ng.service /etc/systemd/system/mupibox-ng.service
+install -m 0644 deploy/mupibox-splash.service /etc/systemd/system/mupibox-splash.service
 install -m 0644 deploy/mupibox-ui.service /etc/systemd/system/mupibox-ui.service
 
 if [[ "$QUIET_BOOT" -eq 1 ]]; then
@@ -162,9 +163,10 @@ if [[ "$CONFIGURE_WAVESHARE" -eq 1 ]]; then
 fi
 
 systemctl daemon-reload
-systemctl enable mupibox-ng.service mupibox-ui.service
+systemctl enable mupibox-ng.service mupibox-splash.service mupibox-ui.service
 
 if [[ "$START_SERVICES" -eq 1 ]]; then
+    systemctl restart mupibox-splash.service || true
     systemctl restart mupibox-ng.service
     systemctl restart mupibox-ui.service || true
 fi
@@ -178,7 +180,7 @@ Installed components:
   config:  /etc/mupibox-ng/config.json
   music:   /srv/mupibox/music
   native UI: Qt Quick via EGLFS/KMS (no Chromium/browser)
-  boot display: quiet appliance boot unless --keep-boot-console was used
+  boot display: early framebuffer splash and quiet appliance boot unless --keep-boot-console was used
 
 Display policy:
   - No display-specific mode is forced by default.

@@ -1,0 +1,19 @@
+[Unit]
+Description=MuPiBox-NG early framebuffer splash
+DefaultDependencies=no
+After=local-fs.target systemd-udev-trigger.service
+Before=mupibox-ui.service multi-user.target
+ConditionPathExists=/usr/local/share/mupibox-ng/ui/assets/mupibox-startscreen.jpg
+
+[Service]
+Type=oneshot
+ExecStartPre=/bin/sh -c 'i=0; while [ ! -e /dev/fb0 ] && [ "$$i" -lt 50 ]; do i=$$((i+1)); sleep 0.1; done; [ -e /dev/fb0 ]'
+ExecStart=/usr/bin/fbi -T 1 -d /dev/fb0 --noverbose --nointeractive -a -t 1 -1 /usr/local/share/mupibox-ng/ui/assets/mupibox-startscreen.jpg
+StandardInput=tty
+TTYPath=/dev/tty1
+TTYReset=no
+TTYVHangup=no
+RemainAfterExit=yes
+
+[Install]
+WantedBy=sysinit.target

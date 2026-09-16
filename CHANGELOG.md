@@ -4,6 +4,7 @@
 
 ## 0.1.0-dev – 16.09.2026
 
+- Früher Framebuffer-Startscreen über `mupibox-splash.service`; sichtbare Bootkonsole auf `tty3` verschoben.
 - Native Qt-Quick-Oberfläche an das Web-Frontend angeglichen (Navigation, Medienkarten und Playerleiste).
 - Reversible Quiet-Boot-Konfiguration blendet Kernel-/DietPi-Konsole aus und zeigt den Startscreen früher.
 - Neustart auf `rebuild/go-foundation`, Prototyp vollständig unter `legacy/prototype` erhalten.

@@ -4,6 +4,7 @@
 
 ## 0.1.0-dev – 2026-09-16
 
+- Added an early framebuffer splash service and moved visible boot console output to `tty3`.
 - Native Qt Quick UI aligned with the web frontend (navigation, media cards and player bar).
 - Reversible quiet-boot setup hides kernel/DietPi console output and shows the splash earlier.
 - Restarted development on `rebuild/go-foundation` while preserving the complete prototype under `legacy/prototype`.
