@@ -166,7 +166,8 @@ systemctl daemon-reload
 systemctl enable mupibox-ng.service mupibox-splash.service mupibox-ui.service
 
 if [[ "$START_SERVICES" -eq 1 ]]; then
-    systemctl restart mupibox-splash.service || true
+    # The framebuffer splash starts on the next boot. Restarting it while Qt owns
+    # the display can block a live update; the QML UI shows its own startup image.
     systemctl restart mupibox-ng.service
     systemctl restart mupibox-ui.service || true
 fi
