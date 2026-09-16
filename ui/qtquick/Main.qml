@@ -21,6 +21,7 @@ Window {
     property string uiSize: "normal"
     property bool largeUI: uiSize === "large"
     property var wifiStatus: ({"connected": false, "quality_percent": 0, "signal_dbm": 0, "interface": ""})
+    property var batteryStatus: ({"available": false, "percent": 0, "charging": false})
     property var playerState: ({
         "queue": [],
         "index": 0,
@@ -39,6 +40,21 @@ Window {
     function localized(labels, fallback) {
         if (!labels) return fallback || ""
         return labels.de || labels.en || fallback || ""
+    }
+
+    function signalLevel(percent) {
+        var value = Math.max(0, Math.min(100, Number(percent || 0)))
+        return value >= 75 ? 4 : (value >= 50 ? 3 : (value >= 25 ? 2 : (value > 0 ? 1 : 0)))
+    }
+
+    function signalColor(percent) {
+        var level = signalLevel(percent)
+        return level >= 3 ? "#43c86a" : (level === 2 ? "#f2cf4a" : "#ef4b5f")
+    }
+
+    function batteryColor(percent) {
+        var value = Math.max(0, Math.min(100, Number(percent || 0)))
+        return value <= 15 ? "#ef4b5f" : (value <= 25 ? "#f2cf4a" : (value <= 50 ? "#b7c94b" : (value <= 75 ? "#8bd66a" : "#43c86a")))
     }
 
     function coverUrl(path) {
@@ -122,8 +138,10 @@ Window {
     function refreshSystem() {
         requestJson("GET", "/api/system", null, function(data) {
             wifiStatus = data && data.wifi ? data.wifi : {"connected": false, "quality_percent": 0}
+            batteryStatus = data && data.battery ? data.battery : {"available": false, "percent": 0, "charging": false}
         }, function() {
             wifiStatus = {"connected": false, "quality_percent": 0}
+            batteryStatus = {"available": false, "percent": 0, "charging": false}
         })
     }
 
@@ -247,12 +265,72 @@ Window {
                     color: root.backendOnline ? "#9aa3b2" : "#f59aca"
                     font.pixelSize: 10
                 }
-                Text {
-                    text: root.wifiStatus.connected ? "WLAN " + String(root.wifiStatus.quality_percent) + "%" : "WLAN —"
-                    color: root.wifiStatus.connected ? "#9aa3b2" : "#707887"
-                    font.pixelSize: 10
+                Item {
+                    width: 26
+                    height: 18
+                    opacity: root.wifiStatus.connected ? 1 : 0.45
+
+                    Row {
+                        anchors.fill: parent
+                        spacing: 2
+                        Repeater {
+                            model: 4
+                            delegate: Rectangle {
+                                width: 4
+                                height: 5 + index * 3
+                                anchors.bottom: parent.bottom
+                                radius: 1
+                                color: index < root.signalLevel(root.wifiStatus.quality_percent) ? root.signalColor(root.wifiStatus.quality_percent) : "#343b47"
+                            }
+                        }
+                    }
                 }
-                Text { text: "Akku —"; color: "#9aa3b2"; font.pixelSize: 10 }
+
+                Item {
+                    width: 34
+                    height: 18
+                    opacity: root.batteryStatus.available ? 1 : 0.45
+
+                    Rectangle {
+                        id: batteryBody
+                        x: 0
+                        y: 1
+                        width: 28
+                        height: 16
+                        radius: 3
+                        color: "transparent"
+                        border.width: 2
+                        border.color: "#7d8795"
+
+                        Rectangle {
+                            x: 2
+                            anchors.verticalCenter: parent.verticalCenter
+                            width: root.batteryStatus.available ? (parent.width - 4) * Math.max(0, Math.min(100, Number(root.batteryStatus.percent || 0))) / 100 : 0
+                            height: parent.height - 4
+                            radius: 1
+                            color: root.batteryColor(root.batteryStatus.percent)
+                        }
+
+                        Text {
+                            visible: root.batteryStatus.available && root.batteryStatus.charging
+                            anchors.centerIn: parent
+                            text: "⚡"
+                            color: "#ffffff"
+                            font.pixelSize: 12
+                            style: Text.Outline
+                            styleColor: "#222222"
+                        }
+                    }
+
+                    Rectangle {
+                        x: 29
+                        y: 6
+                        width: 3
+                        height: 6
+                        radius: 1
+                        color: "#7d8795"
+                    }
+                }
 
                 Rectangle {
                     width: 48

@@ -47,7 +47,23 @@ function categoryHeading(category){
 }
 function renderHome(home){const root=$('content');root.replaceChildren();const categories=home?.categories||[];if(!categories.length){const p=document.createElement('p');p.className='empty-state';p.textContent='Noch keine Kategorien eingerichtet.';root.append(p);return}for(const category of categories){const section=document.createElement('section');section.className='category';section.dataset.categoryId=category.id;section.append(categoryHeading(category));const rows=category.rows||[];if(!rows.length){const p=document.createElement('p');p.className='category-empty';p.textContent='';section.append(p)}for(const row of rows){const rowSection=document.createElement('section');rowSection.className='media-section';rowSection.dataset.rowId=row.id;const title=document.createElement('div');title.className='section-title';const h2=document.createElement('h2');h2.textContent=textFor(row.labels,row.id);const count=document.createElement('span');count.textContent=`${(row.items||[]).length} Inhalte`;title.append(h2,count);const media=document.createElement('div');media.className='media-row';media.setAttribute('aria-label',h2.textContent);const items=row.items||[];if(!items.length){const p=document.createElement('p');p.className='empty';p.textContent='Noch keine Inhalte.';media.append(p)}else items.forEach(item=>media.append(mediaItem(item)));rowSection.append(title,media);section.append(rowSection)}root.append(section)}}
 function applyInfo(info){boxInfo=info;document.documentElement.dataset.uiSize=info?.display?.ui_size||'normal'}
-async function updateSystem(){try{const system=await request('/api/system');const wifi=system.wifi||{};const el=$('wifi');if(wifi.connected){el.textContent=`WLAN ${wifi.quality_percent}%`;el.title=`${wifi.interface||'WLAN'}: ${wifi.signal_dbm} dBm`}else{el.textContent='WLAN —';el.title='Keine WLAN-Verbindung'}}catch(e){$('wifi').textContent='WLAN —'}}
+function signalLevel(percent){return percent>=75?4:percent>=50?3:percent>=25?2:percent>0?1:0}
+function batteryColor(percent){return percent<=15?'#ef4b5f':percent<=25?'#f2cf4a':percent<=50?'#b7c94b':percent<=75?'#8bd66a':'#43c86a'}
+async function updateSystem(){
+ try{
+  const system=await request('/api/system');
+  const wifi=system.wifi||{};const wifiEl=$('wifi');const quality=Math.max(0,Math.min(100,Number(wifi.quality_percent)||0));
+  wifiEl.dataset.level=wifi.connected?String(signalLevel(quality)):'0';
+  wifiEl.dataset.tone=quality>=50?'good':quality>=25?'medium':'weak';
+  wifiEl.title=wifi.connected?`${wifi.interface||'WLAN'}: ${quality}% / ${wifi.signal_dbm} dBm`:'Keine WLAN-Verbindung';
+  wifiEl.setAttribute('aria-label',wifi.connected?`WLAN-Empfang ${quality} Prozent`:'Keine WLAN-Verbindung');
+  const battery=system.battery||{};const batteryEl=$('battery');const percent=Math.max(0,Math.min(100,Number(battery.percent)||0));
+  batteryEl.dataset.available=battery.available?'true':'false';batteryEl.dataset.charging=battery.charging?'true':'false';
+  batteryEl.style.setProperty('--battery-level',`${percent}%`);batteryEl.style.setProperty('--battery-color',batteryColor(percent));
+  batteryEl.title=battery.available?`Akku: ${percent}%${battery.charging?' · lädt':''}`:'Kein Akku erkannt';
+  batteryEl.setAttribute('aria-label',batteryEl.title);
+ }catch(e){$('wifi').dataset.level='0';$('battery').dataset.available='false'}
+}
 async function poll(){try{if(!homeLoaded){const [home,info]=await Promise.all([request('/api/home'),request('/api/info')]);applyInfo(info);renderHome(home);homeLoaded=true}const s=await request('/api/status');connected=true;$('connection').textContent=s.backend==='simulated'?'Simulation':'Verbunden';if(!pending)render(s)}catch(e){connected=false;$('connection').textContent='Offline';controls()}finally{setTimeout(poll,750)}}
 document.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>command({action:b.dataset.action})));
 $('volume').addEventListener('change',()=>command({action:'volume',value:Number($('volume').value)}));$('volume').addEventListener('input',()=>{$('volume-label').textContent=$('volume').value});$('seek').addEventListener('change',()=>command({action:'seek',value:Number($('seek').value)}));

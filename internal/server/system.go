@@ -5,6 +5,7 @@ import (
  "io"
  "math"
  "os"
+ "path/filepath"
  "strconv"
  "strings"
 )
@@ -16,8 +17,15 @@ type WiFiStatus struct {
  QualityPercent int `json:"quality_percent,omitempty"`
 }
 
+type BatteryStatus struct {
+ Available bool `json:"available"`
+ Percent int `json:"percent,omitempty"`
+ Charging bool `json:"charging,omitempty"`
+}
+
 type SystemStatus struct {
  WiFi WiFiStatus `json:"wifi"`
+ Battery BatteryStatus `json:"battery"`
 }
 
 func (a *API) currentSystemStatus() SystemStatus {
@@ -26,10 +34,12 @@ func (a *API) currentSystemStatus() SystemStatus {
 }
 
 func readSystemStatus() SystemStatus {
+ status:=SystemStatus{Battery:readBatteryStatus("/sys/class/power_supply")}
  file,err:=os.Open("/proc/net/wireless")
- if err!=nil{return SystemStatus{}}
+ if err!=nil{return status}
  defer file.Close()
- return SystemStatus{WiFi:parseWiFiStatus(file)}
+ status.WiFi=parseWiFiStatus(file)
+ return status
 }
 
 func parseWiFiStatus(reader io.Reader) WiFiStatus {
@@ -49,4 +59,26 @@ func parseWiFiStatus(reader io.Reader) WiFiStatus {
   return WiFiStatus{Connected:true,Interface:name,SignalDBM:int(math.Round(level)),QualityPercent:quality}
  }
  return WiFiStatus{}
+}
+
+func readBatteryStatus(root string) BatteryStatus {
+ entries,err:=os.ReadDir(root)
+ if err!=nil{return BatteryStatus{}}
+ for _,entry:=range entries{
+  if !entry.IsDir(){continue}
+  dir:=filepath.Join(root,entry.Name())
+  kind,err:=os.ReadFile(filepath.Join(dir,"type"))
+  if err!=nil||strings.TrimSpace(string(kind))!="Battery"{continue}
+  rawCapacity,err:=os.ReadFile(filepath.Join(dir,"capacity"))
+  if err!=nil{continue}
+  percent,err:=strconv.Atoi(strings.TrimSpace(string(rawCapacity)))
+  if err!=nil{continue}
+  if percent<0{percent=0}else if percent>100{percent=100}
+  charging:=false
+  if rawStatus,readErr:=os.ReadFile(filepath.Join(dir,"status"));readErr==nil{
+   charging=strings.EqualFold(strings.TrimSpace(string(rawStatus)),"Charging")
+  }
+  return BatteryStatus{Available:true,Percent:percent,Charging:charging}
+ }
+ return BatteryStatus{}
 }
