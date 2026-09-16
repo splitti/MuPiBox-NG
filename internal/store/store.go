@@ -197,6 +197,10 @@ func ValidateNavigation(v Navigation)error{
    if strings.TrimSpace(r.Provider)==""{return fmt.Errorf("media %s: provider is required",r.ID)}
    if r.SourceType!=""&&!validID.MatchString(r.SourceType){return fmt.Errorf("media %s: invalid source_type",r.ID)}
    if len(r.SourceRef)>2048{return fmt.Errorf("media %s: source_ref is too long",r.ID)}
+   if r.Provider=="local-library"&&r.SourceType=="path"{
+    ref:=filepath.Clean(filepath.FromSlash(strings.TrimSpace(r.SourceRef)))
+    if strings.TrimSpace(r.SourceRef)==""||filepath.IsAbs(ref)||ref==".."||strings.HasPrefix(ref,".."+string(filepath.Separator)){return fmt.Errorf("media %s: local path must be below the media root",r.ID)}
+   }
   }
  }
  return nil

@@ -18,3 +18,9 @@ func TestScanAndContainment(t *testing.T){
  again,err:=Scan(root);if err!=nil{t.Fatal(err)};if again.Folders[0].ID!=f.ID{t.Fatal("folder identity changed")}
 }
 func TestEmptyAndMissing(t *testing.T){l,e:=Scan(t.TempDir());if e!=nil||l.Folders==nil||len(l.Folders)!=0{t.Fatalf("%+v %v",l,e)};if _,e=Scan(filepath.Join(t.TempDir(),"missing"));e==nil{t.Fatal("expected missing directory error")}}
+
+func TestDirectories(t *testing.T){
+ root:=t.TempDir();os.MkdirAll(filepath.Join(root,"Stories","Series"),0700);os.Mkdir(filepath.Join(root,".hidden"),0700)
+ directories,err:=Directories(root);if err!=nil{t.Fatal(err)}
+ if len(directories)!=2||directories[0].Path!="Stories"||directories[1].Path!="Stories/Series"{t.Fatalf("unexpected directories: %#v",directories)}
+}

@@ -67,8 +67,16 @@
   "sqlite_connected": "SQLite connected",
   "error": "Error",
   "settings_saved": "Settings saved.",
-  "content_saved": "Content saved.",
+  "content_saved": "Content saved and player updated.",
   "ui_size": "Display size",
   "ui_size_normal": "Normal (7 inch)",
-  "ui_size_large": "Large (5 inch)"
+  "ui_size_large": "Large (5 inch)",
+  "maintenance": "Maintenance",
+  "ui_restart_hint": "Display changes are applied live. If the interface stops responding, restart only the touchscreen interface.",
+  "restart_ui": "Restart touchscreen interface",
+  "rescan_library": "Rescan media folders",
+  "choose_directory": "Choose folder",
+  "no_local_directories": "No subfolders were found in the media directory.",
+  "library_rescanned": "Media folders rescanned.",
+  "ui_restarting": "Touchscreen interface is restarting."
 }

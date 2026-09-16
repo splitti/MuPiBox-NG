@@ -45,6 +45,7 @@ func New(lib *library.Library,b audio.Backend,maxVolume int)(*Controller,error){
  return &Controller{backend:b,lib:lib,st:Status{State:"stopped",Backend:b.Name(),Queue:[]library.Track{},Index:-1,Volume:min(30,maxVolume),MaxVolume:maxVolume}},nil
 }
 func(c *Controller)SetProgressRepository(repo ProgressRepository){c.mu.Lock();defer c.mu.Unlock();c.progress=repo}
+func(c *Controller)SetLibrary(lib *library.Library){if lib==nil{return};c.mu.Lock();defer c.mu.Unlock();c.lib=lib}
 func(c *Controller) Status()Status{c.mu.Lock();defer c.mu.Unlock();s:=c.st;s.Queue=append([]library.Track{},s.Queue...);return s}
 func(c *Controller) Close()error{c.mu.Lock();defer c.mu.Unlock();_ = c.saveProgressLocked(false);return c.backend.Close()}
 func(c *Controller) Run(ctx context.Context){t:=time.NewTicker(500*time.Millisecond);defer t.Stop();for{select{case<-ctx.Done():return;case<-t.C:c.Tick()}}}

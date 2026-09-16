@@ -2,15 +2,25 @@
 
 #clock{position:relative;display:inline-grid;place-items:center;min-width:42px;height:28px;padding:0 4px;border-radius:7px;cursor:pointer;touch-action:none;user-select:none;-webkit-user-select:none;font-variant-numeric:tabular-nums}#clock::after{content:'';position:absolute;left:4px;right:4px;bottom:1px;height:2px;border-radius:2px;background:var(--accent);transform:scaleX(0);transform-origin:left}#clock.admin-hold::after{animation:admin-hold-progress 5s linear forwards}#clock.admin-hold{color:var(--text);background:#202632}@keyframes admin-hold-progress{to{transform:scaleX(1)}}
 
-html[data-ui-size="large"] .category-title{font-size:25px;padding-top:6px;padding-bottom:10px}
-html[data-ui-size="large"] .section-title h2{font-size:15px}
+html[data-ui-size="large"] body{grid-template-rows:42px minmax(0,1fr) 104px}
+html[data-ui-size="large"] .statusbar{height:42px}
+html[data-ui-size="large"] .brand{font-size:16px}
+html[data-ui-size="large"] .logo{width:28px;height:28px;font-size:18px}
+html[data-ui-size="large"] .category-title{font-size:28px;padding-top:8px;padding-bottom:12px}
+html[data-ui-size="large"] .section-title h2{font-size:17px}
 html[data-ui-size="large"] .section-title span{font-size:11px}
 html[data-ui-size="large"] .media-row{gap:14px;padding-bottom:10px}
-html[data-ui-size="large"] .media-item{flex-basis:154px;min-width:154px;border-radius:14px}
-html[data-ui-size="large"] .cover{height:108px;font-size:46px}
-html[data-ui-size="large"] .media-item strong{font-size:14px;margin-top:9px}
+html[data-ui-size="large"] .media-item{flex-basis:176px;min-width:176px;border-radius:15px}
+html[data-ui-size="large"] .cover{height:124px;font-size:50px}
+html[data-ui-size="large"] .media-item strong{font-size:16px;margin-top:10px}
 html[data-ui-size="large"] .media-item small{font-size:11px;margin-bottom:10px}
 html[data-ui-size="large"] .empty{font-size:14px}
+html[data-ui-size="large"] .playerbar{padding-top:10px;padding-bottom:10px}
+html[data-ui-size="large"] .mini-art{width:66px;height:66px}
+html[data-ui-size="large"] .now-meta strong{font-size:16px}
+html[data-ui-size="large"] .now-meta span{font-size:11px}
+html[data-ui-size="large"] .transport button{width:50px;height:50px;font-size:17px}
+html[data-ui-size="large"] .transport .primary{width:58px;height:58px;font-size:21px}
 
 .signal-indicator{width:26px;height:18px;display:inline-flex;align-items:flex-end;gap:2px;padding:1px;flex:0 0 auto}
 .signal-indicator i{display:block;width:4px;border-radius:2px 2px 1px 1px;background:#343b47}

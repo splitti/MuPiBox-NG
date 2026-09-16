@@ -18,8 +18,10 @@ Window {
     property string backendState: "Verbinde …"
     property string clockText: "--:--"
     property var categories: []
+    property string homeSignature: ""
     property string uiSize: "normal"
     property bool largeUI: uiSize === "large"
+    property int uiRestartGeneration: -1
     property var wifiStatus: ({"connected": false, "quality_percent": 0, "signal_dbm": 0, "interface": ""})
     property var batteryStatus: ({"available": false, "percent": 0, "charging": false})
     property var playerState: ({
@@ -122,7 +124,12 @@ Window {
 
     function refreshHome() {
         requestJson("GET", "/api/home", null, function(data) {
-            categories = data && data.categories ? data.categories : []
+            var nextCategories = data && data.categories ? data.categories : []
+            var signature = JSON.stringify(nextCategories)
+            if (signature !== homeSignature) {
+                homeSignature = signature
+                categories = nextCategories
+            }
         }, function() {
             backendOnline = false
             backendState = "Offline"
@@ -132,6 +139,14 @@ Window {
     function refreshInfo() {
         requestJson("GET", "/api/info", null, function(data) {
             uiSize = data && data.display && data.display.ui_size ? data.display.ui_size : "normal"
+        }, function() {})
+    }
+
+    function refreshUIState() {
+        requestJson("GET", "/api/ui-state", null, function(data) {
+            var generation = Number(data && data.restart_generation || 0)
+            if (uiRestartGeneration < 0) uiRestartGeneration = generation
+            else if (generation !== uiRestartGeneration) Qt.quit()
         }, function() {})
     }
 
@@ -183,6 +198,7 @@ Window {
             refreshHome()
             refreshInfo()
             refreshSystem()
+            refreshUIState()
             refreshStatus()
         }, function() {
             backendOnline = false
@@ -192,13 +208,14 @@ Window {
 
     Timer { interval: 750; running: true; repeat: true; onTriggered: root.refreshStatus() }
     Timer {
-        interval: 5000
+        interval: 2000
         running: true
         repeat: true
         onTriggered: {
             root.refreshHome()
             root.refreshInfo()
             root.refreshSystem()
+            root.refreshUIState()
         }
     }
     Timer { interval: 30000; running: true; repeat: true; onTriggered: root.updateClock() }
@@ -221,7 +238,7 @@ Window {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: parent.top
-            height: 34
+            height: root.largeUI ? 42 : 34
             color: "#0a0c10"
             border.color: "#20242c"
 
@@ -232,15 +249,15 @@ Window {
                 spacing: 7
 
                 Rectangle {
-                    width: 22
-                    height: 22
-                    radius: 7
+                    width: root.largeUI ? 28 : 22
+                    height: root.largeUI ? 28 : 22
+                    radius: root.largeUI ? 9 : 7
                     color: "#f59aca"
                     Text {
                         anchors.centerIn: parent
                         text: "m"
                         color: "#312331"
-                        font.pixelSize: 15
+                        font.pixelSize: root.largeUI ? 19 : 15
                         font.bold: true
                     }
                 }
@@ -249,7 +266,7 @@ Window {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "MuPiBox"
                     color: "#f7f7fa"
-                    font.pixelSize: 13
+                    font.pixelSize: root.largeUI ? 16 : 13
                     font.bold: true
                 }
             }
@@ -436,7 +453,7 @@ Window {
                                 width: parent.width - 28
                                 text: root.localized(categoryData.labels, categoryData.id)
                                 color: "#f7f7fa"
-                                font.pixelSize: root.largeUI ? 25 : 20
+                                font.pixelSize: root.largeUI ? 28 : 20
                                 font.bold: true
                                 elide: Text.ElideRight
                             }
@@ -446,7 +463,7 @@ Window {
 
                                 delegate: Item {
                                     width: categoryContent.width
-                                    height: root.largeUI ? 156 : 132
+                                    height: root.largeUI ? 178 : 132
                                     property var rowData: modelData
 
                                     Text {
@@ -455,7 +472,7 @@ Window {
                                         width: parent.width - 120
                                         text: root.localized(rowData.labels, rowData.id)
                                         color: "#d8dce4"
-                                        font.pixelSize: root.largeUI ? 15 : 12
+                                        font.pixelSize: root.largeUI ? 17 : 12
                                         font.bold: true
                                         elide: Text.ElideRight
                                     }
@@ -466,15 +483,15 @@ Window {
                                         y: 2
                                         text: String((rowData.items || []).length) + " Inhalte"
                                         color: "#9aa3b2"
-                                        font.pixelSize: root.largeUI ? 11 : 9
+                                        font.pixelSize: root.largeUI ? 12 : 9
                                     }
 
                                     Flickable {
                                         id: mediaFlick
                                         x: 0
-                                        y: root.largeUI ? 26 : 22
+                                        y: root.largeUI ? 30 : 22
                                         width: parent.width
-                                        height: root.largeUI ? 130 : 110
+                                        height: root.largeUI ? 148 : 110
                                         contentWidth: Math.max(width, mediaRow.width + 28)
                                         contentHeight: height
                                         clip: true
@@ -499,8 +516,8 @@ Window {
                                                 model: rowData.items || []
 
                                                 delegate: Rectangle {
-                                                    width: root.largeUI ? 154 : 132
-                                                    height: root.largeUI ? 126 : 106
+                                                    width: root.largeUI ? 176 : 132
+                                                    height: root.largeUI ? 144 : 106
                                                     radius: root.largeUI ? 14 : 12
                                                     color: mediaTouch.pressed ? "#202632" : "#141820"
                                                     border.width: root.playerState.folder_id === String(mediaData.command && mediaData.command.folder_id || "") ? 2 : 1
@@ -513,7 +530,7 @@ Window {
                                                         anchors.left: parent.left
                                                         anchors.right: parent.right
                                                         anchors.top: parent.top
-                                                        height: root.largeUI ? 92 : 76
+                                                        height: root.largeUI ? 104 : 76
                                                         color: index % 3 === 0 ? "#50405e" : (index % 3 === 1 ? "#285a57" : "#755141")
 
                                                         Image {
@@ -537,22 +554,22 @@ Window {
 
                                                     Text {
                                                         x: 9
-                                                        y: root.largeUI ? 97 : 80
+                                                        y: root.largeUI ? 110 : 80
                                                         width: parent.width - 18
                                                         text: mediaData.title || "Ohne Titel"
                                                         color: "#f7f7fa"
-                                                        font.pixelSize: root.largeUI ? 14 : 11
+                                                        font.pixelSize: root.largeUI ? 16 : 11
                                                         font.bold: true
                                                         elide: Text.ElideRight
                                                     }
 
                                                     Text {
                                                         x: 9
-                                                        y: root.largeUI ? 115 : 94
+                                                        y: root.largeUI ? 130 : 94
                                                         width: parent.width - 18
                                                         text: mediaData.subtitle || mediaData.kind || ""
                                                         color: "#9aa3b2"
-                                                        font.pixelSize: root.largeUI ? 10 : 8
+                                                        font.pixelSize: root.largeUI ? 11 : 8
                                                         elide: Text.ElideRight
                                                     }
 
@@ -579,7 +596,7 @@ Window {
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.bottom: parent.bottom
-            height: 88
+            height: root.largeUI ? 104 : 88
             color: "#11151c"
             border.color: "#2a313d"
 
@@ -587,9 +604,9 @@ Window {
                 id: miniArt
                 x: 10
                 anchors.verticalCenter: parent.verticalCenter
-                width: 54
-                height: 54
-                radius: 10
+                width: root.largeUI ? 66 : 54
+                height: root.largeUI ? 66 : 54
+                radius: root.largeUI ? 13 : 10
                 color: "#594568"
                 clip: true
 
@@ -612,7 +629,7 @@ Window {
             }
 
             Column {
-                x: 76
+                x: root.largeUI ? 86 : 76
                 anchors.verticalCenter: parent.verticalCenter
                 width: 205
                 spacing: 3
@@ -624,7 +641,7 @@ Window {
                         return track ? track.title : "Such dir etwas aus"
                     }
                     color: "#f7f7fa"
-                    font.pixelSize: 13
+                    font.pixelSize: root.largeUI ? 16 : 13
                     font.bold: true
                     elide: Text.ElideRight
                 }
@@ -656,7 +673,7 @@ Window {
                 spacing: 7
 
                 Rectangle {
-                    width: 42; height: 42; radius: 21
+                    width: root.largeUI ? 50 : 42; height: root.largeUI ? 50 : 42; radius: width / 2
                     color: previousTouch.pressed ? "#303745" : "#202632"
                     opacity: root.backendOnline && (root.playerState.queue || []).length ? 1 : 0.4
                     Text { anchors.centerIn: parent; text: "❮❮"; color: "#f7f7fa"; font.pixelSize: 14 }
@@ -669,7 +686,7 @@ Window {
                 }
 
                 Rectangle {
-                    width: 48; height: 48; radius: 24
+                    width: root.largeUI ? 58 : 48; height: root.largeUI ? 58 : 48; radius: width / 2
                     color: toggleTouch.pressed ? "#ffb8d8" : "#f59aca"
                     opacity: root.backendOnline && (root.playerState.queue || []).length ? 1 : 0.4
                     Text {
@@ -687,7 +704,7 @@ Window {
                 }
 
                 Rectangle {
-                    width: 42; height: 42; radius: 21
+                    width: root.largeUI ? 50 : 42; height: root.largeUI ? 50 : 42; radius: width / 2
                     color: nextTouch.pressed ? "#303745" : "#202632"
                     opacity: root.backendOnline && (root.playerState.queue || []).length ? 1 : 0.4
                     Text { anchors.centerIn: parent; text: "❯❯"; color: "#f7f7fa"; font.pixelSize: 14 }
@@ -702,7 +719,7 @@ Window {
 
             Item {
                 x: 460
-                y: 12
+                y: root.largeUI ? 20 : 12
                 width: 330
                 height: 64
 

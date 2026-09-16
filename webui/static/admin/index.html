@@ -36,11 +36,15 @@
 <label><span data-i18n="tts_language">TTS-Sprache</span><input name="tts_language" maxlength="16" list="language-codes"></label>
 <label><span data-i18n="provider">Provider</span><input name="tts_provider" maxlength="64" placeholder="z. B. offline" data-i18n-placeholder="provider_example"></label>
 </fieldset>
+<fieldset><legend data-i18n="maintenance">Wartung</legend>
+<p class="hint" data-i18n="ui_restart_hint">Die Darstellung wird live übernommen. Falls die Oberfläche einmal nicht reagiert, kann nur die Touch-Oberfläche neu gestartet werden.</p>
+<button id="restart-ui" type="button" data-i18n="restart_ui">Touch-Oberfläche neu starten</button>
+</fieldset>
 <button class="primary" type="submit" data-i18n="save_settings">Einstellungen speichern</button>
 </form>
 </section>
 <section id="navigation-view" hidden>
-<div class="section-head"><div><h1 data-i18n="categories_media">Kategorien und Medien</h1><p data-i18n="content_hint">Medienquellen werden direkt einer Kategorie zugeordnet.</p></div><button id="add-category" data-i18n="add_category">+ Kategorie</button></div>
+<div class="section-head"><div><h1 data-i18n="categories_media">Kategorien und Medien</h1><p data-i18n="content_hint">Medienquellen werden direkt einer Kategorie zugeordnet.</p></div><div class="toolbar"><button id="rescan-library" data-i18n="rescan_library">Medienordner neu einlesen</button><button id="add-category" data-i18n="add_category">+ Kategorie</button></div></div>
 <div class="language-editor"><label><span data-i18n="edit_names_language">Namen bearbeiten in Sprache</span><input id="content-language" value="de" maxlength="16" list="language-codes"></label><small data-i18n="name_language_hint">Die Box zeigt und spricht den Namen in ihrer eingestellten Sprache.</small></div>
 <div id="categories"></div>
 <button id="save-navigation" class="primary" data-i18n="save_content">Inhalte speichern</button>

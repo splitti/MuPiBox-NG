@@ -6,7 +6,10 @@ import (
  "io"
  "net/http"
  "net/url"
+ pathpkg "path"
  "strings"
+ "sync"
+ "sync/atomic"
 
  "mupibox/internal/core"
  "mupibox/internal/library"
@@ -76,6 +79,8 @@ type API struct {
  Store *store.Store
  System func() SystemStatus
  Version string
+ libraryMu sync.RWMutex
+ uiRestartGeneration atomic.Uint64
 }
 func jsonResponse(w http.ResponseWriter,status int,v any){w.Header().Set("Content-Type","application/json");w.Header().Set("Cache-Control","no-store");w.WriteHeader(status);_ = json.NewEncoder(w).Encode(v)}
 func problem(w http.ResponseWriter,status int,err error){jsonResponse(w,status,map[string]string{"error":err.Error()})}
@@ -84,9 +89,22 @@ func decode(w http.ResponseWriter,r *http.Request,v any)error{
  r.Body=http.MaxBytesReader(w,r.Body,262144);d:=json.NewDecoder(r.Body);d.DisallowUnknownFields()
  if err:=d.Decode(v);err!=nil{return err};var extra any;if err:=d.Decode(&extra);err!=io.EOF{return fmt.Errorf("expected one JSON object")};return nil
 }
-func(a *API) localLibraryItems()[]HomeItem{
- items:=make([]HomeItem,0,len(a.Library.Folders))
- for _,f:=range a.Library.Folders{
+func(a *API) librarySnapshot()*library.Library{a.libraryMu.RLock();defer a.libraryMu.RUnlock();return a.Library}
+func(a *API) rescanLibrary()error{
+ current:=a.librarySnapshot();if current==nil{return fmt.Errorf("library unavailable")}
+ next,err:=library.Scan(current.Root);if err!=nil{return err}
+ a.libraryMu.Lock();a.Library=next;a.libraryMu.Unlock()
+ if a.Player!=nil{a.Player.SetLibrary(next)}
+ return nil
+}
+func(a *API) localDirectories()([]library.Directory,error){lib:=a.librarySnapshot();if lib==nil{return nil,fmt.Errorf("library unavailable")};return library.Directories(lib.Root)}
+func(a *API) localLibraryItems(row HomeRowConfig)[]HomeItem{
+ lib:=a.librarySnapshot();if lib==nil{return []HomeItem{}}
+ selected:=""
+ if row.SourceType=="path"{selected=pathpkg.Clean(strings.Trim(strings.ReplaceAll(row.SourceRef,"\\","/"),"/"));if selected=="."{selected=""}}
+ items:=make([]HomeItem,0,len(lib.Folders))
+ for _,f:=range lib.Folders{
+  if selected!=""&&f.Relative!=selected&&!strings.HasPrefix(f.Relative,selected+"/"){continue}
   items=append(items,HomeItem{ID:f.ID,Kind:"local-folder",Title:f.Name,Subtitle:fmt.Sprintf("%d Titel",len(f.Tracks)),Cover:f.Cover,ResumePolicy:"position",Command:core.Command{Action:"folder",FolderID:f.ID}})
  }
  return items
@@ -114,7 +132,7 @@ func(a *API) Home()Home{
   out:=HomeCategory{ID:category.ID,Labels:category.Labels,Rows:[]HomeRow{}}
   for _,row:=range category.Rows{
    items:=[]HomeItem{}
-   switch row.Provider{case "local-library":items=a.localLibraryItems()}
+   switch row.Provider{case "local-library":items=a.localLibraryItems(row)}
    out.Rows=append(out.Rows,HomeRow{ID:row.ID,Labels:row.Labels,Items:items})
   }
   categories=append(categories,out)
@@ -130,7 +148,8 @@ func(a *API) Handler()http.Handler{
  mux:=http.NewServeMux()
  mux.HandleFunc("GET /api/status",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,a.Player.Status())})
  mux.HandleFunc("GET /api/system",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,a.currentSystemStatus())})
- mux.HandleFunc("GET /api/library",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,a.Library.Folders)})
+ mux.HandleFunc("GET /api/ui-state",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,map[string]uint64{"restart_generation":a.uiRestartGeneration.Load()})})
+ mux.HandleFunc("GET /api/library",func(w http.ResponseWriter,r *http.Request){lib:=a.librarySnapshot();if lib==nil{problem(w,503,fmt.Errorf("library unavailable"));return};jsonResponse(w,200,lib.Folders)})
  mux.HandleFunc("GET /api/home",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,a.Home())})
  mux.HandleFunc("GET /api/info",func(w http.ResponseWriter,r *http.Request){
   settings,err:=a.currentSettings();if err!=nil{problem(w,500,err);return}
@@ -140,10 +159,13 @@ func(a *API) Handler()http.Handler{
  mux.HandleFunc("GET /api/admin/settings",func(w http.ResponseWriter,r *http.Request){if a.Store==nil{problem(w,503,fmt.Errorf("persistent store unavailable"));return};v,ok,err:=a.Store.LoadBoxSettings();if err!=nil{problem(w,500,err);return};if !ok{problem(w,404,fmt.Errorf("settings not initialized"));return};jsonResponse(w,200,v)})
  mux.HandleFunc("PUT /api/admin/settings",func(w http.ResponseWriter,r *http.Request){if a.Store==nil{problem(w,503,fmt.Errorf("persistent store unavailable"));return};var v store.BoxSettings;if err:=decode(w,r,&v);err!=nil{problem(w,400,err);return};if err:=a.Store.SaveBoxSettings(v);err!=nil{problem(w,400,err);return};a.TTS=TTSConfig{Enabled:v.TTS.Enabled,Language:v.TTS.Language,Provider:v.TTS.Provider};a.Power=PowerConfig{IdleShutdownMinutes:v.Power.IdleShutdownMinutes};jsonResponse(w,200,map[string]any{"settings":v,"restart_required":[]string{"audio.max_volume","audio.startup_volume"}})})
  mux.HandleFunc("GET /api/admin/navigation",func(w http.ResponseWriter,r *http.Request){if a.Store==nil{problem(w,503,fmt.Errorf("persistent store unavailable"));return};v,err:=a.Store.LoadNavigation();if err!=nil{problem(w,500,err);return};jsonResponse(w,200,v)})
- mux.HandleFunc("PUT /api/admin/navigation",func(w http.ResponseWriter,r *http.Request){if a.Store==nil{problem(w,503,fmt.Errorf("persistent store unavailable"));return};var v store.Navigation;if err:=decode(w,r,&v);err!=nil{problem(w,400,err);return};if err:=a.Store.SaveNavigation(v);err!=nil{problem(w,400,err);return};jsonResponse(w,200,v)})
+ mux.HandleFunc("GET /api/admin/local-directories",func(w http.ResponseWriter,r *http.Request){directories,err:=a.localDirectories();if err!=nil{problem(w,500,err);return};lib:=a.librarySnapshot();jsonResponse(w,200,map[string]any{"root":lib.Root,"directories":directories})})
+ mux.HandleFunc("POST /api/admin/library/rescan",func(w http.ResponseWriter,r *http.Request){if err:=a.rescanLibrary();err!=nil{problem(w,500,err);return};directories,err:=a.localDirectories();if err!=nil{problem(w,500,err);return};jsonResponse(w,200,map[string]any{"directories":directories,"folders":len(a.librarySnapshot().Folders)})})
+ mux.HandleFunc("POST /api/admin/ui/restart",func(w http.ResponseWriter,r *http.Request){generation:=a.uiRestartGeneration.Add(1);jsonResponse(w,202,map[string]uint64{"restart_generation":generation})})
+ mux.HandleFunc("PUT /api/admin/navigation",func(w http.ResponseWriter,r *http.Request){if a.Store==nil{problem(w,503,fmt.Errorf("persistent store unavailable"));return};var v store.Navigation;if err:=decode(w,r,&v);err!=nil{problem(w,400,err);return};if err:=a.rescanLibrary();err!=nil{problem(w,500,err);return};if err:=a.Store.SaveNavigation(v);err!=nil{problem(w,400,err);return};jsonResponse(w,200,v)})
  mux.HandleFunc("GET /api/cover/{id}",func(w http.ResponseWriter,r *http.Request){
-  f,ok:=a.Library.Folder(r.PathValue("id"));if !ok||f.CoverPath==""{http.NotFound(w,r);return}
-  if err:=a.Library.Validate(f.CoverPath);err!=nil{http.NotFound(w,r);return};http.ServeFile(w,r,f.CoverPath)
+  lib:=a.librarySnapshot();if lib==nil{http.NotFound(w,r);return};f,ok:=lib.Folder(r.PathValue("id"));if !ok||f.CoverPath==""{http.NotFound(w,r);return}
+  if err:=lib.Validate(f.CoverPath);err!=nil{http.NotFound(w,r);return};http.ServeFile(w,r,f.CoverPath)
  })
  mux.HandleFunc("POST /api/command",func(w http.ResponseWriter,r *http.Request){var cmd core.Command;if err:=decode(w,r,&cmd);err!=nil{problem(w,400,err);return};a.execute(w,cmd)})
  mux.HandleFunc("POST /api/input",func(w http.ResponseWriter,r *http.Request){

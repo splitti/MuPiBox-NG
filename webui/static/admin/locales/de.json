@@ -67,8 +67,16 @@
   "sqlite_connected": "SQLite verbunden",
   "error": "Fehler",
   "settings_saved": "Einstellungen gespeichert.",
-  "content_saved": "Inhalte gespeichert.",
+  "content_saved": "Inhalte gespeichert und Player aktualisiert.",
   "ui_size": "Darstellungsgröße",
   "ui_size_normal": "Normal (7 Zoll)",
-  "ui_size_large": "Groß (5 Zoll)"
+  "ui_size_large": "Groß (5 Zoll)",
+  "maintenance": "Wartung",
+  "ui_restart_hint": "Die Darstellung wird live übernommen. Falls die Oberfläche einmal nicht reagiert, kann nur die Touch-Oberfläche neu gestartet werden.",
+  "restart_ui": "Touch-Oberfläche neu starten",
+  "rescan_library": "Medienordner neu einlesen",
+  "choose_directory": "Ordner auswählen",
+  "no_local_directories": "Noch keine Unterordner im Medienverzeichnis gefunden.",
+  "library_rescanned": "Medienordner neu eingelesen.",
+  "ui_restarting": "Touch-Oberfläche wird neu gestartet."
 }

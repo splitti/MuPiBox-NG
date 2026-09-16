@@ -25,4 +25,5 @@ func TestValidation(t *testing.T){
  bad:=BoxSettings{Language:"de",Audio:AudioSettings{StartupVolume:70,MaxVolume:60},Display:DisplaySettings{Brightness:80},Theme:"modern-dark"}
  if err=s.SaveBoxSettings(bad);err==nil{t.Fatal("invalid settings accepted")}
  if err=s.SaveNavigation(Navigation{Categories:[]Category{{ID:"bad id",Labels:map[string]string{"de":"Bad"}}}});err==nil{t.Fatal("invalid navigation accepted")}
+ if err=s.SaveNavigation(Navigation{Categories:[]Category{{ID:"books",Labels:map[string]string{"de":"Bücher"},Rows:[]Row{{ID:"escape",Labels:map[string]string{"de":"Escape"},Provider:"local-library",SourceType:"path",SourceRef:"../private"}}}}});err==nil{t.Fatal("escaping local path accepted")}
 }

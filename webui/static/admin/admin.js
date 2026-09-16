@@ -5,6 +5,8 @@ let navigation={categories:[]};
 let locale='de';
 let translations={};
 let idCounter=0;
+let localDirectories=[];
+let localRoot='/srv/mupibox/music';
 
 const providerCatalog={
  'local-library':{label:'source_local',types:['library','path']},
@@ -115,10 +117,17 @@ function renderMediaSource(row,category,index){
  const types=provider.types.map(value=>({value,label:t(typeKeys[value],value)}));
  if(!row.source_type||!provider.types.includes(row.source_type))row.source_type=provider.types[0];
  grid.append(labeledSelect(row.source_type,v=>{row.source_type=v;if(v==='library')row.source_ref='';renderNavigation()},t('source_type','Quelltyp'),types));
- if(row.source_type!=='library'){
+ if(row.provider==='local-library'&&row.source_type==='path'){
+  const choices=localDirectories.map(directory=>({value:directory.path,label:directory.path}));
+  if(row.source_ref&&!choices.some(choice=>choice.value===row.source_ref))choices.unshift({value:row.source_ref,label:row.source_ref});
+  if(!row.source_ref&&choices.length)row.source_ref=choices[0].value;
+  if(choices.length){grid.append(labeledSelect(row.source_ref||'',v=>row.source_ref=v,t('choose_directory','Ordner auswählen'),choices))}
+  else{const info=document.createElement('p');info.className='source-info';info.textContent=t('no_local_directories','Noch keine Unterordner im Medienverzeichnis gefunden.');grid.append(info)}
+  const hint=document.createElement('p');hint.className='directory-hint';hint.textContent=localRoot+(row.source_ref?'/'+row.source_ref:'');grid.append(hint)
+ }else if(row.source_type!=='library'){
   grid.append(labeledInput(row.source_ref||'',v=>row.source_ref=v,sourceReferenceLabel(row.source_type),{maxLength:2048,placeholder:t('source_reference_placeholder','URL, URI, ID oder Pfad')}));
  }else{
-  const info=document.createElement('p');info.className='source-info';info.textContent=t('local_library_hint','Verwendet die vom MuPiBox-Dienst eingelesene lokale Medienbibliothek.');grid.append(info)
+  const info=document.createElement('p');info.className='source-info';info.textContent=t('local_library_hint','Verwendet die komplette lokale Medienbibliothek.');grid.append(info)
  }
  box.append(head,grid);return box
 }
@@ -147,14 +156,17 @@ function renderNavigation(){
 }
 async function load(){
  try{
-  const [s,n]=await Promise.all([request('/api/admin/settings'),request('/api/admin/navigation')]);
-  settings=s;await setLocale(s.admin_language||'de');fillSettings(s);navigation=n;renderNavigation();$('state').textContent=t('sqlite_connected','SQLite verbunden')
+  const [s,n,d]=await Promise.all([request('/api/admin/settings'),request('/api/admin/navigation'),request('/api/admin/local-directories')]);
+  settings=s;localDirectories=d.directories||[];localRoot=d.root||localRoot;await setLocale(s.admin_language||'de');fillSettings(s);navigation=n;renderNavigation();$('state').textContent=t('sqlite_connected','SQLite verbunden')
  }catch(error){$('state').textContent=t('error','Fehler');message(error.message,true)}
 }
 document.querySelectorAll('nav button').forEach(button=>button.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x===button));$('settings-view').hidden=button.dataset.view!=='settings';$('navigation-view').hidden=button.dataset.view!=='navigation'});
 field('admin_language').addEventListener('change',()=>setLocale(field('admin_language').value));
+field('ui_size').addEventListener('change',()=>$('settings-form').requestSubmit());
 $('content-language').addEventListener('change',()=>{$('content-language').dataset.userSelected='true';renderNavigation()});
 $('settings-form').addEventListener('submit',async event=>{event.preventDefault();try{const result=await request('/api/admin/settings',{method:'PUT',body:JSON.stringify(readSettings())});fillSettings(result.settings);await setLocale(result.settings.admin_language);message(t('settings_saved','Einstellungen gespeichert.'))}catch(error){message(error.message,true)}});
 $('add-category').onclick=()=>{const language=activeContentLanguage();idCounter++;navigation.categories.push({id:'category-'+Date.now()+'-'+idCounter,labels:{[language]:t('new_category','Neue Kategorie')},rows:[]});renderNavigation()};
-$('save-navigation').onclick=async()=>{try{navigation=await request('/api/admin/navigation',{method:'PUT',body:JSON.stringify(navigation)});renderNavigation();message(t('content_saved','Inhalte gespeichert.'))}catch(error){message(error.message,true)}};
+$('save-navigation').onclick=async()=>{try{navigation=await request('/api/admin/navigation',{method:'PUT',body:JSON.stringify(navigation)});renderNavigation();message(t('content_saved','Inhalte gespeichert und Player aktualisiert.'))}catch(error){message(error.message,true)}};
+$('rescan-library').onclick=async()=>{try{const result=await request('/api/admin/library/rescan',{method:'POST'});localDirectories=result.directories||[];renderNavigation();message(t('library_rescanned','Medienordner neu eingelesen.'))}catch(error){message(error.message,true)}};
+$('restart-ui').onclick=async()=>{try{await request('/api/admin/ui/restart',{method:'POST'});message(t('ui_restarting','Touch-Oberfläche wird neu gestartet.'))}catch(error){message(error.message,true)}};
 setLocale('de').then(load);

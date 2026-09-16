@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-let state, connected=false, pending=false, homeLoaded=false, boxInfo=null;
+let state, connected=false, pending=false, homeLoaded=false, boxInfo=null, homeSignature='';
 let messageTimer;
 const uiLocale=(document.documentElement.lang||navigator.language||'de').toLowerCase();
 const baseLocale=uiLocale.split('-')[0];
@@ -47,6 +47,7 @@ function categoryHeading(category){
 }
 function renderHome(home){const root=$('content');root.replaceChildren();const categories=home?.categories||[];if(!categories.length){const p=document.createElement('p');p.className='empty-state';p.textContent='Noch keine Kategorien eingerichtet.';root.append(p);return}for(const category of categories){const section=document.createElement('section');section.className='category';section.dataset.categoryId=category.id;section.append(categoryHeading(category));const rows=category.rows||[];if(!rows.length){const p=document.createElement('p');p.className='category-empty';p.textContent='';section.append(p)}for(const row of rows){const rowSection=document.createElement('section');rowSection.className='media-section';rowSection.dataset.rowId=row.id;const title=document.createElement('div');title.className='section-title';const h2=document.createElement('h2');h2.textContent=textFor(row.labels,row.id);const count=document.createElement('span');count.textContent=`${(row.items||[]).length} Inhalte`;title.append(h2,count);const media=document.createElement('div');media.className='media-row';media.setAttribute('aria-label',h2.textContent);const items=row.items||[];if(!items.length){const p=document.createElement('p');p.className='empty';p.textContent='Noch keine Inhalte.';media.append(p)}else items.forEach(item=>media.append(mediaItem(item)));rowSection.append(title,media);section.append(rowSection)}root.append(section)}}
 function applyInfo(info){boxInfo=info;document.documentElement.dataset.uiSize=info?.display?.ui_size||'normal'}
+async function refreshHomeAndInfo(){const [home,info]=await Promise.all([request('/api/home'),request('/api/info')]);applyInfo(info);const signature=JSON.stringify(home);if(signature!==homeSignature){homeSignature=signature;renderHome(home)}homeLoaded=true}
 function signalLevel(percent){return percent>=75?4:percent>=50?3:percent>=25?2:percent>0?1:0}
 function batteryColor(percent){return percent<=15?'#ef4b5f':percent<=25?'#f2cf4a':percent<=50?'#b7c94b':percent<=75?'#8bd66a':'#43c86a'}
 async function updateSystem(){
@@ -64,7 +65,7 @@ async function updateSystem(){
   batteryEl.setAttribute('aria-label',batteryEl.title);
  }catch(e){$('wifi').dataset.level='0';$('battery').dataset.available='false'}
 }
-async function poll(){try{if(!homeLoaded){const [home,info]=await Promise.all([request('/api/home'),request('/api/info')]);applyInfo(info);renderHome(home);homeLoaded=true}const s=await request('/api/status');connected=true;$('connection').textContent=s.backend==='simulated'?'Simulation':'Verbunden';if(!pending)render(s)}catch(e){connected=false;$('connection').textContent='Offline';controls()}finally{setTimeout(poll,750)}}
+async function poll(){try{if(!homeLoaded)await refreshHomeAndInfo();const s=await request('/api/status');connected=true;$('connection').textContent=s.backend==='simulated'?'Simulation':'Verbunden';if(!pending)render(s)}catch(e){connected=false;$('connection').textContent='Offline';controls()}finally{setTimeout(poll,750)}}
 document.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>command({action:b.dataset.action})));
 $('volume').addEventListener('change',()=>command({action:'volume',value:Number($('volume').value)}));$('volume').addEventListener('input',()=>{$('volume-label').textContent=$('volume').value});$('seek').addEventListener('change',()=>command({action:'seek',value:Number($('seek').value)}));
-updateClock();setInterval(updateClock,30000);setupAdminHold();controls();updateSystem();setInterval(updateSystem,5000);poll();
+updateClock();setInterval(updateClock,30000);setupAdminHold();controls();updateSystem();setInterval(updateSystem,5000);setInterval(()=>refreshHomeAndInfo().catch(()=>{}),2000);poll();

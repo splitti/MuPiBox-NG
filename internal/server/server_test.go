@@ -51,7 +51,7 @@ func TestInfoExposesGlobalBoxSettings(t *testing.T){
 
 
 func TestAdminPersistsSettingsAndNavigation(t *testing.T){
- dir:=t.TempDir();os.WriteFile(filepath.Join(dir,"track.wav"),nil,0600);l,_:=library.Scan(dir);p,_:=core.New(l,&audio.Simulated{},60);defer p.Close()
+ dir:=t.TempDir();booksDir:=filepath.Join(dir,"books");os.Mkdir(booksDir,0700);os.WriteFile(filepath.Join(booksDir,"track.wav"),nil,0600);l,_:=library.Scan(dir);p,_:=core.New(l,&audio.Simulated{},60);defer p.Close()
  db,err:=store.Open(":memory:");if err!=nil{t.Fatal(err)};defer db.Close()
  defaults:=store.BoxSettings{Language:"de",AdminLanguage:"de",TTS:store.TTSSettings{Language:"de"},Audio:store.AudioSettings{StartupVolume:30,MaxVolume:60},Display:store.DisplaySettings{Brightness:100},Theme:"modern-dark"}
  if _,err=db.EnsureBoxSettings(defaults);err!=nil{t.Fatal(err)}
@@ -61,9 +61,9 @@ func TestAdminPersistsSettingsAndNavigation(t *testing.T){
  w:=put("/api/admin/settings",`{"language":"de","admin_language":"en","tts":{"enabled":false,"language":"de","provider":""},"power":{"idle_shutdown_minutes":20},"audio":{"startup_volume":20,"max_volume":50,"start_sound_enabled":true,"shutdown_sound_enabled":true},"display":{"idle_off_minutes":5,"brightness":70},"theme":"arcade-8bit"}`)
  if w.Code!=200{t.Fatalf("settings status=%d body=%s",w.Code,w.Body.String())}
  saved,ok,err:=db.LoadBoxSettings();if err!=nil||!ok||saved.Theme!="arcade-8bit"||saved.AdminLanguage!="en"||saved.Power.IdleShutdownMinutes!=20{t.Fatalf("settings not persisted: %#v %v",saved,err)}
- w=put("/api/admin/navigation",`{"categories":[{"id":"books","labels":{"de":"Hörbücher","en":"Audiobooks"},"rows":[{"id":"local-books","labels":{"de":"Lokal"},"provider":"local-library","source_type":"path","source_ref":"/media/books"}]}]}`)
+ w=put("/api/admin/navigation",`{"categories":[{"id":"books","labels":{"de":"Hörbücher","en":"Audiobooks"},"rows":[{"id":"local-books","labels":{"de":"Lokal"},"provider":"local-library","source_type":"path","source_ref":"books"}]}]}`)
  if w.Code!=200{t.Fatalf("navigation status=%d body=%s",w.Code,w.Body.String())}
- savedNav,err:=db.LoadNavigation();if err!=nil||savedNav.Categories[0].Rows[0].SourceType!="path"||savedNav.Categories[0].Rows[0].SourceRef!="/media/books"{t.Fatalf("media source not persisted: %#v %v",savedNav,err)}
+ savedNav,err:=db.LoadNavigation();if err!=nil||savedNav.Categories[0].Rows[0].SourceType!="path"||savedNav.Categories[0].Rows[0].SourceRef!="books"{t.Fatalf("media source not persisted: %#v %v",savedNav,err)}
  home:=a.Home();if len(home.Categories)!=1||home.Categories[0].ID!="books"||len(home.Categories[0].Rows[0].Items)!=1{t.Fatalf("persisted navigation not rendered: %#v",home)}
 }
 
@@ -80,4 +80,18 @@ func TestPlayerUsesClockHoldForAdminWithoutSettingsDialog(t *testing.T){
  if strings.Contains(admin,"Name DE")||strings.Contains(admin,"Name EN")||!strings.Contains(admin,`id="content-language"`){t.Fatal("admin must edit one localized name at a time")}
  _=get("/admin/locales/de.json");_=get("/admin/locales/en.json")
  logo:=get("/mupibox-logo.svg");if !strings.Contains(logo,"data:image/jpeg;base64,/9j/")||!strings.Contains(logo,"</svg>"){t.Fatal("embedded MuPiBox logo is invalid")}
+}
+
+func TestAdminListsDirectoriesRescansAndRestartsUI(t *testing.T){
+ root:=t.TempDir();stories:=filepath.Join(root,"Stories");if err:=os.Mkdir(stories,0700);err!=nil{t.Fatal(err)}
+ if err:=os.WriteFile(filepath.Join(stories,"one.mp3"),nil,0600);err!=nil{t.Fatal(err)}
+ lib,err:=library.Scan(root);if err!=nil{t.Fatal(err)}
+ player,err:=core.New(lib,&audio.Simulated{},50);if err!=nil{t.Fatal(err)};defer player.Close()
+ api:=&API{Player:player,Library:lib};handler:=api.Handler()
+ request:=func(method,path string)*httptest.ResponseRecorder{response:=httptest.NewRecorder();handler.ServeHTTP(response,httptest.NewRequest(method,path,nil));return response}
+ directories:=request(http.MethodGet,"/api/admin/local-directories");if directories.Code!=200||!strings.Contains(directories.Body.String(),`"path":"Stories"`){t.Fatalf("directories: %d %s",directories.Code,directories.Body.String())}
+ more:=filepath.Join(root,"Music");if err=os.Mkdir(more,0700);err!=nil{t.Fatal(err)};if err=os.WriteFile(filepath.Join(more,"two.mp3"),nil,0600);err!=nil{t.Fatal(err)}
+ rescan:=request(http.MethodPost,"/api/admin/library/rescan");if rescan.Code!=200||!strings.Contains(rescan.Body.String(),`"folders":2`){t.Fatalf("rescan: %d %s",rescan.Code,rescan.Body.String())}
+ before:=request(http.MethodGet,"/api/ui-state");restart:=request(http.MethodPost,"/api/admin/ui/restart");after:=request(http.MethodGet,"/api/ui-state")
+ if before.Code!=200||restart.Code!=202||after.Code!=200||!strings.Contains(after.Body.String(),`"restart_generation":1`){t.Fatalf("restart state: before=%s restart=%s after=%s",before.Body.String(),restart.Body.String(),after.Body.String())}
 }
