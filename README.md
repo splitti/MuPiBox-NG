@@ -1,136 +1,119 @@
 # MuPiBox-NG
 
-Neuentwicklung eines modularen Musikplayers für **DietPi ARM64, Raspberry Pi 3 oder neuer**.
-Touch, Browser, Tasten und RFID sollen dieselbe Wiedergabe und Warteschlange steuern.
+> **Deutsch** · [English](README.en.md)
 
-**Entwicklungsstand: 0.1.0-dev.** Noch keine produktionsfertige Box und kein fertiger Installer.
-Der unveränderte Go-Prototyp vom 10.02.2026 liegt in `legacy/prototype/`.
-Die komplette Git-Historie bleibt erhalten. Entwicklung auf `rebuild/go-foundation`.
+Neuentwicklung eines modularen Musikplayers für **DietPi ARM64, Raspberry Pi 3 oder neuer**. Touch, Browser, Tasten und RFID sollen dieselbe Wiedergabe und Warteschlange steuern.
+
+**Entwicklungsstand: 0.1.0-dev.** Noch keine produktionsfertige Box; ein erster experimenteller DietPi-Installer für den Hardwaretest ist vorhanden. Der unveränderte Go-Prototyp vom 10.02.2026 liegt in `legacy/prototype/`. Die komplette Git-Historie bleibt erhalten. Entwicklung auf `rebuild/go-foundation`.
 
 ## Was jetzt funktioniert
 
-- Go-HTTP-Dienst mit eingebetteter Weboberfläche, ohne Node-Laufzeit oder externe Go-Module.
-- Deutsche Oberfläche mit großen Bedienelementen; Layout für 800 × 480 quer, responsive für andere Größen.
-- Lokale Ordnerbibliothek: Unterverzeichnisse, natürliche Dateinamen-Sortierung (2 vor 10), ganze Ordner, Cover.
-- Eine Warteschlange für alle Clients: Start, Pause, Weiter/Zurück, Spulen, Lautstärke und serverseitiges Maximum.
-- Austauschbarer Audioadapter: `mpv` für Audio **an der Box**, `simulated` für Tests ohne Audiogerät.
-- Konfigurierbare Tasten- und RFID-Zuordnungen über eine optionale **Simulation**. Noch keine echten Hardwaretreiber.
-- Fehler werden zurückgemeldet; es gibt keine vorgetäuschte erfolgreiche Audiowiedergabe bei fehlendem Decoder.
-- systemd-Vorlage, getrennte Programm-, Konfigurations- und Musikverzeichnisse, sichtbare Version.
+- Go-HTTP-Dienst mit eingebetteter Weboberfläche.
+- Kleine Touch-Oberfläche, primär für 800 × 480 quer entworfen.
+- Datengetriebene Kategorien und Inhaltsreihen über `/api/home`.
+- Kategorien, Medienquellen und lokalisierte Namen werden in SQLite gespeichert und über die Admin-Weboberfläche gepflegt.
+- Globale TTS-Entwicklungseinstellung: Ein/Aus, Sprache und Provider; `browser-dev` dient nur als Testfallback.
+- Globale Power-Entwicklungseinstellung mit `idle_shutdown_minutes`; der echte Shutdown ist noch nicht implementiert.
+- Lokale Ordnerbibliothek mit Unterverzeichnissen, natürlicher Sortierung, ganzen Ordnern und Coverbildern.
+- Gemeinsame Warteschlange für alle Clients mit Start, Pause, Weiter/Zurück, Spulen und Lautstärke.
+- Austauschbarer Audioadapter: `mpv` für Audio an der Box, `simulated` für Tests ohne Audiogerät.
+- Simulierbare Tasten- und RFID-Zuordnungen. Noch keine echten Hardwaretreiber.
+- SQLite-Datenbank mit automatischer Migration für Box-Einstellungen, Navigation und Wiedergabefortschritt.
+- Erste echte Admin-Weboberfläche unter `/admin/` für globale Einstellungen sowie Kategorien/Reihen.
+- Persistentes Fortsetzen lokaler Audiodateien, auch bei einzelnen sehr langen Dateien; Fortschrittsvertrag für spätere Provider wie Spotify, Live-Radio ausgeschlossen.
 
-`simulated` erzeugt keinen Ton und verwendet pro Titel eine feste Testdauer von 180 Sekunden.
-Browser sind Fernbedienungen; es wird kein Audio zum Handy gestreamt.
+Die Zieloberfläche ist keine fest verdrahtete Musikseite. Kategorien wie Hörbücher, Musik, Radio oder Podcasts werden als Daten geliefert. Das spätere Admin-Interface soll dieses Modell und die globalen Box-Einstellungen verwalten.
+
+**Persistenzentscheidung:** Dynamische Admin-Daten liegen in SQLite. Die JSON-Datei enthält ausschließlich Listen-Adresse, SQLite-Pfad, lokalen Medien-Grundpfad und Audio-Backend.
 
 ## Entwicklung in der LXC
 
 Voraussetzung: Go ab 1.24, Git. Bereits geprüft: Debian 13 / Go 1.24.4, Projektpfad `/opt/mupibox-ng`.
-Die MuPiBox-Dev-Verbindung kann Dateien bearbeiten und Go bauen/testen, aber kein Git klonen oder Shellbefehle ausführen.
-Die ChatGPT-Arbeitsumgebung ist ein anderes System.
-
-Die hier angelegten Quelldateien sind in der LXC zunächst eine Arbeitskopie ohne Git-Metadaten.
-Einmalig dort ausführen, nachdem der Branch auf GitHub gespeichert wurde:
 
 ```sh
 cd /opt/mupibox-ng
-sh scripts/link-lxc.sh
-```
-
-Das Skript klont in einen temporären Nachbarordner, vergleicht vorhandene Dateien bytegenau und
-bricht bei Abweichungen ab. Fehlende Repository-Dateien werden ergänzt, dann erst die Git-Metadaten übernommen.
-`dev-access-check.txt`, eigene Konfiguration und Musik bleiben erhalten. Kein `reset --hard`, kein Löschen bestehender Dateien.
-Für einen vollständig neuen Arbeitsplatz genügt ein normaler Clone:
-
-```sh
-git clone --branch rebuild/go-foundation https://github.com/splitti/MuPiBox-NG.git
-cd MuPiBox-NG
-```
-
-Danach:
-
-```sh
 mkdir -p music
-# Eigene Audiodateien in music/ oder Unterordner kopieren.
+
 go test ./...
-go build -o bin/mupibox ./cmd/mupibox
+rm -f bin/mupibox && \
+go build -buildvcs=false -o bin/mupibox ./cmd/mupibox && \
 ./bin/mupibox -config deploy/config.dev.json
 ```
 
-Aufruf im Heimnetz: `http://<LXC-IP>:8080`. `config.dev.json` aktiviert die Simulation und bindet an alle Interfaces.
-Ohne Konfigurationsdatei wird nur `127.0.0.1:8080` verwendet; Standard-Audioadapter ist mpv.
+Aufruf im Heimnetz: `http://<LXC-IP>:8090`.
+
+`-buildvcs=false` verhindert beim lokalen Root-Build den bekannten Go/Git-VCS-Stamping-Fehler bei abweichendem Checkout-Besitzer. Durch `rm` und `&&` wird nach einem fehlgeschlagenen Build keine alte Binärdatei gestartet.
+
+## Dynamische Startseite
+
+Bei einer leeren SQLite-Datenbank legt der Dienst folgende Startkategorien an:
+
+- Hörbücher / Audiobooks
+- Musik / Music
+- Radio
+- Podcasts
+
+Eine Kategorie besitzt eine stabile ID und lokalisierte Labels. Darunter liegen beliebig viele Reihen. Eine Reihe besitzt ebenfalls lokalisierte Labels und einen Provider. `local-library` erzeugt bereits Cover-Kacheln aus der lokalen Musikbibliothek.
+
+TTS ist **nicht pro Kategorie** konfiguriert. Die Box besitzt global `enabled`, `language` und `provider`. Ist TTS aktiv, kann ein Kategorie-Tap den Namen in der gewählten Boxsprache sprechen. Für die Entwicklung verwendet `browser-dev` die Browser-Sprachausgabe; die Produktionsarchitektur erhält einen eigenen lokalen/externen TTS-Adapter.
+
+## Admin und SQLite
+
+Das Admin-Interface ist unter `/admin/` erreichbar. Im aktuellen ersten Stand pflegt es bereits globale Grundeinstellungen sowie Kategorien, Reihenfolge, Übersetzungen und Reihen/Provider. Weiter vorgesehen sind:
+
+- Kategorien und deren Reihenfolge/Sichtbarkeit/Übersetzungen,
+- Inhaltsreihen und Provider-Zuordnung,
+- globale TTS-Einstellungen und Provider-Konfiguration,
+- maximale Lautstärke,
+- Idle-Abschaltung und spätere Zeitpläne,
+- später RFID/Tasten, Provider-Konten und weitere Geräteeinstellungen.
+
+Diese Daten liegen in der unter `database_path` konfigurierten SQLite-Datei; im Dienstbetrieb ist `/var/lib/mupibox-ng/mupibox.db` vorgesehen. JSON bleibt nur für Bootstrap-/Deployment-Werte. Die Adminoberfläche hat im Entwicklungsstand noch keinen Passwortschutz und darf nur im vertrauenswürdigen Heimnetz verwendet werden.
 
 ## Echte lokale Wiedergabe
 
-`mpv` über die Debian-/DietPi-Paketverwaltung installieren. Die LXC braucht für hörbaren Ton zusätzlich ein
-verfügbares Audiogerät; sonst am Pi testen. Niemals Simulation als Audiotest werten.
+`mpv` über die Debian-/DietPi-Paketverwaltung installieren. Die LXC braucht für hörbaren Ton zusätzlich ein verfügbares Audiogerät; sonst am Pi testen. Simulation ist kein Audiotest.
 
 ```sh
 sudo apt-get install mpv
-cp deploy/config.dev.json config.local.json
-# In config.local.json: backend auf "mpv", inputs.simulate bei Bedarf auf false setzen.
+cp deploy/config.example.json config.local.json
+# backend in config.local.json auf "mpv" setzen.
 ./bin/mupibox -config config.local.json
 ```
 
-Unterstützte Endungen: MP3, FLAC, OGG, OPUS, WAV, M4A, AAC; tatsächlich lesbare Codecs hängen von mpv ab.
-Jeder Ordner mit Audiodateien wird als Sammlung angezeigt, inklusive relativem Pfad. Ein Klick spielt die direkt darin
-enthaltenen Dateien. Unterordner sind eigene Sammlungen. Cover: `cover.jpg`, `cover.png`, `folder.jpg`, `folder.png`.
-Versteckte Verzeichnisse und Symlinks werden beim Scan ausgelassen. Ein Neustart aktualisiert die Bibliothek.
-Dateien im Musikverzeichnis müssen für den Dienstbenutzer lesbar sein.
+Unterstützte Endungen: MP3, FLAC, OGG, OPUS, WAV, M4A, AAC. Tatsächlich lesbare Codecs hängen von mpv ab. Cover: `cover.jpg`, `cover.png`, `folder.jpg`, `folder.png`.
 
 ## Bedienung und API
 
-Alle Befehle laufen durch `internal/core.Controller`. Der Status wird von Browsern alle 750 ms abgefragt.
-Es gibt keine unabhängigen Browser-Warteschlangen. Die Box funktioniert auch ohne geöffneten Browser.
-
 | Route | Zweck |
 | --- | --- |
-| `GET /api/library` | Ordner, Titel, stabile IDs, Cover-URLs |
-| `GET /api/status` | Gemeinsame Warteschlange und tatsächlicher Adapterstatus |
-| `GET /api/info` | Version, Adapter, Simulationsfreigabe |
-| `GET /api/health` | HTTP-Dienst erreichbar (kein Audiogerätetest) |
-| `POST /api/command` | JSON: `action`, optional `folder_id` oder `value` |
-| `POST /api/input` | Nur mit `inputs.simulate`: JSON `module` und `id` |
+| `GET /api/home` | Kategorien, Reihen, lokalisierte Beschriftungen und normalisierte Medienobjekte |
+| `GET /api/library` | Lokale Ordner, Titel, stabile IDs, Cover-URLs |
+| `GET /api/status` | Gemeinsame Warteschlange und Adapterstatus |
+| `GET /api/info` | Version, Backend sowie globale TTS-/Power-Entwicklungswerte |
+| `GET /api/health` | HTTP-Dienst erreichbar |
+| `POST /api/command` | Wiedergabebefehl |
+| `POST /api/input` | Simulierte Taste/RFID im Entwicklungsmodus |
+| `GET/PUT /api/admin/settings` | Persistente globale Box-Einstellungen |
+| `GET/PUT /api/admin/navigation` | Persistente Kategorien und Reihen |
 
-Aktionen: `folder`, `play`, `pause`, `toggle`, `next`, `previous`, `stop`, `seek`, `volume`, `volume_delta`.
-`seek` und Positionen sind Sekunden, Lautstärke 0 bis zum konfigurierten Maximum.
-`previous` startet den vorherigen Titel; am Anfang den ersten erneut. Am Queue-Ende wird gestoppt.
-
-RFID im ersten Meilenstein: UID in `inputs.rfid` einer Ordner-ID aus `/api/library` zuordnen.
-Die Kennung ist keine Zugangskontrolle. Ein erneutes Ereignis startet den Ordner von vorn;
-Fortsetzen, Entprellen und Entfernen sind für die echte Hardwareanbindung noch umzusetzen.
-Im Info-Dialog kann man Tasten/RFID testen; Standard-Taste `play_pause`.
-
-Die Entwicklungs-API ist für ein vertrauenswürdiges Heimnetz vorgesehen. Sie hat noch keine Benutzeranmeldung.
-Kein Internet-Portforwarding. Browser-Schreibzugriffe benötigen JSON und dürfen nicht von fremden Origins kommen.
-
-## Dienst auf DietPi
-
-Optional nach Installation von Go, Git und mpv:
-
-```sh
-sudo sh scripts/install-service.sh
-# Musik nach /srv/mupibox/music kopieren, /etc/mupibox-ng/config.json prüfen.
-sudo systemctl enable --now mupibox-ng
-journalctl -u mupibox-ng -f
-```
-
-Der Installationshelfer führt kein Systemupgrade aus, überschreibt keine vorhandene Konfiguration und startet den Dienst nicht automatisch.
-Er ersetzt bei erneutem Aufruf die Programmdatei. **Noch keine Update-/Rollback-Funktion.**
-Dienstnutzer `mupibox`, Audiogruppe `audio`, keine Root-Wiedergabe. Audioauswahl und MuPiHAT-Treiber müssen am Gerät geprüft werden.
-Ein Display-Kiosk wird noch nicht eingerichtet.
+Die Entwicklungs-API ist für ein vertrauenswürdiges Heimnetz vorgesehen. Sie hat noch keine Benutzeranmeldung. Kein Internet-Portforwarding. Das spätere Admin-Interface benötigt eine getrennte Authentifizierung und Schreib-API.
 
 ## Tests und Grenzen
 
-`go test ./...` prüft Bibliothek/Pfadgrenzen, Queue/EOF, Lautstärke, konkurrierende Bedienung, API,
-RFID-/Tasten-Simulation sowie einen Linux-ARM64-Crossbuild.
-`TestMPVRealDecode` dekodiert eine selbst erzeugte WAV mit Null-Audioausgabe, wenn mpv installiert ist;
-sonst wird dieser Test **übersprungen**. `go test -v ./internal/audio` zeigt den Skip ausdrücklich.
-Für zusätzliche lokale Prüfung: `sh scripts/check.sh` (vet, race, ARM64-Build).
+`go test ./...` prüft Bibliothek/Pfadgrenzen, Queue/EOF, Lautstärke, konkurrierende Bedienung, API, datengetriebene Home-Struktur, globale Box-Infos, RFID-/Tasten-Simulation sowie einen Linux-ARM64-Crossbuild.
 
-Noch offen: persistenter Hörfortschritt, Queue-Persistenz, Webradio, RSS-Podcasts, Spotify-Anmeldung und -Wiedergabe,
-Amazon-Machbarkeit, echte RFID/GPIO-Module, MuPiHAT/Shutdown/Akku, Elternverwaltung, Kiosk, Releases und Rollback.
-Es wird keine Akku-Prozentanzeige angenommen. Die Hardware ist hier noch nicht getestet.
+Noch offen: Admin-Authentifizierung und weitere Hardware-/Provider-Einstellungsseiten, produktiver lokaler TTS-Adapter, echter Idle-Shutdown, Webradio, RSS-Podcasts, Spotify-Katalog/Playback, Video/YouTube, echte RFID/GPIO-Module, MuPiHAT/Shutdown/Akku, vollständige native Playerbedienung, Releases und Rollback.
 
-- [Verbindliche Vorgaben](docs/requirements.md)
-- [Bestandsprüfung und Übernahmeentscheidung](docs/repository-audit.md)
-- [Architektur und nächste Schritte](docs/architecture.md)
-- [Durchgeführte Prüfungen](docs/validation.md)
+## Dokumentation
+
+- [Verbindliche Vorgaben](docs/requirements.md) · [Requirements (English)](docs/requirements.en.md)
+- [Architektur](docs/architecture.md) · [Architecture (English)](docs/architecture.en.md)
+- [Persistenz](docs/persistence.md) · [Persistence (English)](docs/persistence.en.md)
+- [Navigation/Inhalte](docs/navigation-model.md) · [Navigation/content (English)](docs/navigation-model.en.md)
+- [Player/Wiedergabeprofile](docs/player-model.md) · [Player/playback profiles (English)](docs/player-model.en.md)
+- [System-/Hardwareeinstellungen](docs/system-settings.md) · [System/hardware settings (English)](docs/system-settings.en.md)
+- [Spotify/Cache](docs/spotify.md) · [Spotify/cache (English)](docs/spotify.en.md)
+- [Bestandsprüfung](docs/repository-audit.md) · [Repository audit (English)](docs/repository-audit.en.md)
+- [DietPi-/Gerätetest](docs/device-install-dietpi.md)
+- [Prüfstand](docs/validation.md) · [Validation (English)](docs/validation.en.md)

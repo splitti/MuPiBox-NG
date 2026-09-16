@@ -1,17 +1,6 @@
 {
-  "listen": "0.0.0.0:8080",
+  "listen": "0.0.0.0:8090",
+  "database_path": "./var/mupibox.db",
   "music_dir": "./music",
-  "backend": "simulated",
-  "max_volume": 60,
-  "inputs": {
-    "simulate": true,
-    "buttons": {
-      "play_pause": { "action": "toggle" },
-      "next": { "action": "next" },
-      "previous": { "action": "previous" },
-      "volume_up": { "action": "volume_delta", "value": 5 },
-      "volume_down": { "action": "volume_delta", "value": -5 }
-    },
-    "rfid": {}
-  }
+  "backend": "simulated"
 }

@@ -1,16 +1,39 @@
 <!doctype html>
 <html lang="de">
 <head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>MuPiBox · Meine Musik</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>MuPiBox</title><link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script>
 </head>
 <body>
-<header><a href="/" aria-label="MuPiBox Startseite"><span class="logo">m</span> MuPiBox <small>NG</small></a><span id="connection" role="status">Verbinde …</span><button id="settings" aria-label="Informationen und Entwicklung">Info</button></header>
-<main>
-<section class="library"><div class="section-heading"><div><p class="eyebrow">DEINE SAMMLUNG</p><h1>Was hören wir?</h1></div><span id="count"></span></div><div id="folders" class="folders"></div></section>
-<aside class="now"><p class="eyebrow">JETZT LÄUFT</p><div id="art" class="art" aria-hidden="true">♫</div><h2 id="title">Such dir etwas aus</h2><p id="album">Deine Musik wartet auf dich.</p><p id="track"></p><div class="timeline"><span id="position">0:00</span><input id="seek" type="range" min="0" max="100" value="0" aria-label="Wiedergabeposition" disabled><span id="duration">0:00</span></div></aside>
-</main>
-<footer><div class="transport"><button data-action="previous" aria-label="Vorheriger Titel">❮❮</button><button id="toggle" class="primary" data-action="toggle" aria-label="Wiedergabe starten oder pausieren">▶</button><button data-action="next" aria-label="Nächster Titel">❯❯</button></div><label class="volume">Lautstärke <input id="volume" type="range" min="0" max="60" value="30"><output id="volume-label">30</output></label></footer>
+<header class="statusbar">
+  <a class="brand" href="/" aria-label="MuPiBox Startseite"><span class="logo">m</span><span>MuPiBox</span></a>
+  <div class="system-status" aria-label="Systemstatus">
+    <span id="connection" role="status">Verbinde …</span>
+    <span id="wifi" title="WLAN-Status noch nicht verfügbar">WLAN —</span>
+    <span id="battery" title="Akkustatus noch nicht verfügbar">Akku —</span>
+    <span id="clock" role="button" tabindex="0" aria-label="Uhrzeit. Fünf Sekunden gedrückt halten, um die Administration zu öffnen."></span>
+  </div>
+</header>
+
+<main id="content" class="content" aria-label="Medien"></main>
+
+<footer class="playerbar" aria-label="Wiedergabe">
+  <div id="art" class="mini-art" aria-hidden="true">♫</div>
+  <div class="now-meta">
+    <strong id="title">Such dir etwas aus</strong>
+    <span id="album">Deine Medien warten auf dich.</span>
+    <span id="track"></span>
+  </div>
+  <div class="transport">
+    <button data-action="previous" aria-label="Vorheriger Titel">❮❮</button>
+    <button id="toggle" class="primary" data-action="toggle" aria-label="Wiedergabe starten oder pausieren">▶</button>
+    <button data-action="next" aria-label="Nächster Titel">❯❯</button>
+  </div>
+  <div class="player-tools">
+    <div class="timeline"><span id="position">0:00</span><input id="seek" type="range" min="0" max="100" value="0" aria-label="Wiedergabeposition" disabled><span id="duration">0:00</span></div>
+    <label class="volume" aria-label="Lautstärke"><span>🔊</span><input id="volume" type="range" min="0" max="60" value="30"><output id="volume-label">30</output></label>
+  </div>
+</footer>
+
 <div id="message" role="alert" hidden></div>
-<dialog id="info"><h2>Deine MuPiBox</h2><p id="version"></p><p id="backend"></p><p>Die Musik kommt aus den Lautsprechern der Box. Handy und Touchscreen bedienen denselben Player.</p><section id="simulation" hidden><h3>Eingaben testen</h3><p>Nur für die Entwicklung – keine angeschlossene Hardware erforderlich.</p><label>Modul <select id="module"><option value="button">Taste</option><option value="rfid">RFID</option></select></label><label>Kennung <input id="input-id" placeholder="z. B. play_pause"></label><button id="send-input">Ereignis senden</button></section><button id="close-info">Schließen</button></dialog>
 </body></html>

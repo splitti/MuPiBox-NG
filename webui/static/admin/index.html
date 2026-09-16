@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MuPiBox · Administration</title>
+<link rel="stylesheet" href="/admin/admin.css">
+<script src="/admin/admin.js" defer></script>
+</head>
+<body>
+<header><a href="/" data-i18n="back_player">← Player</a><div><strong data-i18n="admin_title">MuPiBox Admin</strong><small data-i18n="admin_subtitle">Persistente SQLite-Konfiguration</small></div><span id="state" data-i18n="loading">Lade …</span></header>
+<nav><button class="active" data-view="settings" data-i18n="nav_box">Box</button><button data-view="navigation" data-i18n="nav_content">Inhalte</button></nav>
+<main>
+<section id="settings-view">
+<div class="warning"><strong data-i18n="password_warning_title">Noch ohne Passwortschutz.</strong> <span data-i18n="password_warning_text">Nur im vertrauenswürdigen Heimnetz verwenden.</span></div>
+<form id="settings-form">
+<fieldset><legend data-i18n="general">Allgemein</legend>
+<label><span data-i18n="admin_language">Admin-Sprache</span><select name="admin_language"><option value="de">Deutsch</option><option value="en">English</option></select></label>
+<label><span data-i18n="box_language">Box-Sprache</span><input name="language" required maxlength="16" list="language-codes"></label>
+<label><span data-i18n="theme">Theme</span><select name="theme"><option value="modern-dark">Modern Dark</option><option value="arcade-8bit">Arcade 8-Bit</option><option value="classic">Klassisch</option></select></label>
+</fieldset>
+<fieldset><legend data-i18n="audio">Audio</legend>
+<label><span data-i18n="startup_volume">Einschaltlautstärke</span><input name="startup_volume" type="number" min="0" max="100"></label>
+<label><span data-i18n="max_volume">Maximale Lautstärke</span><input name="max_volume" type="number" min="1" max="100"></label>
+<label class="toggle"><input name="start_sound_enabled" type="checkbox"> <span data-i18n="start_sound">Startsound</span></label>
+<label class="toggle"><input name="shutdown_sound_enabled" type="checkbox"> <span data-i18n="shutdown_sound">Shutdownsound</span></label>
+<p class="hint" data-i18n="audio_restart_hint">Lautstärkeänderungen gelten nach Neustart des Players vollständig.</p>
+</fieldset>
+<fieldset><legend data-i18n="display_power">Display und Energie</legend>
+<label><span data-i18n="brightness">Helligkeit %</span><input name="brightness" type="number" min="1" max="100"></label>
+<label><span data-i18n="display_off">Display aus nach Minuten</span><input name="display_idle" type="number" min="0"><small data-i18n="zero_off">0 = aus</small></label>
+<label><span data-i18n="shutdown_after">Box herunterfahren nach Minuten</span><input name="shutdown_idle" type="number" min="0"><small data-i18n="zero_off">0 = aus</small></label>
+</fieldset>
+<fieldset><legend data-i18n="speech">Sprachausgabe</legend>
+<label class="toggle"><input name="tts_enabled" type="checkbox"> <span data-i18n="tts_active">TTS aktiv</span></label>
+<label><span data-i18n="tts_language">TTS-Sprache</span><input name="tts_language" maxlength="16" list="language-codes"></label>
+<label><span data-i18n="provider">Provider</span><input name="tts_provider" maxlength="64" placeholder="z. B. offline" data-i18n-placeholder="provider_example"></label>
+</fieldset>
+<button class="primary" type="submit" data-i18n="save_settings">Einstellungen speichern</button>
+</form>
+</section>
+<section id="navigation-view" hidden>
+<div class="section-head"><div><h1 data-i18n="categories_media">Kategorien und Medien</h1><p data-i18n="content_hint">Medienquellen werden direkt einer Kategorie zugeordnet.</p></div><button id="add-category" data-i18n="add_category">+ Kategorie</button></div>
+<div class="language-editor"><label><span data-i18n="edit_names_language">Namen bearbeiten in Sprache</span><input id="content-language" value="de" maxlength="16" list="language-codes"></label><small data-i18n="name_language_hint">Die Box zeigt und spricht den Namen in ihrer eingestellten Sprache.</small></div>
+<div id="categories"></div>
+<button id="save-navigation" class="primary" data-i18n="save_content">Inhalte speichern</button>
+</section>
+</main>
+<datalist id="language-codes"><option value="de"><option value="en"><option value="nl"><option value="fr"><option value="es"><option value="it"></datalist>
+<div id="message" role="status" hidden></div>
+</body></html>

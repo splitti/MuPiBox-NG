@@ -1,5 +1,7 @@
 # Bestandsprüfung vom 16.09.2026
 
+> Deutsch. English version: [repository-audit.en.md](repository-audit.en.md)
+
 Geprüfter Ausgangspunkt: `main` bei `598c92c59ca18e19fef80b4f8c7587ecf6f0839d`
 (10.02.2026, „UI update“). GitHub-Lesen und Schreibberechtigung bestätigt; Branch
 `rebuild/go-foundation` von genau diesem Commit angelegt. Kein Überschreiben von main.
@@ -45,4 +47,4 @@ Projektpfad `/opt/mupibox-ng`. Dort werden nun die neuen Quellen gebaut/getestet
 Der separate ChatGPT-Checkout wurde über Git geklont. Er ist nicht die LXC.
 GitHub-Zugriff ersetzt keine Git-Initialisierung in der LXC. `scripts/link-lxc.sh` bereitet den
 Abgleich ohne Überschreiben abweichender lokaler Dateien vor; Ausführung muss mangels Shell-Aktion
-einmal durch Olli erfolgen. Kein Test missbraucht die Go-Aktion zum Klonen oder Ausführen von Git.
+einmal durch splitti erfolgen. Kein Test missbraucht die Go-Aktion zum Klonen oder Ausführen von Git.

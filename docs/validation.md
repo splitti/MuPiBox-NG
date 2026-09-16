@@ -1,5 +1,7 @@
 # Prüfstand – 16.09.2026
 
+> Deutsch. English version: [validation.en.md](validation.en.md)
+
 ## Tatsächlich ausgeführt
 
 - GitHub-Repository und Branch-Basis gelesen; Push-Recht vom Connector bestätigt.
@@ -21,21 +23,25 @@
 Beim ersten Lauf wurde ein Konflikt zwischen Go-HTTP-Routen festgestellt und vor dem erfolgreichen
 Wiederholungslauf korrigiert. SIGTERM-Shutdown wartet auf aktive HTTP-Anfragen, bevor Audio geschlossen wird.
 
+Beim manuellen Build als `root` in der LXC trat `error obtaining VCS status: exit status 128` auf.
+Dabei blieb die vorhandene alte Binärdatei bestehen und konnte versehentlich erneut gestartet werden.
+Für Entwicklungsbuilds in dieser Umgebung kann `go build -buildvcs=false ...` verwendet werden;
+Release-Builds sollen später Commit-/Versionsinformationen kontrolliert einbetten.
+
 ## Nicht nachgewiesen / ausstehend
 
 - `TestMPVRealDecode` ist optional und wird ohne mpv übersprungen. Der kurze Audiopaket-Testlauf
   in dieser LXC belegt keine echte Dekodierung. Explizite Prüfung nach mpv-Installation:
   `go test -v ./internal/audio`.
 - Hörbare Audioausgabe, ALSA/MuPiHAT, Mono/Stereo, Last/Temperatur und Ladezeit am Pi 3.
-- Visuelle Browserprüfung bei 800×480 und Handyauflösung: versucht, aber die Browserumgebung
-  blockierte `http://127.0.0.1:8765/preview` mit `ERR_BLOCKED_BY_CLIENT`.
-  Das responsive Layout ist implementiert, ein erfolgreicher Screenshot-/Interaktionstest wird nicht behauptet.
-- Kein laufender LXC-Webdienst gestartet: MuPiBox Dev bietet keine Start-/Shell-Aktion.
+- Vollständige visuelle Browserprüfung bei 800×480 und Handyauflösung.
+- Produktive TTS-Ausgabe auf dem Pi. Die derzeitige Web-Speech-Nutzung ist nur Entwicklungsfallback.
+- Persistentes Admin-Interface für Kategorien/Reihen; aktuell stammen diese Daten aus JSON-Konfiguration.
+- Kein laufender LXC-Webdienst kann über MuPiBox Dev gestartet/gestoppt werden, da keine Shell-Aktion vorhanden ist.
 - systemd-Vorlage/Installationshelfer noch nicht auf DietPi ausgeführt.
 - `go vet` und `go test -race` über `scripts/check.sh` für die lokale Shell vorbereitet,
   von der begrenzten MuPiBox-Dev-Aktion noch nicht gesondert ausgeführt.
-- LXC-Git-Verknüpfung vorbereitet, nicht ausgeführt. Erst `sh scripts/link-lxc.sh` durch Olli macht
-  die vorhandene Arbeitskopie zum verknüpften Checkout.
+- LXC-Git-Verknüpfung vorbereitet. Falls erneut nötig, muss `sh scripts/link-lxc.sh` durch splitti ausgeführt werden.
 
 Damit ist das Grundgerüst gebaut und getestet; der vollständige erste Hardware-/Audio-Meilenstein
-ist erst nach echter Audio- und Displayabnahme abgeschlossen.
+ist erst nach echter Audio-, Display- und Hardwareabnahme abgeschlossen.

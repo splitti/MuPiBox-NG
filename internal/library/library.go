@@ -12,9 +12,14 @@ import (
  "strings"
 )
 
+const DefaultCover = "/mupibox-logo.svg"
+
 type Track struct {
  ID string `json:"id"`
  Title string `json:"title"`
+ Provider string `json:"provider,omitempty"`
+ AccountID string `json:"-"`
+ ResumePolicy string `json:"resume_policy,omitempty"`
  Path string `json:"-"`
 }
 type Folder struct {
@@ -42,15 +47,16 @@ func Scan(root string) (*Library,error) {
   dir:=filepath.Dir(path);rel,_:=filepath.Rel(abs,dir);rel=filepath.ToSlash(rel)
   f:=folders[rel];if f==nil{f=&Folder{ID:id(rel),Name:filepath.Base(dir),Relative:rel,Tracks:[]Track{}};folders[rel]=f}
   trackRel,_:=filepath.Rel(abs,path)
-  f.Tracks=append(f.Tracks,Track{ID:id(filepath.ToSlash(trackRel)),Title:strings.TrimSuffix(d.Name(),filepath.Ext(path)),Path:path})
+  f.Tracks=append(f.Tracks,Track{ID:id(filepath.ToSlash(trackRel)),Title:strings.TrimSuffix(d.Name(),filepath.Ext(path)),Provider:"local",ResumePolicy:"position",Path:path})
   return nil
  });if err!=nil{return nil,err}
  for _,f:=range folders{
   sort.Slice(f.Tracks,func(i,j int)bool{return naturalLess(f.Tracks[i].Title,f.Tracks[j].Title)})
-  for _,name:=range []string{"cover.jpg","cover.png","folder.jpg","folder.png"}{
+  for _,name:=range []string{"cover.jpg","cover.jpeg","cover.png","folder.jpg","folder.jpeg","folder.png"}{
    p:=filepath.Join(abs,filepath.FromSlash(f.Relative),name);st,e:=os.Lstat(p)
    if e==nil && st.Mode().IsRegular(){f.Cover="/api/cover/"+f.ID;f.CoverPath=p;break}
   }
+  if f.Cover==""{f.Cover=DefaultCover}
   l.Folders=append(l.Folders,*f)
  }
  sort.Slice(l.Folders,func(i,j int)bool{return naturalLess(l.Folders[i].Relative,l.Folders[j].Relative)})

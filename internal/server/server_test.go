@@ -11,6 +11,7 @@ import (
  "mupibox/internal/audio"
  "mupibox/internal/core"
  "mupibox/internal/library"
+ "mupibox/internal/store"
 )
 func TestAllInputsControlOnePlayer(t *testing.T){
  dir:=t.TempDir();os.WriteFile(filepath.Join(dir,"track.wav"),nil,0600);l,_:=library.Scan(dir);p,_:=core.New(l,&audio.Simulated{},50);defer p.Close()
@@ -25,4 +26,58 @@ func TestAllInputsControlOnePlayer(t *testing.T){
  a.Inputs.Simulate=false;if req("/api/input",`{"module":"rfid","id":"card"}`,"")!=404{t.Fatal("simulation exposed")}
  w:=httptest.NewRecorder();h.ServeHTTP(w,httptest.NewRequest("GET","/api/status",nil));var s core.Status;if err:=json.Unmarshal(w.Body.Bytes(),&s);err!=nil||s.State!="playing"{t.Fatal("shared status failed",err)}
  if strings.Contains(w.Body.String(),dir){t.Fatal("filesystem path leaked")}
+}
+
+func TestHomeConfigIsDataDrivenAndLocalized(t *testing.T){
+ dir:=t.TempDir();os.WriteFile(filepath.Join(dir,"track.wav"),nil,0600);l,_:=library.Scan(dir);p,_:=core.New(l,&audio.Simulated{},50);defer p.Close()
+ a:=&API{Player:p,Library:l,HomeConfig:HomeConfig{Categories:[]HomeCategoryConfig{
+  {ID:"books",Labels:map[string]string{"de":"Hörbücher","en":"Audiobooks"}},
+  {ID:"music",Labels:map[string]string{"de":"Musik","en":"Music"},Rows:[]HomeRowConfig{{ID:"local",Labels:map[string]string{"de":"Lokal","en":"Local"},Provider:"local-library"}}},
+ }}}
+ w:=httptest.NewRecorder();a.Handler().ServeHTTP(w,httptest.NewRequest("GET","/api/home",nil));if w.Code!=200{t.Fatalf("home status=%d",w.Code)}
+ var home Home;if err:=json.Unmarshal(w.Body.Bytes(),&home);err!=nil{t.Fatal(err)}
+ if len(home.Categories)!=2||home.Categories[0].Labels["en"]!="Audiobooks"{t.Fatalf("unexpected categories: %#v",home.Categories)}
+ if len(home.Categories[1].Rows)!=1||len(home.Categories[1].Rows[0].Items)!=1{t.Fatalf("local provider not rendered: %#v",home.Categories[1])}
+ if home.Categories[1].Rows[0].Items[0].Command.FolderID!=l.Folders[0].ID{t.Fatal("media command does not target scanned folder")}
+}
+
+func TestInfoExposesGlobalBoxSettings(t *testing.T){
+ dir:=t.TempDir();os.WriteFile(filepath.Join(dir,"track.wav"),nil,0600);l,_:=library.Scan(dir);p,_:=core.New(l,&audio.Simulated{},50);defer p.Close()
+ a:=&API{Player:p,Library:l,TTS:TTSConfig{Enabled:true,Language:"de",Provider:"browser-dev"},Power:PowerConfig{IdleShutdownMinutes:30}}
+ w:=httptest.NewRecorder();a.Handler().ServeHTTP(w,httptest.NewRequest("GET","/api/info",nil));if w.Code!=200{t.Fatalf("info status=%d",w.Code)}
+ var info struct{TTS TTSConfig `json:"tts"`; Power PowerConfig `json:"power"`};if err:=json.Unmarshal(w.Body.Bytes(),&info);err!=nil{t.Fatal(err)}
+ if !info.TTS.Enabled||info.TTS.Language!="de"||info.Power.IdleShutdownMinutes!=30{t.Fatalf("unexpected info: %#v",info)}
+}
+
+
+func TestAdminPersistsSettingsAndNavigation(t *testing.T){
+ dir:=t.TempDir();os.WriteFile(filepath.Join(dir,"track.wav"),nil,0600);l,_:=library.Scan(dir);p,_:=core.New(l,&audio.Simulated{},60);defer p.Close()
+ db,err:=store.Open(":memory:");if err!=nil{t.Fatal(err)};defer db.Close()
+ defaults:=store.BoxSettings{Language:"de",AdminLanguage:"de",TTS:store.TTSSettings{Language:"de"},Audio:store.AudioSettings{StartupVolume:30,MaxVolume:60},Display:store.DisplaySettings{Brightness:100},Theme:"modern-dark"}
+ if _,err=db.EnsureBoxSettings(defaults);err!=nil{t.Fatal(err)}
+ if err=db.EnsureNavigation(store.Navigation{Categories:[]store.Category{{ID:"music",Labels:map[string]string{"de":"Musik"},Rows:[]store.Row{{ID:"local",Labels:map[string]string{"de":"Lokal"},Provider:"local-library"}}}}});err!=nil{t.Fatal(err)}
+ a:=&API{Player:p,Library:l,Store:db};h:=a.Handler()
+ put:=func(path,body string)*httptest.ResponseRecorder{r:=httptest.NewRequest(http.MethodPut,path,strings.NewReader(body));r.Header.Set("Content-Type","application/json");w:=httptest.NewRecorder();h.ServeHTTP(w,r);return w}
+ w:=put("/api/admin/settings",`{"language":"de","admin_language":"en","tts":{"enabled":false,"language":"de","provider":""},"power":{"idle_shutdown_minutes":20},"audio":{"startup_volume":20,"max_volume":50,"start_sound_enabled":true,"shutdown_sound_enabled":true},"display":{"idle_off_minutes":5,"brightness":70},"theme":"arcade-8bit"}`)
+ if w.Code!=200{t.Fatalf("settings status=%d body=%s",w.Code,w.Body.String())}
+ saved,ok,err:=db.LoadBoxSettings();if err!=nil||!ok||saved.Theme!="arcade-8bit"||saved.AdminLanguage!="en"||saved.Power.IdleShutdownMinutes!=20{t.Fatalf("settings not persisted: %#v %v",saved,err)}
+ w=put("/api/admin/navigation",`{"categories":[{"id":"books","labels":{"de":"Hörbücher","en":"Audiobooks"},"rows":[{"id":"local-books","labels":{"de":"Lokal"},"provider":"local-library","source_type":"path","source_ref":"/media/books"}]}]}`)
+ if w.Code!=200{t.Fatalf("navigation status=%d body=%s",w.Code,w.Body.String())}
+ savedNav,err:=db.LoadNavigation();if err!=nil||savedNav.Categories[0].Rows[0].SourceType!="path"||savedNav.Categories[0].Rows[0].SourceRef!="/media/books"{t.Fatalf("media source not persisted: %#v %v",savedNav,err)}
+ home:=a.Home();if len(home.Categories)!=1||home.Categories[0].ID!="books"||len(home.Categories[0].Rows[0].Items)!=1{t.Fatalf("persisted navigation not rendered: %#v",home)}
+}
+
+
+func TestPlayerUsesClockHoldForAdminWithoutSettingsDialog(t *testing.T){
+ dir:=t.TempDir();os.WriteFile(filepath.Join(dir,"track.wav"),nil,0600);l,_:=library.Scan(dir);p,_:=core.New(l,&audio.Simulated{},50);defer p.Close()
+ h:=(&API{Player:p,Library:l}).Handler()
+ get:=func(path string)string{w:=httptest.NewRecorder();h.ServeHTTP(w,httptest.NewRequest(http.MethodGet,path,nil));if w.Code!=200{t.Fatalf("%s status=%d",path,w.Code)};return w.Body.String()}
+ page:=get("/")
+ if !strings.Contains(page,`id="clock"`)||strings.Contains(page,`id="settings"`)||strings.Contains(page,"<dialog"){t.Fatalf("unexpected player admin controls: %s",page)}
+ script:=get("/app.js")
+ if !strings.Contains(script,"5000")||!strings.Contains(script,"/admin/")||strings.Contains(script,"/api/input"){t.Fatal("player must open admin only through five-second clock hold")}
+ admin:=get("/admin/")
+ if strings.Contains(admin,"Name DE")||strings.Contains(admin,"Name EN")||!strings.Contains(admin,`id="content-language"`){t.Fatal("admin must edit one localized name at a time")}
+ _=get("/admin/locales/de.json");_=get("/admin/locales/en.json")
+ logo:=get("/mupibox-logo.svg");if !strings.Contains(logo,"data:image/jpeg;base64,/9j/")||!strings.Contains(logo,"</svg>"){t.Fatal("embedded MuPiBox logo is invalid")}
 }
