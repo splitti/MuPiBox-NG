@@ -46,6 +46,7 @@ function fillSettings(v){
  field('start_sound_enabled').checked=v.audio.start_sound_enabled;
  field('shutdown_sound_enabled').checked=v.audio.shutdown_sound_enabled;
  field('brightness').value=v.display.brightness;
+ field('ui_size').value=v.display.ui_size||'normal';
  field('display_idle').value=v.display.idle_off_minutes;
  field('shutdown_idle').value=v.power.idle_shutdown_minutes;
  field('tts_enabled').checked=v.tts.enabled;
@@ -58,7 +59,7 @@ function readSettings(){return{
  admin_language:field('admin_language').value,
  theme:field('theme').value,
  audio:{startup_volume:Number(field('startup_volume').value),max_volume:Number(field('max_volume').value),start_sound_enabled:field('start_sound_enabled').checked,shutdown_sound_enabled:field('shutdown_sound_enabled').checked},
- display:{brightness:Number(field('brightness').value),idle_off_minutes:Number(field('display_idle').value)},
+ display:{brightness:Number(field('brightness').value),ui_size:field('ui_size').value,idle_off_minutes:Number(field('display_idle').value)},
  power:{idle_shutdown_minutes:Number(field('shutdown_idle').value)},
  tts:{enabled:field('tts_enabled').checked,language:field('tts_language').value.trim(),provider:field('tts_provider').value.trim()}
 }}

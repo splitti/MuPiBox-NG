@@ -74,6 +74,7 @@ type API struct {
  TTS TTSConfig
  Power PowerConfig
  Store *store.Store
+ System func() SystemStatus
  Version string
 }
 func jsonResponse(w http.ResponseWriter,status int,v any){w.Header().Set("Content-Type","application/json");w.Header().Set("Cache-Control","no-store");w.WriteHeader(status);_ = json.NewEncoder(w).Encode(v)}
@@ -123,16 +124,17 @@ func(a *API) Home()Home{
 func(a *API) currentSettings()(store.BoxSettings,error){
  if a.Store!=nil{v,ok,err:=a.Store.LoadBoxSettings();if err!=nil{return store.BoxSettings{},err};if ok{return v,nil}}
  status:=a.Player.Status()
- return store.BoxSettings{Language:"de",AdminLanguage:"de",TTS:store.TTSSettings{Enabled:a.TTS.Enabled,Language:a.TTS.Language,Provider:a.TTS.Provider},Power:store.PowerSettings{IdleShutdownMinutes:a.Power.IdleShutdownMinutes},Audio:store.AudioSettings{StartupVolume:min(30,status.MaxVolume),MaxVolume:status.MaxVolume},Display:store.DisplaySettings{Brightness:100},Theme:"modern-dark"},nil
+ return store.BoxSettings{Language:"de",AdminLanguage:"de",TTS:store.TTSSettings{Enabled:a.TTS.Enabled,Language:a.TTS.Language,Provider:a.TTS.Provider},Power:store.PowerSettings{IdleShutdownMinutes:a.Power.IdleShutdownMinutes},Audio:store.AudioSettings{StartupVolume:min(30,status.MaxVolume),MaxVolume:status.MaxVolume},Display:store.DisplaySettings{Brightness:100,UISize:"normal"},Theme:"modern-dark"},nil
 }
 func(a *API) Handler()http.Handler{
  mux:=http.NewServeMux()
  mux.HandleFunc("GET /api/status",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,a.Player.Status())})
+ mux.HandleFunc("GET /api/system",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,a.currentSystemStatus())})
  mux.HandleFunc("GET /api/library",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,a.Library.Folders)})
  mux.HandleFunc("GET /api/home",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,a.Home())})
  mux.HandleFunc("GET /api/info",func(w http.ResponseWriter,r *http.Request){
   settings,err:=a.currentSettings();if err!=nil{problem(w,500,err);return}
-  jsonResponse(w,200,map[string]any{"version":a.Version,"simulation":a.Inputs.Simulate,"backend":a.Player.Status().Backend,"tts":settings.TTS,"power":settings.Power,"settings_persistent":a.Store!=nil})
+  jsonResponse(w,200,map[string]any{"version":a.Version,"simulation":a.Inputs.Simulate,"backend":a.Player.Status().Backend,"tts":settings.TTS,"power":settings.Power,"display":settings.Display,"theme":settings.Theme,"settings_persistent":a.Store!=nil})
  })
  mux.HandleFunc("GET /api/health",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,map[string]string{"status":"ok","version":a.Version})})
  mux.HandleFunc("GET /api/admin/settings",func(w http.ResponseWriter,r *http.Request){if a.Store==nil{problem(w,503,fmt.Errorf("persistent store unavailable"));return};v,ok,err:=a.Store.LoadBoxSettings();if err!=nil{problem(w,500,err);return};if !ok{problem(w,404,fmt.Errorf("settings not initialized"));return};jsonResponse(w,200,v)})

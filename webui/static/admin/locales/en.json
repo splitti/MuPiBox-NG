@@ -67,5 +67,8 @@
   "sqlite_connected": "SQLite connected",
   "error": "Error",
   "settings_saved": "Settings saved.",
-  "content_saved": "Content saved."
+  "content_saved": "Content saved.",
+  "ui_size": "Display size",
+  "ui_size_normal": "Normal (7 inch)",
+  "ui_size_large": "Large (5 inch)"
 }

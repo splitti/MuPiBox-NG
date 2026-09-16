@@ -51,7 +51,7 @@ func run()error{
   TTS:store.TTSSettings{Enabled:false,Language:"de",Provider:""},
   Power:store.PowerSettings{IdleShutdownMinutes:0},
   Audio:store.AudioSettings{StartupVolume:30,MaxVolume:60},
-  Display:store.DisplaySettings{IdleOffMinutes:0,Brightness:100},
+  Display:store.DisplaySettings{IdleOffMinutes:0,Brightness:100,UISize:"normal"},
   Theme:"modern-dark",
  });if err!=nil{return fmt.Errorf("initialize settings: %w",err)}
  if err=stateStore.EnsureNavigation(defaultNavigation());err!=nil{return fmt.Errorf("initialize navigation: %w",err)}

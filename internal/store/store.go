@@ -37,6 +37,7 @@ type AudioSettings struct {
 type DisplaySettings struct {
  IdleOffMinutes int `json:"idle_off_minutes"`
  Brightness int `json:"brightness"`
+ UISize string `json:"ui_size"`
 }
 
 type BoxSettings struct {
@@ -147,6 +148,7 @@ func ValidateBoxSettings(v BoxSettings)error{
  if v.Power.IdleShutdownMinutes<0{return errors.New("power.idle_shutdown_minutes must be >= 0")}
  if v.Display.IdleOffMinutes<0{return errors.New("display.idle_off_minutes must be >= 0")}
  if v.Display.Brightness<1||v.Display.Brightness>100{return errors.New("display.brightness must be 1..100")}
+ if v.Display.UISize!="normal"&&v.Display.UISize!="large"{return errors.New("display.ui_size must be normal or large")}
  if v.TTS.Enabled&&(strings.TrimSpace(v.TTS.Language)==""||strings.TrimSpace(v.TTS.Provider)==""){return errors.New("enabled TTS requires language and provider")}
  if strings.TrimSpace(v.Theme)==""{return errors.New("theme is required")}
  return nil
@@ -157,9 +159,11 @@ func(s *Store)LoadBoxSettings()(BoxSettings,bool,error){
  if errors.Is(err,sql.ErrNoRows){return BoxSettings{},false,nil};if err!=nil{return BoxSettings{},false,err}
  var v BoxSettings;if err=json.Unmarshal([]byte(raw),&v);err!=nil{return BoxSettings{},false,fmt.Errorf("decode box settings: %w",err)}
  if strings.TrimSpace(v.AdminLanguage)==""{v.AdminLanguage=v.Language;if strings.TrimSpace(v.AdminLanguage)==""{v.AdminLanguage="de"}}
+ if strings.TrimSpace(v.Display.UISize)==""{v.Display.UISize="normal"}
  return v,true,nil
 }
 func(s *Store)SaveBoxSettings(v BoxSettings)error{
+ if strings.TrimSpace(v.Display.UISize)==""{v.Display.UISize="normal"}
  if err:=ValidateBoxSettings(v);err!=nil{return err}
  raw,err:=json.Marshal(v);if err!=nil{return err}
  _,err=s.db.Exec(`INSERT INTO settings(key,value,updated_at) VALUES('box.settings',?,?)

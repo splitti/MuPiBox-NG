@@ -18,6 +18,9 @@ Window {
     property string backendState: "Verbinde …"
     property string clockText: "--:--"
     property var categories: []
+    property string uiSize: "normal"
+    property bool largeUI: uiSize === "large"
+    property var wifiStatus: ({"connected": false, "quality_percent": 0, "signal_dbm": 0, "interface": ""})
     property var playerState: ({
         "queue": [],
         "index": 0,
@@ -110,6 +113,20 @@ Window {
         })
     }
 
+    function refreshInfo() {
+        requestJson("GET", "/api/info", null, function(data) {
+            uiSize = data && data.display && data.display.ui_size ? data.display.ui_size : "normal"
+        }, function() {})
+    }
+
+    function refreshSystem() {
+        requestJson("GET", "/api/system", null, function(data) {
+            wifiStatus = data && data.wifi ? data.wifi : {"connected": false, "quality_percent": 0}
+        }, function() {
+            wifiStatus = {"connected": false, "quality_percent": 0}
+        })
+    }
+
     function refreshStatus() {
         if (statusRequestRunning) return
         statusRequestRunning = true
@@ -146,6 +163,8 @@ Window {
         updateClock()
         tryApi(0, function() {
             refreshHome()
+            refreshInfo()
+            refreshSystem()
             refreshStatus()
         }, function() {
             backendOnline = false
@@ -154,7 +173,16 @@ Window {
     }
 
     Timer { interval: 750; running: true; repeat: true; onTriggered: root.refreshStatus() }
-    Timer { interval: 5000; running: true; repeat: true; onTriggered: root.refreshHome() }
+    Timer {
+        interval: 5000
+        running: true
+        repeat: true
+        onTriggered: {
+            root.refreshHome()
+            root.refreshInfo()
+            root.refreshSystem()
+        }
+    }
     Timer { interval: 30000; running: true; repeat: true; onTriggered: root.updateClock() }
     Timer { id: messageTimer; interval: 6000; repeat: false; onTriggered: root.transientMessage = "" }
 
@@ -219,7 +247,11 @@ Window {
                     color: root.backendOnline ? "#9aa3b2" : "#f59aca"
                     font.pixelSize: 10
                 }
-                Text { text: "WLAN —"; color: "#9aa3b2"; font.pixelSize: 10 }
+                Text {
+                    text: root.wifiStatus.connected ? "WLAN " + String(root.wifiStatus.quality_percent) + "%" : "WLAN —"
+                    color: root.wifiStatus.connected ? "#9aa3b2" : "#707887"
+                    font.pixelSize: 10
+                }
                 Text { text: "Akku —"; color: "#9aa3b2"; font.pixelSize: 10 }
 
                 Rectangle {
@@ -326,7 +358,7 @@ Window {
                                 width: parent.width - 28
                                 text: root.localized(categoryData.labels, categoryData.id)
                                 color: "#f7f7fa"
-                                font.pixelSize: 20
+                                font.pixelSize: root.largeUI ? 25 : 20
                                 font.bold: true
                                 elide: Text.ElideRight
                             }
@@ -336,7 +368,7 @@ Window {
 
                                 delegate: Item {
                                     width: categoryContent.width
-                                    height: 132
+                                    height: root.largeUI ? 156 : 132
                                     property var rowData: modelData
 
                                     Text {
@@ -345,7 +377,7 @@ Window {
                                         width: parent.width - 120
                                         text: root.localized(rowData.labels, rowData.id)
                                         color: "#d8dce4"
-                                        font.pixelSize: 12
+                                        font.pixelSize: root.largeUI ? 15 : 12
                                         font.bold: true
                                         elide: Text.ElideRight
                                     }
@@ -356,15 +388,15 @@ Window {
                                         y: 2
                                         text: String((rowData.items || []).length) + " Inhalte"
                                         color: "#9aa3b2"
-                                        font.pixelSize: 9
+                                        font.pixelSize: root.largeUI ? 11 : 9
                                     }
 
                                     Flickable {
                                         id: mediaFlick
                                         x: 0
-                                        y: 22
+                                        y: root.largeUI ? 26 : 22
                                         width: parent.width
-                                        height: 110
+                                        height: root.largeUI ? 130 : 110
                                         contentWidth: Math.max(width, mediaRow.width + 28)
                                         contentHeight: height
                                         clip: true
@@ -374,7 +406,7 @@ Window {
                                         Row {
                                             id: mediaRow
                                             x: 14
-                                            spacing: 10
+                                            spacing: root.largeUI ? 14 : 10
 
                                             Text {
                                                 visible: (rowData.items || []).length === 0
@@ -389,9 +421,9 @@ Window {
                                                 model: rowData.items || []
 
                                                 delegate: Rectangle {
-                                                    width: 132
-                                                    height: 106
-                                                    radius: 12
+                                                    width: root.largeUI ? 154 : 132
+                                                    height: root.largeUI ? 126 : 106
+                                                    radius: root.largeUI ? 14 : 12
                                                     color: mediaTouch.pressed ? "#202632" : "#141820"
                                                     border.width: root.playerState.folder_id === String(mediaData.command && mediaData.command.folder_id || "") ? 2 : 1
                                                     border.color: root.playerState.folder_id === String(mediaData.command && mediaData.command.folder_id || "") ? "#f59aca" : "transparent"
@@ -403,7 +435,7 @@ Window {
                                                         anchors.left: parent.left
                                                         anchors.right: parent.right
                                                         anchors.top: parent.top
-                                                        height: 76
+                                                        height: root.largeUI ? 92 : 76
                                                         color: index % 3 === 0 ? "#50405e" : (index % 3 === 1 ? "#285a57" : "#755141")
 
                                                         Image {
@@ -427,22 +459,22 @@ Window {
 
                                                     Text {
                                                         x: 9
-                                                        y: 80
+                                                        y: root.largeUI ? 97 : 80
                                                         width: parent.width - 18
                                                         text: mediaData.title || "Ohne Titel"
                                                         color: "#f7f7fa"
-                                                        font.pixelSize: 11
+                                                        font.pixelSize: root.largeUI ? 14 : 11
                                                         font.bold: true
                                                         elide: Text.ElideRight
                                                     }
 
                                                     Text {
                                                         x: 9
-                                                        y: 94
+                                                        y: root.largeUI ? 115 : 94
                                                         width: parent.width - 18
                                                         text: mediaData.subtitle || mediaData.kind || ""
                                                         color: "#9aa3b2"
-                                                        font.pixelSize: 8
+                                                        font.pixelSize: root.largeUI ? 10 : 8
                                                         elide: Text.ElideRight
                                                     }
 
