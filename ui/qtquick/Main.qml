@@ -8,6 +8,11 @@ Window {
     color: root.backgroundColor
     title: "MuPiBox"
 
+    FontLoader {
+        id: retroFont
+        source: "assets/PressStart2P-Regular.ttf"
+    }
+
     property real uiScale: Math.min(width / 800, height / 480)
     property var apiCandidates: ["http://127.0.0.1:8090", "http://127.0.0.1:8080"]
     property int apiIndex: 0
@@ -43,7 +48,7 @@ Window {
     property color accentPressedColor: retroTheme ? "#B8AFFF" : "#FFB8D8"
     property color lineColor: retroTheme ? "#B8AFFF" : "#2A313D"
     property color accentTextColor: retroTheme ? "#17124F" : "#2C1F2E"
-    property string uiFont: retroTheme ? "Terminus" : "DejaVu Sans"
+    property string uiFont: retroTheme && retroFont.status === FontLoader.Ready ? retroFont.name : (retroTheme ? "DejaVu Sans Mono" : "DejaVu Sans")
     property int uiRestartGeneration: -1
     property var wifiStatus: ({"connected": false, "quality_percent": 0, "signal_dbm": 0, "interface": ""})
     property var batteryStatus: ({"available": false, "percent": 0, "charging": false})

@@ -179,7 +179,7 @@ field('theme').addEventListener('change',()=>$('settings-form').requestSubmit())
 function wifiBars(percent){const level=percent>=75?4:percent>=50?3:percent>=25?2:1;return '▂▄▆█'.slice(0,level)}
 async function scanWifi(){
  const button=$('scan-wifi');button.disabled=true;
- try{const data=await request('/api/connectivity/wifi');const select=$('wifi-network');select.replaceChildren(new Option('—',''));(data.networks||[]).forEach(network=>{const option=new Option((network.connected?'✓ ':'')+wifiBars(network.signal_percent)+'  '+network.ssid+(network.security?' · '+network.security:''),network.ssid);option.dataset.security=network.security||'';select.append(option)});message(t('wifi_scan_done','WLAN-Suche abgeschlossen.'))}catch(error){message(error.message,true)}finally{button.disabled=false}
+ try{const data=await request('/api/connectivity/wifi');const select=$('wifi-network');const networks=data.networks||[];select.replaceChildren(new Option('—',''));networks.forEach(network=>{const option=new Option((network.connected?'✓ ':'')+wifiBars(network.signal_percent)+'  '+network.ssid+(network.security?' · '+network.security:''),network.ssid);option.dataset.security=network.security||'';select.append(option)});if(networks.length){message(t('wifi_scan_done','WLAN-Suche abgeschlossen.').replace('{count}',networks.length))}else{const empty=new Option(t('wifi_no_networks','Keine WLAN-Netze gefunden.'),'');empty.disabled=true;select.append(empty);message(t('wifi_no_networks','Keine WLAN-Netze gefunden.'),true)}}catch(error){message(error.message,true)}finally{button.disabled=false}
 }
 async function connectWifi(){
  const ssid=$('wifi-network').value;if(!ssid){message(t('choose_wifi','Bitte ein WLAN auswählen.'),true);return}

@@ -52,21 +52,34 @@ func(m *Manager)runner()Runner{if m!=nil&&m.Runner!=nil{return m.Runner};return 
 func(m *Manager)wifiInterface()string{if m!=nil&&strings.TrimSpace(m.WiFiInterface)!=""{return m.WiFiInterface};return "wlan0"}
 
 func(m *Manager)ScanWiFi(ctx context.Context)([]WiFiNetwork,error){
- r:=m.runner()
+ r:=m.runner();available:=false;successful:=false;scanErrors:=[]error{}
  if _,err:=r.LookPath("nmcli");err==nil{
+  available=true
   scanCtx,cancel:=context.WithTimeout(ctx,20*time.Second);defer cancel()
   output,err:=r.Run(scanCtx,"","nmcli","-t","--escape","yes","-f","IN-USE,SIGNAL,SECURITY,SSID","device","wifi","list","--rescan","yes","ifname",m.wifiInterface())
-  if err==nil{return parseNMCLI(output),nil}
+  if err==nil{successful=true;if networks:=parseNMCLI(output);len(networks)>0{return networks,nil}}else{scanErrors=append(scanErrors,err)}
  }
  if _,err:=r.LookPath("wpa_cli");err==nil{
+  available=true
   scanCtx,cancel:=context.WithTimeout(ctx,20*time.Second);defer cancel()
-  _,_ = r.Run(scanCtx,"","wpa_cli","-i",m.wifiInterface(),"scan")
-  time.Sleep(1200*time.Millisecond)
-  output,err:=r.Run(scanCtx,"","wpa_cli","-i",m.wifiInterface(),"scan_results")
-  if err!=nil{return nil,err}
-  return parseWPAScan(output),nil
+  output,err:=r.Run(scanCtx,"","wpa_cli","-i",m.wifiInterface(),"scan")
+  if err!=nil{scanErrors=append(scanErrors,err)}else if strings.Contains(strings.ToUpper(output),"FAIL"){scanErrors=append(scanErrors,fmt.Errorf("wpa_cli rejected scan: %s",strings.TrimSpace(output)))}else{
+   successful=true;deadline:=time.Now().Add(9*time.Second)
+   for{
+    output,err=r.Run(scanCtx,"","wpa_cli","-i",m.wifiInterface(),"scan_results")
+    if err!=nil{scanErrors=append(scanErrors,err);break}
+    if networks:=parseWPAScan(output);len(networks)>0{return networks,nil}
+    if time.Now().After(deadline){break}
+    timer:=time.NewTimer(500*time.Millisecond)
+    select{case <-scanCtx.Done():timer.Stop();scanErrors=append(scanErrors,scanCtx.Err());break;case <-timer.C:}
+    if scanCtx.Err()!=nil{break}
+   }
+  }
  }
- return nil,errors.New("no supported Wi-Fi manager found (nmcli or wpa_cli)")
+ if len(scanErrors)>0{return nil,fmt.Errorf("Wi-Fi scan failed: %w",errors.Join(scanErrors...))}
+ if successful{return []WiFiNetwork{},nil}
+ if !available{return nil,errors.New("no supported Wi-Fi manager found (nmcli or wpa_cli)")}
+ return []WiFiNetwork{},nil
 }
 
 func(m *Manager)ConnectWiFi(ctx context.Context,request WiFiConnectRequest)error{
@@ -75,13 +88,14 @@ func(m *Manager)ConnectWiFi(ctx context.Context,request WiFiConnectRequest)error
  if len(request.Password)>63{return errors.New("Wi-Fi password must not exceed 63 characters")}
  if request.Password!=""&&len(request.Password)<8{return errors.New("secured Wi-Fi passwords must contain at least 8 characters")}
  r:=m.runner()
- connectCtx,cancel:=context.WithTimeout(ctx,45*time.Second);defer cancel()
+ connectCtx,cancel:=context.WithTimeout(ctx,45*time.Second);defer cancel();connectErrors:=[]error{}
  if _,err:=r.LookPath("nmcli");err==nil{
   args:=[]string{"--wait","35","device","wifi","connect",request.SSID,"ifname",m.wifiInterface()}
   input:="";if request.Password!=""{args=append([]string{"--ask"},args...);input=request.Password+"\n"}
-  _,err=r.Run(connectCtx,input,"nmcli",args...);return err
+  if _,err=r.Run(connectCtx,input,"nmcli",args...);err==nil{return nil};connectErrors=append(connectErrors,err)
  }
- if _,err:=r.LookPath("wpa_cli");err==nil{return m.connectWPA(connectCtx,request)}
+ if _,err:=r.LookPath("wpa_cli");err==nil{if err=m.connectWPA(connectCtx,request);err==nil{return nil};connectErrors=append(connectErrors,err)}
+ if len(connectErrors)>0{return fmt.Errorf("Wi-Fi connection failed: %w",errors.Join(connectErrors...))}
  return errors.New("no supported Wi-Fi manager found (nmcli or wpa_cli)")
 }
 

@@ -131,6 +131,7 @@ if [[ ! -e /etc/mupibox-ng/config.json ]]; then
 fi
 
 install -m 0644 ui/qtquick/Main.qml /usr/local/share/mupibox-ng/ui/Main.qml
+install -m 0644 ui/qtquick/assets/PressStart2P-Regular.ttf /usr/local/share/mupibox-ng/ui/assets/PressStart2P-Regular.ttf
 
 shopt -s nullglob
 SPLASH_PARTS=(ui/qtquick/assets/mupibox-startscreen.jpg.b64.*)

@@ -21,4 +21,6 @@ func TestQtQuickSourceHasNoObjectSeparators(t *testing.T){
  invalid:=regexp.MustCompile(`}\s*;\s*[A-Z][A-Za-z0-9_]*\s*\{`)
  if match:=invalid.Find(source);match!=nil{t.Fatalf("invalid semicolon between QML objects: %q",match)}
  if strings.Count(string(source),"{")!=strings.Count(string(source),"}"){t.Fatal("unbalanced QML braces")}
+ font,err:=os.Stat(filepath.Join("..","..","ui","qtquick","assets","PressStart2P-Regular.ttf"));if err!=nil{t.Fatal(err)}
+ if font.Size()<10000{t.Fatalf("bundled retro font is unexpectedly small: %d bytes",font.Size())}
 }

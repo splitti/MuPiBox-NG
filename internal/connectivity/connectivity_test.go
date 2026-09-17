@@ -10,6 +10,7 @@ import (
 type fakeRunner struct{
  paths map[string]bool
  outputs map[string]string
+ errors map[string]error
  calls []string
  inputs []string
 }
@@ -17,6 +18,7 @@ type fakeRunner struct{
 func(f *fakeRunner)LookPath(name string)(string,error){if f.paths[name]{return "/usr/bin/"+name,nil};return "",errors.New("missing")}
 func(f *fakeRunner)Run(_ context.Context,input,name string,args ...string)(string,error){
  key:=name+" "+strings.Join(args," ");f.calls=append(f.calls,key);f.inputs=append(f.inputs,input)
+ if err,ok:=f.errors[key];ok{return "",err}
  if output,ok:=f.outputs[key];ok{return output,nil}
  return "",nil
 }
@@ -28,6 +30,18 @@ func TestParseWiFiScans(t *testing.T){
  if len(wpa)!=1||wpa[0].SSID!="hocuspocus"||wpa[0].SignalPercent!=78||wpa[0].Security!="WPA/WPA2"{t.Fatalf("unexpected wpa scan: %#v",wpa)}
 }
 
+func TestScanWiFiFallsBackFromEmptyNMCLIToWPA(t *testing.T){
+ runner:=&fakeRunner{paths:map[string]bool{"nmcli":true,"wpa_cli":true},outputs:map[string]string{
+  "nmcli -t --escape yes -f IN-USE,SIGNAL,SECURITY,SSID device wifi list --rescan yes ifname wlan0":"",
+  "wpa_cli -i wlan0 scan":"OK\n",
+  "wpa_cli -i wlan0 scan_results":"bssid / frequency / signal level / flags / ssid\naa:bb:cc:dd:ee:ff\t2412\t-55\t[WPA2-PSK-CCMP][ESS]\thocuspocus\n",
+ }}
+ networks,err:=(&Manager{Runner:runner,WiFiInterface:"wlan0"}).ScanWiFi(context.Background())
+ if err!=nil{t.Fatal(err)}
+ if len(networks)!=1||networks[0].SSID!="hocuspocus"{t.Fatalf("unexpected networks: %#v",networks)}
+ if !strings.Contains(strings.Join(runner.calls,"\n"),"wpa_cli -i wlan0 scan_results"){t.Fatalf("wpa_cli fallback was not used: %#v",runner.calls)}
+}
+
 func TestConnectWiFiUsesArgumentSafeNMCLI(t *testing.T){
  runner:=&fakeRunner{paths:map[string]bool{"nmcli":true},outputs:map[string]string{}}
  manager:=&Manager{Runner:runner,WiFiInterface:"wlan0"}
@@ -36,6 +50,14 @@ func TestConnectWiFiUsesArgumentSafeNMCLI(t *testing.T){
  if !strings.Contains(call,"nmcli --ask --wait 35 device wifi connect Kids; network ifname wlan0"){t.Fatalf("unexpected command: %s",call)}
  if runner.inputs[len(runner.inputs)-1]!="safe password\n"{t.Fatal("password was not supplied through stdin")}
  if err:=manager.ConnectWiFi(context.Background(),WiFiConnectRequest{SSID:"x",Password:"short"});err==nil{t.Fatal("short secured password accepted")}
+}
+
+func TestConnectWiFiFallsBackFromNMCLIToWPA(t *testing.T){
+ nmCall:="nmcli --ask --wait 35 device wifi connect Home ifname wlan0"
+ runner:=&fakeRunner{paths:map[string]bool{"nmcli":true,"wpa_cli":true},errors:map[string]error{nmCall:errors.New("device is not managed")},outputs:map[string]string{"wpa_cli -i wlan0 add_network":"4\n"}}
+ manager:=&Manager{Runner:runner,WiFiInterface:"wlan0"}
+ if err:=manager.ConnectWiFi(context.Background(),WiFiConnectRequest{SSID:"Home",Password:"safe password"});err!=nil{t.Fatal(err)}
+ if !strings.Contains(strings.Join(runner.calls,"\n"),"wpa_cli -i wlan0 add_network"){t.Fatalf("wpa_cli fallback was not used: %#v",runner.calls)}
 }
 
 func TestBluetoothScanAndCommandValidation(t *testing.T){
