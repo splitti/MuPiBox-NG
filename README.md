@@ -24,6 +24,7 @@ Neuentwicklung eines modularen Musikplayers für **DietPi ARM64, Raspberry Pi 3 
 - Simulierbare Tasten- und RFID-Zuordnungen. Noch keine echten Hardwaretreiber.
 - SQLite-Datenbank mit automatischer Migration für Box-Einstellungen, Navigation und Wiedergabefortschritt.
 - Erste echte Admin-Weboberfläche unter `/admin/` für globale Einstellungen sowie Kategorien/Reihen.
+- Optionaler Admin-Passwortschutz mit sicherem Hash, Login-Sitzung, Abmeldung und begrenzten Fehlversuchen.
 - Persistentes Fortsetzen lokaler Audiodateien, auch bei einzelnen sehr langen Dateien; Fortschrittsvertrag für spätere Provider wie Spotify, Live-Radio ausgeschlossen.
 - Frei platzierbare Medienquelle „Fortsetzen / Resume-Liste“ mit 1–100 zuletzt begonnenen, noch nicht abgeschlossenen Medien.
 
@@ -73,7 +74,7 @@ Das Admin-Interface ist unter `/admin/` erreichbar. Im aktuellen ersten Stand pf
 - Idle-Abschaltung und spätere Zeitpläne,
 - später RFID/Tasten, Provider-Konten und weitere Geräteeinstellungen.
 
-Diese Daten liegen in der unter `database_path` konfigurierten SQLite-Datei; im Dienstbetrieb ist `/var/lib/mupibox-ng/mupibox.db` vorgesehen. JSON bleibt nur für Bootstrap-/Deployment-Werte. Die Adminoberfläche hat im Entwicklungsstand noch keinen Passwortschutz und darf nur im vertrauenswürdigen Heimnetz verwendet werden.
+Diese Daten liegen in der unter `database_path` konfigurierten SQLite-Datei; im Dienstbetrieb ist `/var/lib/mupibox-ng/mupibox.db` vorgesehen. JSON bleibt nur für Bootstrap-/Deployment-Werte. Im Bereich „Sicherheit“ kann ein Admin-Passwort gesetzt werden; danach sind Verwaltung und externe Konnektivitäts-APIs nur mit angemeldeter Sitzung erreichbar.
 
 ## Echte lokale Wiedergabe
 
@@ -101,12 +102,16 @@ Unterstützte Endungen: MP3, FLAC, OGG, OPUS, WAV, M4A, AAC. Tatsächlich lesbar
 | `POST /api/input` | Simulierte Taste/RFID im Entwicklungsmodus |
 | `GET/PUT /api/admin/settings` | Persistente globale Box-Einstellungen |
 | `GET/PUT /api/admin/navigation` | Persistente Kategorien und Reihen |
+| `GET /api/admin/auth`, `POST /api/admin/login` | Passwortschutz und Admin-Sitzung |
+| `PUT /api/admin/password`, `POST /api/admin/logout` | Passwort setzen/ändern und Sitzung beenden |
+| `GET /api/connectivity/wifi/adapters` | WLAN-Adapter, Zustand und aktive Auswahl |
+| `PUT /api/connectivity/wifi/preferences` | Freigegebene und bevorzugte WLAN-Adapter speichern |
 | `GET /api/connectivity/wifi` | WLAN-Netze suchen |
 | `POST /api/connectivity/wifi/connect` | Mit WLAN verbinden (Passwort wird nicht von MuPiBox gespeichert) |
 | `GET /api/connectivity/bluetooth` | Bluetooth-Geräte suchen und Status lesen |
 | `POST /api/connectivity/bluetooth/command` | Bluetooth koppeln, verbinden, trennen oder entfernen |
 
-Die Entwicklungs-API ist für ein vertrauenswürdiges Heimnetz vorgesehen. Sie hat noch keine Benutzeranmeldung. Kein Internet-Portforwarding. Das spätere Admin-Interface benötigt eine getrennte Authentifizierung und Schreib-API.
+Die Admin- und extern aufgerufenen Konnektivitäts-APIs werden geschützt, sobald ein Admin-Passwort gesetzt ist. Trotzdem ist die Entwicklungsbox nur für ein vertrauenswürdiges Heimnetz vorgesehen: kein direktes Internet-Portforwarding.
 
 ## Tests und Grenzen
 

@@ -45,6 +45,11 @@ type BluetoothSettings struct {
  Enabled bool `json:"enabled"`
 }
 
+type WiFiSettings struct {
+ PrimaryInterface string `json:"primary_interface,omitempty"`
+ DisabledInterfaces []string `json:"disabled_interfaces,omitempty"`
+}
+
 type BoxSettings struct {
  Language string `json:"language"`
  AdminLanguage string `json:"admin_language"`
@@ -52,6 +57,7 @@ type BoxSettings struct {
  Power PowerSettings `json:"power"`
  Audio AudioSettings `json:"audio"`
  Display DisplaySettings `json:"display"`
+ WiFi WiFiSettings `json:"wifi"`
  Bluetooth BluetoothSettings `json:"bluetooth"`
  Theme string `json:"theme"`
 }
@@ -156,6 +162,11 @@ func ValidateBoxSettings(v BoxSettings)error{
  if v.Display.Brightness<1||v.Display.Brightness>100{return errors.New("display.brightness must be 1..100")}
  if v.Display.UISize!="normal"&&v.Display.UISize!="large"{return errors.New("display.ui_size must be normal or large")}
  if v.TTS.Enabled&&(strings.TrimSpace(v.TTS.Language)==""||strings.TrimSpace(v.TTS.Provider)==""){return errors.New("enabled TTS requires language and provider")}
+ interfaceName:=regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+ if v.WiFi.PrimaryInterface!=""&&!interfaceName.MatchString(v.WiFi.PrimaryInterface){return errors.New("wifi.primary_interface is invalid")}
+ disabled:=map[string]bool{}
+ for _,name:=range v.WiFi.DisabledInterfaces{if !interfaceName.MatchString(name){return errors.New("wifi.disabled_interfaces contains an invalid interface")};if disabled[name]{return errors.New("wifi.disabled_interfaces contains duplicates")};disabled[name]=true}
+ if disabled[v.WiFi.PrimaryInterface]&&v.WiFi.PrimaryInterface!=""{return errors.New("wifi.primary_interface cannot be disabled")}
  if strings.TrimSpace(v.Theme)==""{return errors.New("theme is required")}
  return nil
 }
@@ -179,6 +190,21 @@ func(s *Store)SaveBoxSettings(v BoxSettings)error{
 func(s *Store)EnsureBoxSettings(defaults BoxSettings)(BoxSettings,error){
  v,ok,err:=s.LoadBoxSettings();if err!=nil{return BoxSettings{},err};if ok{return v,nil}
  if err= s.SaveBoxSettings(defaults);err!=nil{return BoxSettings{},err};return defaults,nil
+}
+
+func(s *Store)LoadAdminPasswordHash()(string,bool,error){
+ var value string
+ err:=s.db.QueryRow(`SELECT value FROM settings WHERE key='admin.password_hash'`).Scan(&value)
+ if errors.Is(err,sql.ErrNoRows){return "",false,nil}
+ if err!=nil{return "",false,err}
+ return value,value!="",nil
+}
+
+func(s *Store)SaveAdminPasswordHash(value string)error{
+ if strings.TrimSpace(value)==""{_,err:=s.db.Exec(`DELETE FROM settings WHERE key='admin.password_hash'`);return err}
+ _,err:=s.db.Exec(`INSERT INTO settings(key,value,updated_at) VALUES('admin.password_hash',?,?)
+ ON CONFLICT(key) DO UPDATE SET value=excluded.value,updated_at=excluded.updated_at`,value,time.Now().UTC().Format(time.RFC3339Nano))
+ return err
 }
 
 var validID=regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$`)

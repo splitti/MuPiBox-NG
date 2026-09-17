@@ -77,7 +77,7 @@ func TestPlayerUsesClockHoldForAdminWithoutSettingsDialog(t *testing.T){
  page:=get("/")
  if !strings.Contains(page,`id="clock"`)||strings.Contains(page,`id="settings"`)||strings.Contains(page,"<dialog"){t.Fatalf("unexpected player admin controls: %s",page)}
  script:=get("/app.js")
- if !strings.Contains(script,"5000")||!strings.Contains(script,"/admin/")||strings.Contains(script,"/api/input"){t.Fatal("player must open admin only through five-second clock hold")}
+ if !strings.Contains(script,"2000")||!strings.Contains(script,"/admin/")||strings.Contains(script,"/api/input"){t.Fatal("web player must open admin only through two-second clock hold")}
  admin:=get("/admin/")
  if strings.Contains(admin,"Name DE")||strings.Contains(admin,"Name EN")||!strings.Contains(admin,`id="content-language"`){t.Fatal("admin must edit one localized name at a time")}
  _=get("/admin/locales/de.json");_=get("/admin/locales/en.json")

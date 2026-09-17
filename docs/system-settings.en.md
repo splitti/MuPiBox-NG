@@ -37,9 +37,9 @@ Configurable options include:
 
 ## Admin access
 
-The admin UI initially has no password during development. An admin password can be created, changed or removed. Outside explicitly marked development mode, the UI prominently warns when admin access is unprotected.
+The admin UI initially has no password and prominently warns while access is unprotected. An admin password can be created and changed; once configured, a login screen is shown before administration.
 
-Passwords are stored only as suitable password hashes. Once enabled, admin sessions, logout, login-attempt rate limiting and protection for write requests are required. The child/player UI remains separate from admin authentication.
+Passwords are stored only as salted PBKDF2-SHA-256 hashes. Once enabled, server-side admin sessions, logout, login-attempt rate limiting and the existing origin checks protect administration. The child/player UI remains separate from admin authentication.
 
 ## Status dashboard
 

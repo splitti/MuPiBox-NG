@@ -55,6 +55,12 @@ apt-get install -y \
     qt6-qpa-plugins libqt6opengl6 libgl1-mesa-dri libegl1 libgbm1 \
     fonts-dejavu-core fonts-terminus
 
+# Raspberry Pi OS/DietPi provide the board-specific Broadcom Bluetooth patch
+# through this package. Keep other Debian targets installable when unavailable.
+if apt-cache show pi-bluetooth >/dev/null 2>&1; then
+    apt-get install -y pi-bluetooth
+fi
+
 version_ge() {
     [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" == "$2" ]]
 }

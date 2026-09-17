@@ -32,6 +32,8 @@ func TestValidation(t *testing.T){
  s,err:=Open(":memory:");if err!=nil{t.Fatal(err)};defer s.Close()
  bad:=BoxSettings{Language:"de",Audio:AudioSettings{StartupVolume:70,MaxVolume:60},Display:DisplaySettings{Brightness:80},Theme:"modern-dark"}
  if err=s.SaveBoxSettings(bad);err==nil{t.Fatal("invalid settings accepted")}
+ invalidWiFi:=BoxSettings{Language:"de",AdminLanguage:"de",Audio:AudioSettings{StartupVolume:30,MaxVolume:60},Display:DisplaySettings{Brightness:80,UISize:"normal"},WiFi:WiFiSettings{PrimaryInterface:"wlan0",DisabledInterfaces:[]string{"wlan0"}},Theme:"modern-dark"}
+ if err=s.SaveBoxSettings(invalidWiFi);err==nil{t.Fatal("disabled primary Wi-Fi adapter accepted")}
  if err=s.SaveNavigation(Navigation{Categories:[]Category{{ID:"bad id",Labels:map[string]string{"de":"Bad"}}}});err==nil{t.Fatal("invalid navigation accepted")}
  if err=s.SaveNavigation(Navigation{Categories:[]Category{{ID:"books",Labels:map[string]string{"de":"Bücher"},Rows:[]Row{{ID:"escape",Labels:map[string]string{"de":"Escape"},Provider:"local-library",SourceType:"path",SourceRef:"../private"}}}}});err==nil{t.Fatal("escaping local path accepted")}
  if err=s.SaveNavigation(Navigation{Categories:[]Category{{ID:"resume",Labels:map[string]string{"de":"Weiterhören"},Rows:[]Row{{ID:"resume-list",Labels:map[string]string{"de":"Zuletzt gehört"},Provider:"resume-list",SourceType:"limit",SourceRef:"101"}}}}});err==nil{t.Fatal("resume limit above 100 accepted")}

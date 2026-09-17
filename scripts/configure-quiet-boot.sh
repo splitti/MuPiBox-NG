@@ -28,15 +28,19 @@ fi
 
 read -r line < "$CMDLINE"
 
-# Keep serial diagnostics, but move the visible kernel console away from the
-# appliance display. tty1 remains reserved for the framebuffer splash and Qt.
-if [[ " $line " == *" console=tty1 "* ]]; then
-    line="${line//console=tty1/console=tty3}"
-elif [[ " $line " != *" console=tty3 "* ]]; then
-    line="$line console=tty3"
-fi
+# Keep serial diagnostics, but remove every virtual-terminal kernel console.
+# fbcon=map:9 prevents early kernel messages from being painted onto fb0 before
+# the MuPiBox splash has claimed tty1. DRM/EGLFS remain available to the UI.
+filtered=""
+for token in $line; do
+    case "$token" in
+        console=tty[0-9]*) continue ;;
+    esac
+    filtered+="${filtered:+ }$token"
+done
+line="$filtered"
 
-for option in quiet splash loglevel=0 systemd.show_status=false vt.global_cursor_default=0 logo.nologo; do
+for option in quiet splash loglevel=0 systemd.show_status=false vt.global_cursor_default=0 logo.nologo fbcon=map:9; do
     case " $line " in
         *" $option "*) ;;
         *) line="$line $option" ;;
@@ -53,7 +57,7 @@ MuPiBox quiet boot configured.
 
 Kernel command line: $CMDLINE
 Backup:              $BACKUP
-visible console:      tty3
+visible console:      disabled (serial console is preserved)
 tty1 getty:           masked
 
 A reboot is required. SSH remains available for recovery.

@@ -68,7 +68,7 @@ The admin surface is available at `/admin/`. Its first version already manages g
 - idle shutdown and later schedules,
 - later RFID/buttons, provider accounts and further device settings.
 
-These values live in the SQLite file configured by `database_path`; the service target is `/var/lib/mupibox-ng/mupibox.db`. JSON remains bootstrap/deployment only. Admin has no password protection in this development version and must stay on a trusted home network.
+These values live in the SQLite file configured by `database_path`; the service target is `/var/lib/mupibox-ng/mupibox.db`. JSON remains bootstrap/deployment only. An admin password can be set in the security section; it protects admin and externally accessed connectivity APIs with a server-side session.
 
 ## Real local playback
 
@@ -96,14 +96,18 @@ Supported extensions: MP3, FLAC, OGG, OPUS, WAV, M4A, AAC. Actual codec support 
 | `POST /api/input` | simulated button/RFID event in development mode |
 | `GET/PUT /api/admin/settings` | persistent global box settings |
 | `GET/PUT /api/admin/navigation` | persistent categories and rows |
+| `GET /api/admin/auth`, `POST /api/admin/login` | password protection and admin session |
+| `PUT /api/admin/password`, `POST /api/admin/logout` | set/change password and end the session |
+| `GET /api/connectivity/wifi/adapters` | Wi-Fi adapters, state and active selection |
+| `PUT /api/connectivity/wifi/preferences` | persist enabled and preferred Wi-Fi adapters |
 
-The development API assumes a trusted home network and currently has no user login. Do not expose it directly to the internet. The future admin UI needs separate authentication and write APIs.
+Admin and remotely accessed connectivity APIs are protected once an admin password is set. The development box must still remain on a trusted home network and must not be port-forwarded directly to the internet.
 
 ## Tests and limits
 
 `go test ./...` covers library/path boundaries, queue/EOF, volume, concurrent control, API, data-driven home model, global box info, RFID/button simulation and a Linux ARM64 cross-build.
 
-Still open: admin authentication and further hardware/provider settings pages, production local TTS, actual idle shutdown, web radio, RSS podcasts, Spotify catalogue/playback, video/YouTube, real RFID/GPIO modules, MuPiHAT/shutdown/battery, complete native player controls, releases and rollback.
+Still open: further hardware/provider settings pages, production local TTS, actual idle shutdown, web radio, RSS podcasts, Spotify catalogue/playback, video/YouTube, real RFID/GPIO modules, MuPiHAT/shutdown/battery, complete native player controls, releases and rollback.
 
 ## Documentation
 

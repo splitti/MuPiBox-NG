@@ -37,9 +37,9 @@ Konfigurierbar sind:
 
 ## Admin-Zugang
 
-Die Adminoberfläche startet für die Entwicklung zunächst ohne Passwort. Ein Adminpasswort kann eingerichtet, geändert und entfernt werden. Sobald die Box außerhalb eines ausdrücklich gekennzeichneten Entwicklungsmodus betrieben wird, weist die Oberfläche gut sichtbar auf einen ungeschützten Adminzugang hin.
+Die Adminoberfläche startet zunächst ohne Passwort und weist gut sichtbar auf den ungeschützten Zugang hin. Ein Adminpasswort kann eingerichtet und geändert werden; danach erscheint vor der Verwaltung eine Anmeldeseite.
 
-Passwörter werden ausschließlich als geeigneter Passwort-Hash gespeichert. Nach Aktivierung werden Admin-Sitzungen, Logout, Rate-Limit für Anmeldeversuche und Schutz schreibender Anfragen vorgesehen. Die Kinder-/Playeroberfläche bleibt vom Adminzugang getrennt.
+Passwörter werden ausschließlich als gesalzener PBKDF2-SHA-256-Hash gespeichert. Nach Aktivierung schützen serverseitige Admin-Sitzungen, Logout, Rate-Limit für Anmeldeversuche und die vorhandene Origin-Prüfung die Verwaltung. Die Kinder-/Playeroberfläche bleibt vom Adminzugang getrennt.
 
 ## Statusübersicht
 

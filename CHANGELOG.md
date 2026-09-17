@@ -4,7 +4,10 @@
 
 ## 0.1.0-dev – 16.09.2026
 
-- Früher Framebuffer-Startscreen über `mupibox-splash.service`; sichtbare Bootkonsole auf `tty3` verschoben.
+- Admin-Passwortschutz mit PBKDF2-SHA-256, serverseitigen Sitzungen, Logout und Rate-Limit für Fehlanmeldungen implementiert.
+- Mehrere WLAN-Adapter werden mit Zustand und Treiber angezeigt; automatische Suche nutzt nur den bevorzugten einsatzbereiten Adapter, Freigabe und Priorität sind in SQLite konfigurierbar.
+- Quiet Boot trennt den sichtbaren Framebuffer vollständig von der Kernelkonsole; der Installer ergänzt auf Raspberry Pi nach Möglichkeit die fehlende Bluetooth-Firmware.
+- Früher Framebuffer-Startscreen über `mupibox-splash.service`; sichtbare Kernelkonsole vom Display getrennt.
 - Native Qt-Quick-Oberfläche an das Web-Frontend angeglichen (Navigation, Medienkarten und Playerleiste).
 - Reversible Quiet-Boot-Konfiguration blendet Kernel-/DietPi-Konsole aus und zeigt den Startscreen früher.
 - Neustart auf `rebuild/go-foundation`, Prototyp vollständig unter `legacy/prototype` erhalten.
@@ -37,7 +40,7 @@
 - Adminsprache ist getrennt von Box-/TTS-Sprache konfigurierbar; Deutsch und Englisch werden aus Sprachdateien geladen.
 - Kategorien und Medieneinträge bearbeiten nur noch ein Feld „Name“ in der ausgewählten Inhaltssprache; vorhandene Übersetzungen bleiben erhalten.
 - Medien lassen sich direkt unter Kategorien mit den Quellen Lokale Medien, Spotify, Amazon Music, Stream und Podcast konfigurieren. Noch nicht implementierte Provider werden nur gespeichert, nicht als abspielbar ausgegeben.
-- Zahnrad und Simulationsdialog aus dem Player entfernt; die Administration öffnet nach fünf Sekunden Halten der Uhrzeit.
+- Zahnrad und Simulationsdialog aus dem Player entfernt; nur im Webplayer öffnet die Administration nach zwei Sekunden Halten der Uhrzeit, die Geräte-Uhr bleibt reine Anzeige.
 - Native Qt-Quick-Testoberfläche über EGLFS/KMS, eigener systemd-Dienst sowie DietPi-Installer, Bootstrap- und Displaydiagnose ergänzt.
 - Generische Displayinstallation für das offizielle Raspberry-Pi-DSI-Display; Waveshare-Overlay nur über die explizite Option `--waveshare-5-dsi`.
 - Vollständiges neues MuPiBox-Logo als 800×480-Startscreen rekonstruiert, mit Prüfsumme abgesichert und zugleich als Default-Cover eingebunden.
@@ -46,7 +49,7 @@
 - Das große 5-Zoll-Profil wechselt nach der Medienauswahl in eine eigene kindgerechte Wiedergabeebene mit Cover, 10-Sekunden-Sprüngen und großen Bedienelementen.
 - Commodore-inspiriertes 8-Bit-Theme für Qt-, Web- und Adminoberfläche ergänzt; DietPi installiert dafür die Terminus-Schrift.
 - MuPiHat-Integration als lokaler Python-Hardware-Agent plus Go-Sicherheitslogik geplant; vorhandene Batterie- und Eingangsstromprofile zweisprachig dokumentiert.
-- WLAN-Suche und Verbindung über `wpa_cli`/`nmcli` ergänzt; 1,2 Sekunden Haltedruck auf das WLAN-Symbol öffnet Scan, Auswahl, Passwortfeld und Bildschirmtastatur.
+- WLAN-Suche und Verbindung über `wpa_cli`/`nmcli` ergänzt; etwa eine Sekunde Haltedruck auf das WLAN-Symbol öffnet Scan, Auswahl, Passwortfeld und native Qt-Bildschirmtastatur.
 - Bluetooth als globale SQLite-Einstellung ergänzt; BlueZ-Geräte können im Adminbereich gesucht, gekoppelt, verbunden, getrennt und entfernt werden.
 - Hotel-WLAN/Captive Portal und Bluetooth-Medientasten sind als nächste hardwareabhängige Stufe dokumentiert.
 - Noch ausstehend: echte MuPiHat-/RFID-/GPIO-Hardwareadapter, Spotify-/Amazon-Music-/Radio-/Podcast-Integration, produktiver TTS-Adapter, echter Idle-Shutdown und Rollback.

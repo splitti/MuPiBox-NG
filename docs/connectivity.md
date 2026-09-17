@@ -4,7 +4,7 @@
 
 ## WLAN
 
-Die native Touchoberfläche öffnet nach 1,2 Sekunden Halten des WLAN-Symbols eine WLAN-Verwaltung. Sie zeigt gefundene SSIDs mit kindgerechten Empfangsbalken, Sicherheitsart und bestehender Verbindung. Nach Auswahl kann das Passwort über eine Bildschirmtastatur eingegeben werden.
+Die native Touchoberfläche öffnet nach ungefähr einer Sekunde Halten des WLAN-Symbols eine WLAN-Verwaltung. Sie zeigt gefundene SSIDs mit kindgerechten Empfangsbalken, Sicherheitsart und bestehender Verbindung. Nach Auswahl kann das Passwort über die native Qt-Bildschirmtastatur eingegeben werden.
 
 Der Go-Dienst verwendet die auf dem System vorhandene Verwaltung:
 
@@ -19,6 +19,8 @@ API:
 - `POST /api/connectivity/wifi/connect` – ausgewähltes Netz verbinden.
 
 Die Admin-Weboberfläche bietet dieselbe Scan-/Verbindungsfunktion als Rückfallweg.
+
+Sind mehrere WLAN-Adapter vorhanden, kann jeder Adapter für MuPiBox freigegeben oder ausgeschlossen und ein bevorzugter Adapter bestimmt werden. Die automatische Suche nutzt den bevorzugten einsatzbereiten Adapter; ist dieser nicht verfügbar, wird auf einen anderen freigegebenen Adapter mit aktivem Link bzw. `wpa_supplicant`-Steuerkanal zurückgefallen. Vorhandene, aber nicht verwaltete Adapter werden angezeigt und nicht ungefragt gescannt.
 
 ### Hotel-WLAN / Captive Portal
 
@@ -45,4 +47,4 @@ Play/Pause, Weiter und Zurück von Bluetooth-Geräten sollen dieselben Befehle w
 
 ## Sicherheit
 
-Die Adminoberfläche besitzt im aktuellen Entwicklungsstand noch kein Passwort. Konnektivitäts-Endpunkte dürfen deshalb nur im vertrauenswürdigen Heimnetz verwendet werden. Vor einem produktiven Release werden sie an die geplante Admin-Authentifizierung gebunden.
+Ein Admin-Passwort kann im Bereich „Sicherheit“ gesetzt und geändert werden. Es wird nur als gesalzener PBKDF2-SHA-256-Hash gespeichert. Danach schützen eine serverseitige Sitzung, Abmeldung und ein Rate-Limit für Fehlversuche die Admin- und extern aufgerufenen Konnektivitäts-Endpunkte. Die lokale Touchoberfläche darf weiterhin über Loopback WLAN einrichten, damit sich die Box nicht selbst aussperrt.

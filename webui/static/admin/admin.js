@@ -8,6 +8,9 @@ let idCounter=0;
 let localDirectories=[];
 let localRoot='/srv/mupibox/music';
 let wifiAdapters=[];
+let wifiPrimary='';
+let wifiSelected='';
+let authState={protected:false,authenticated:false};
 
 const providerCatalog={
  'local-library':{label:'source_local',types:['library','path']},
@@ -22,6 +25,7 @@ const typeKeys={library:'type_library',path:'type_path',limit:'type_limit',artis
 async function request(path,options={}){
  const r=await fetch(path,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});
  const data=await r.json().catch(()=>({}));
+ if(r.status===401&&path!=='/api/admin/login'){showLogin()}
  if(!r.ok)throw new Error(data.error||('HTTP '+r.status));
  return data
 }
@@ -58,6 +62,7 @@ function fillSettings(v){
  field('tts_language').value=v.tts.language;
  field('tts_provider').value=v.tts.provider;
  field('bluetooth_enabled').checked=!!v.bluetooth?.enabled;
+ v.wifi=v.wifi||{primary_interface:'',disabled_interfaces:[]};
  if(!$('content-language').dataset.userSelected)$('content-language').value=v.language||v.tts.language||'de'
 }
 function readSettings(){return{
@@ -67,6 +72,7 @@ function readSettings(){return{
  audio:{startup_volume:Number(field('startup_volume').value),max_volume:Number(field('max_volume').value),start_sound_enabled:field('start_sound_enabled').checked,shutdown_sound_enabled:field('shutdown_sound_enabled').checked},
  display:{brightness:Number(field('brightness').value),ui_size:field('ui_size').value,idle_off_minutes:Number(field('display_idle').value)},
  power:{idle_shutdown_minutes:Number(field('shutdown_idle').value)},
+ wifi:settings?.wifi||{primary_interface:'',disabled_interfaces:[]},
  bluetooth:{enabled:field('bluetooth_enabled').checked},
  tts:{enabled:field('tts_enabled').checked,language:field('tts_language').value.trim(),provider:field('tts_provider').value.trim()}
 }}
@@ -170,7 +176,7 @@ function renderNavigation(){
 async function load(){
  try{
   const [s,n,d,w]=await Promise.all([request('/api/admin/settings'),request('/api/admin/navigation'),request('/api/admin/local-directories'),request('/api/connectivity/wifi/adapters').catch(()=>({adapters:[]}))]);
-  settings=s;localDirectories=d.directories||[];localRoot=d.root||localRoot;wifiAdapters=w.adapters||[];await setLocale(s.admin_language||'de');fillSettings(s);navigation=n;renderNavigation();renderWifiAdapters();$('state').textContent=t('sqlite_connected','SQLite verbunden')
+  settings=s;localDirectories=d.directories||[];localRoot=d.root||localRoot;wifiAdapters=w.adapters||[];wifiPrimary=w.primary_interface||s.wifi?.primary_interface||'';wifiSelected=w.selected_interface||'';await setLocale(s.admin_language||'de');fillSettings(s);navigation=n;renderNavigation();renderWifiAdapters();renderPasswordState();$('state').textContent=t('sqlite_connected','SQLite verbunden')
  }catch(error){$('state').textContent=t('error','Fehler');message(error.message,true)}
 }
 document.querySelectorAll('nav button').forEach(button=>button.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x===button));$('settings-view').hidden=button.dataset.view!=='settings';$('navigation-view').hidden=button.dataset.view!=='navigation'});
@@ -178,16 +184,30 @@ field('admin_language').addEventListener('change',()=>setLocale(field('admin_lan
 field('ui_size').addEventListener('change',()=>$('settings-form').requestSubmit());
 field('theme').addEventListener('change',()=>$('settings-form').requestSubmit());
 function wifiBars(percent){const level=percent>=75?4:percent>=50?3:percent>=25?2:1;return '▂▄▆█'.slice(0,level)}
-function renderWifiAdapters(){const select=$('wifi-adapter');const selected=select.value||'all';select.replaceChildren(new Option(t('wifi_all_adapters','Alle WLAN-Adapter'),'all'));wifiAdapters.forEach(adapter=>{const details=[adapter.interface,adapter.driver,adapter.mac,adapter.state].filter(Boolean).join(' · ');select.append(new Option(details,adapter.interface))});select.value=[...select.options].some(option=>option.value===selected)?selected:'all'}
+function renderWifiAdapters(){
+ const select=$('wifi-adapter');const selected=select.value||'auto';select.replaceChildren(new Option(t('wifi_auto_adapter','Automatisch (bevorzugt/aktiv)'),'auto'));
+ const root=$('wifi-adapters');root.replaceChildren();
+ wifiAdapters.forEach(adapter=>{
+  const row=document.createElement('div');row.className='device-row adapter-choice';row.dataset.usable=String(!!adapter.usable);
+  const enabled=document.createElement('label');const enabledInput=document.createElement('input');enabledInput.type='checkbox';enabledInput.className='wifi-enabled';enabledInput.dataset.interface=adapter.interface;enabledInput.checked=!!adapter.enabled;const enabledText=document.createElement('span');enabledText.textContent=t('wifi_use_adapter','Verwenden');enabled.append(enabledInput,enabledText);
+  const primary=document.createElement('label');const primaryInput=document.createElement('input');primaryInput.type='radio';primaryInput.name='wifi-primary';primaryInput.value=adapter.interface;primaryInput.checked=!!adapter.preferred;primaryInput.disabled=!adapter.enabled||!adapter.usable;const primaryText=document.createElement('span');primaryText.textContent=t('wifi_primary','Bevorzugt');primary.append(primaryInput,primaryText);
+  const details=document.createElement('small');const state=adapter.usable?t('wifi_ready','bereit'):t('wifi_not_ready','nicht bereit');const active=adapter.selected?' · '+t('wifi_currently_selected','aktuell gewählt'):'';details.textContent=[adapter.interface,adapter.driver,adapter.mac,adapter.state,state].filter(Boolean).join(' · ')+active;
+  enabledInput.onchange=()=>{primaryInput.disabled=!enabledInput.checked||!adapter.usable;if(!enabledInput.checked&&primaryInput.checked){primaryInput.checked=false;const replacement=[...document.querySelectorAll('input[name="wifi-primary"]')].find(input=>!input.disabled);if(replacement)replacement.checked=true}renderWifiScanOptions()};
+  row.append(enabled,primary,details);root.append(row)
+ });
+ renderWifiScanOptions(selected)
+}
+function renderWifiScanOptions(selected){const select=$('wifi-adapter');const current=selected||select.value||'auto';select.replaceChildren(new Option(t('wifi_auto_adapter','Automatisch (bevorzugt/aktiv)'),'auto'));wifiAdapters.forEach(adapter=>{const enabled=$(`.wifi-enabled[data-interface="${CSS.escape(adapter.interface)}"]`)?.checked??adapter.enabled;if(!enabled||!adapter.usable)return;const details=[adapter.interface,adapter.driver,adapter.state].filter(Boolean).join(' · ');select.append(new Option(details,adapter.interface))});select.value=[...select.options].some(option=>option.value===current)?current:'auto'}
+async function saveWifiAdapters(){const disabled=[...document.querySelectorAll('.wifi-enabled')].filter(input=>!input.checked).map(input=>input.dataset.interface);const primary=document.querySelector('input[name="wifi-primary"]:checked')?.value||'';const button=$('save-wifi-adapters');button.disabled=true;try{const data=await request('/api/connectivity/wifi/preferences',{method:'PUT',body:JSON.stringify({primary_interface:primary,disabled_interfaces:disabled})});wifiAdapters=data.adapters||[];wifiPrimary=data.primary_interface||'';wifiSelected=data.selected_interface||'';settings.wifi={primary_interface:wifiPrimary,disabled_interfaces:disabled};renderWifiAdapters();message(t('wifi_preferences_saved','WLAN-Adapterauswahl gespeichert.'))}catch(error){message(error.message,true)}finally{button.disabled=false}}
 async function scanWifi(){
- const button=$('scan-wifi');button.disabled=true;const original=button.textContent;button.textContent=t('wifi_scanning','WLAN-Suche läuft …');const adapter=$('wifi-adapter').value||'all';
+ const button=$('scan-wifi');button.disabled=true;const original=button.textContent;button.textContent=t('wifi_scanning','WLAN-Suche läuft …');const adapter=$('wifi-adapter').value||'auto';
  try{const data=await request('/api/connectivity/wifi?interface='+encodeURIComponent(adapter));const select=$('wifi-network');const networks=data.networks||[];select.replaceChildren(new Option('—',''));networks.forEach(network=>{const suffix=network.interface?' · '+network.interface:'';const option=new Option((network.connected?'✓ ':'')+wifiBars(network.signal_percent)+'  '+network.ssid+(network.security?' · '+network.security:'')+suffix,network.ssid);option.dataset.security=network.security||'';option.dataset.interface=network.interface||adapter;select.append(option)});if(networks.length){message(t('wifi_scan_done','WLAN-Suche abgeschlossen.').replace('{count}',networks.length))}else{const empty=new Option(t('wifi_no_networks','Keine WLAN-Netze gefunden.'),'');empty.disabled=true;select.append(empty);message(t('wifi_no_networks','Keine WLAN-Netze gefunden.'),true)}}catch(error){message(error.message,true)}finally{button.disabled=false;button.textContent=original}
 }
 async function connectWifi(){
  const ssid=$('wifi-network').value;if(!ssid){message(t('choose_wifi','Bitte ein WLAN auswählen.'),true);return}
  const selected=$('wifi-network').selectedOptions[0];const security=selected?.dataset.security||'';const password=$('wifi-password').value;if(security&&security!=='--'&&security.toLowerCase()!=='open'&&password.length<8){message(t('wifi_password_short','Das WLAN-Passwort muss mindestens 8 Zeichen haben.'),true);return}
  const button=$('connect-wifi');button.disabled=true;
- const interfaceName=selected?.dataset.interface||$('wifi-adapter').value||'';try{await request('/api/connectivity/wifi/connect',{method:'POST',body:JSON.stringify({ssid,password,interface:interfaceName==='all'?'':interfaceName})});$('wifi-password').value='';message(t('wifi_connected','WLAN-Verbindung wurde eingerichtet.'));setTimeout(scanWifi,1500)}catch(error){message(error.message,true)}finally{button.disabled=false}
+ const interfaceName=selected?.dataset.interface||$('wifi-adapter').value||'auto';try{await request('/api/connectivity/wifi/connect',{method:'POST',body:JSON.stringify({ssid,password,interface:interfaceName})});$('wifi-password').value='';message(t('wifi_connected','WLAN-Verbindung wurde eingerichtet.'));setTimeout(scanWifi,1500)}catch(error){message(error.message,true)}finally{button.disabled=false}
 }
 function renderBluetooth(devices){
  const root=$('bluetooth-devices');root.replaceChildren();
@@ -201,8 +221,17 @@ function renderBluetooth(devices){
 async function scanBluetooth(){const button=$('scan-bluetooth');button.disabled=true;try{const data=await request('/api/connectivity/bluetooth');renderBluetooth(data.devices||[])}catch(error){message(error.message,true)}finally{button.disabled=false}}
 async function bluetoothAction(action,address){try{await request('/api/connectivity/bluetooth/command',{method:'POST',body:JSON.stringify({action,address})});message(t('bluetooth_action_done','Bluetooth-Aktion abgeschlossen.'));setTimeout(scanBluetooth,800)}catch(error){message(error.message,true)}}
 
+function showLogin(){authState.authenticated=false;$('login-view').hidden=false;$('admin-nav').hidden=true;$('admin-main').hidden=true;$('state').textContent=t('login_required','Anmeldung erforderlich');$('login-password').focus()}
+function showAdmin(){authState.authenticated=true;$('login-view').hidden=true;$('admin-nav').hidden=false;$('admin-main').hidden=false}
+function renderPasswordState(){if(!settings)return;const protectedMode=!!authState.protected;$('password-warning').hidden=protectedMode;$('current-password-label').hidden=!protectedMode;$('logout').hidden=!protectedMode;$('password-state').textContent=protectedMode?t('password_active','Passwortschutz ist aktiv.'):t('password_inactive','Noch kein Admin-Passwort gesetzt.');$('save-password').textContent=t(protectedMode?'change_password':'save_password',protectedMode?'Passwort ändern':'Passwort setzen')}
+async function login(event){event.preventDefault();const button=$('login-form').querySelector('button');button.disabled=true;try{await request('/api/admin/login',{method:'POST',body:JSON.stringify({password:$('login-password').value})});$('login-password').value='';authState={protected:true,authenticated:true};showAdmin();await load()}catch(error){message(t('login_failed','Anmeldung fehlgeschlagen.'),true)}finally{button.disabled=false}}
+async function savePassword(){const current=$('current-password').value;const next=$('new-password').value;const confirm=$('confirm-password').value;if(next.length<10){message(t('password_too_short','Das Passwort muss mindestens 10 Zeichen enthalten.'),true);return}if(next!==confirm){message(t('password_mismatch','Die neuen Passwörter stimmen nicht überein.'),true);return}const button=$('save-password');button.disabled=true;try{await request('/api/admin/password',{method:'PUT',body:JSON.stringify({current_password:current,new_password:next})});$('current-password').value='';$('new-password').value='';$('confirm-password').value='';authState={protected:true,authenticated:true};renderPasswordState();message(t('password_saved','Admin-Passwort gespeichert.'))}catch(error){message(error.message,true)}finally{button.disabled=false}}
+async function logout(){try{await request('/api/admin/logout',{method:'POST'});showLogin()}catch(error){message(error.message,true)}}
+async function bootstrap(){await setLocale('de');try{authState=await request('/api/admin/auth');if(authState.protected&&!authState.authenticated){showLogin();return}showAdmin();await load()}catch(error){$('state').textContent=t('error','Fehler');message(error.message,true)}}
+
 $('content-language').addEventListener('change',()=>{$('content-language').dataset.userSelected='true';renderNavigation()});
 $('wifi-adapter').addEventListener('change',()=>{$('wifi-network').replaceChildren(new Option('—',''))});
+$('save-wifi-adapters').onclick=saveWifiAdapters;
 $('scan-wifi').onclick=scanWifi;
 $('connect-wifi').onclick=connectWifi;
 $('scan-bluetooth').onclick=scanBluetooth;
@@ -211,4 +240,7 @@ $('add-category').onclick=()=>{const language=activeContentLanguage();idCounter+
 $('save-navigation').onclick=async()=>{try{navigation=await request('/api/admin/navigation',{method:'PUT',body:JSON.stringify(navigation)});renderNavigation();message(t('content_saved','Inhalte gespeichert und Player aktualisiert.'))}catch(error){message(error.message,true)}};
 $('rescan-library').onclick=async()=>{try{const result=await request('/api/admin/library/rescan',{method:'POST'});localDirectories=result.directories||[];renderNavigation();message(t('library_rescanned','Medienordner neu eingelesen.'))}catch(error){message(error.message,true)}};
 $('restart-ui').onclick=async()=>{try{await request('/api/admin/ui/restart',{method:'POST'});message(t('ui_restarting','Touch-Oberfläche wird neu gestartet.'))}catch(error){message(error.message,true)}};
-setLocale('de').then(load);
+$('login-form').addEventListener('submit',login);
+$('save-password').onclick=savePassword;
+$('logout').onclick=logout;
+bootstrap();

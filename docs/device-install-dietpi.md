@@ -184,7 +184,7 @@ Der Installer richtet standardmäßig einen ruhigen Geräte-Boot ein:
 - Die originale Raspberry-Pi-`cmdline.txt` wird einmal als `.mupibox-backup` gesichert.
 - SSH bleibt für Wartung und Wiederherstellung verfügbar.
 - Ein früher `mupibox-splash.service` zeigt das JPEG direkt über `/dev/fb0`, sobald der Framebuffer verfügbar ist.
-- Die sichtbare Kernelkonsole wird von `tty1` nach `tty3` verschoben; die serielle Diagnosekonsole bleibt erhalten.
+- Virtuelle Kernelkonsolen werden vom sichtbaren Framebuffer getrennt; die serielle Diagnosekonsole bleibt erhalten.
 - Der einmalige `fbi`-Prozess gibt den Framebuffer anschließend frei.
 - Der native Qt-Quick-Startscreen übernimmt mit demselben Bild, während das Backend parallel startet.
 

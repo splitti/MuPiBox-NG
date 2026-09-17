@@ -4,7 +4,10 @@
 
 ## 0.1.0-dev – 2026-09-16
 
-- Added an early framebuffer splash service and moved visible boot console output to `tty3`.
+- Implemented admin password protection using PBKDF2-SHA-256, server-side sessions, logout and failed-login rate limiting.
+- Multiple Wi-Fi adapters are shown with state and driver; automatic discovery uses only the preferred ready adapter while enablement and priority are persisted in SQLite.
+- Quiet boot now separates the visible framebuffer from the kernel console and the installer adds Raspberry Pi Bluetooth firmware when available.
+- Added an early framebuffer splash service and separated the visible display from the kernel console.
 - Native Qt Quick UI aligned with the web frontend (navigation, media cards and player bar).
 - Reversible quiet-boot setup hides kernel/DietPi console output and shows the splash earlier.
 - Restarted development on `rebuild/go-foundation` while preserving the complete prototype under `legacy/prototype`.
@@ -37,7 +40,7 @@
 - Made the admin language independent from box/TTS language; German and English are loaded from language files.
 - Categories and media entries now expose one “Name” field for the selected content language while preserving existing translations.
 - Media can be configured directly below categories using Local media, Spotify, Amazon Music, Stream or Podcast sources. Providers without playback implementations are stored but not presented as playable.
-- Removed the settings button and simulation dialog from the player; holding the clock for five seconds opens administration.
+- Removed the settings button and simulation dialog; only the web player opens administration after holding the clock for two seconds while the device clock is display-only.
 - Added a native Qt Quick test UI using EGLFS/KMS, a dedicated systemd service, DietPi installer, bootstrap script and display diagnostics.
 - Added generic display installation for the official Raspberry Pi DSI display; the Waveshare overlay is only enabled explicitly with `--waveshare-5-dsi`.
 - Reconstructed the complete new MuPiBox logo as a checksum-verified 800×480 startup screen and reused it as the default cover.
@@ -46,7 +49,7 @@
 - The large 5-inch profile now opens a dedicated child-friendly playback layer with artwork, 10-second skips and large controls after media selection.
 - Added a Commodore-inspired 8-bit theme for the Qt, web and admin UIs; DietPi installs the Terminus font for it.
 - Defined the MuPiHat integration as a local Python hardware agent with Go-owned safety logic and documented the existing battery/input-current profiles in both languages.
-- Added Wi-Fi scanning and connection through `wpa_cli`/`nmcli`; holding the Wi-Fi indicator for 1.2 seconds opens discovery, selection, password entry and an on-screen keyboard.
+- Added Wi-Fi scanning and connection through `wpa_cli`/`nmcli`; holding the Wi-Fi indicator for about one second opens discovery, selection, password entry and the native Qt on-screen keyboard.
 - Added Bluetooth as a global SQLite setting; BlueZ devices can be discovered, paired, connected, disconnected and removed from the admin UI.
 - Documented hotel Wi-Fi/captive portals and Bluetooth media buttons as the next hardware-dependent stage.
 - Still missing: real MuPiHat/RFID/GPIO hardware adapters, Spotify/Amazon Music/radio/podcast integration, production TTS, actual idle shutdown and rollback.

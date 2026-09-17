@@ -35,6 +35,7 @@ type Manager struct{
  Runner Runner
  WiFiInterface string
  NetworkPath string
+ ControlPath string
 }
 
 func New()*Manager{return &Manager{Runner:ExecRunner{},WiFiInterface:"wlan0"}}
@@ -52,6 +53,11 @@ type WiFiAdapter struct{
  MAC string `json:"mac,omitempty"`
  Driver string `json:"driver,omitempty"`
  State string `json:"state,omitempty"`
+ Managed bool `json:"managed"`
+ Usable bool `json:"usable"`
+ Enabled bool `json:"enabled"`
+ Preferred bool `json:"preferred"`
+ Selected bool `json:"selected"`
 }
 
 type WiFiConnectRequest struct{
@@ -63,6 +69,7 @@ type WiFiConnectRequest struct{
 func(m *Manager)runner()Runner{if m!=nil&&m.Runner!=nil{return m.Runner};return ExecRunner{}}
 func(m *Manager)wifiInterface()string{if m!=nil&&strings.TrimSpace(m.WiFiInterface)!=""{return m.WiFiInterface};return "wlan0"}
 func(m *Manager)networkPath()string{if m!=nil&&strings.TrimSpace(m.NetworkPath)!=""{return m.NetworkPath};return "/sys/class/net"}
+func(m *Manager)controlPath()string{if m!=nil&&strings.TrimSpace(m.ControlPath)!=""{return m.ControlPath};return "/run/wpa_supplicant"}
 
 var wifiInterfaceName=regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 
@@ -75,20 +82,19 @@ func(m *Manager)ListWiFiAdapters()([]WiFiAdapter,error){
   if _,err=os.Stat(filepath.Join(base,"wireless"));err!=nil{continue}
   driver:="";if target,linkErr:=filepath.EvalSymlinks(filepath.Join(base,"device","driver"));linkErr==nil{driver=filepath.Base(target)}
   if driver==""{for _,line:=range strings.Split(readTrimmed(filepath.Join(base,"device","uevent")),"\n"){if strings.HasPrefix(line,"DRIVER="){driver=strings.TrimPrefix(line,"DRIVER=");break}}}
-  adapters=append(adapters,WiFiAdapter{Interface:name,MAC:readTrimmed(filepath.Join(base,"address")),Driver:driver,State:readTrimmed(filepath.Join(base,"operstate"))})
+  _,controlErr:=os.Stat(filepath.Join(m.controlPath(),name));managed:=controlErr==nil;state:=readTrimmed(filepath.Join(base,"operstate"))
+  adapters=append(adapters,WiFiAdapter{Interface:name,MAC:readTrimmed(filepath.Join(base,"address")),Driver:driver,State:state,Managed:managed,Usable:state=="up"||managed,Enabled:true})
  }
  sort.Slice(adapters,func(i,j int)bool{return adapters[i].Interface<adapters[j].Interface});return adapters,nil
 }
 
 func(m *Manager)ScanWiFi(ctx context.Context)([]WiFiNetwork,error){
  adapters,_:=m.ListWiFiAdapters();interfaces:=[]string{}
- for _,adapter:=range adapters{interfaces=append(interfaces,adapter.Interface)}
+ for _,adapter:=range adapters{if adapter.State=="up"{interfaces=[]string{adapter.Interface};break}}
+ if len(interfaces)==0{for _,adapter:=range adapters{if adapter.Managed{interfaces=[]string{adapter.Interface};break}}}
  if len(interfaces)==0{interfaces=[]string{m.wifiInterface()}}
- type scanResult struct{iface string;networks []WiFiNetwork;err error}
- results:=make(chan scanResult,len(interfaces))
- for _,iface:=range interfaces{go func(name string){found,err:=m.ScanWiFiOn(ctx,name);results<-scanResult{iface:name,networks:found,err:err}}(iface)}
  networks:=[]WiFiNetwork{};scanErrors:=[]error{};successful:=false
- for range interfaces{result:=<-results;if result.err!=nil{scanErrors=append(scanErrors,fmt.Errorf("%s: %w",result.iface,result.err));continue};successful=true;networks=append(networks,result.networks...)}
+ for _,iface:=range interfaces{found,err:=m.ScanWiFiOn(ctx,iface);if err!=nil{scanErrors=append(scanErrors,fmt.Errorf("%s: %w",iface,err));continue};successful=true;networks=append(networks,found...)}
  if len(networks)>0{return deduplicateWiFi(networks),nil}
  if successful{return []WiFiNetwork{},nil}
  if len(scanErrors)>0{return nil,errors.Join(scanErrors...)}
@@ -97,6 +103,7 @@ func(m *Manager)ScanWiFi(ctx context.Context)([]WiFiNetwork,error){
 
 func(m *Manager)ScanWiFiOn(ctx context.Context,iface string)([]WiFiNetwork,error){
  iface=strings.TrimSpace(iface);if iface==""{iface=m.wifiInterface()};if !wifiInterfaceName.MatchString(iface){return nil,errors.New("invalid Wi-Fi interface")}
+ if adapters,err:=m.ListWiFiAdapters();err==nil{for _,adapter:=range adapters{if adapter.Interface==iface&&!adapter.Usable{return nil,fmt.Errorf("Wi-Fi adapter %s is not ready (state=%s, no wpa_supplicant control)",iface,adapter.State)}}}
  r:=m.runner();available:=false;successful:=false;scanErrors:=[]error{}
  if _,err:=r.LookPath("nmcli");err==nil{
   available=true
@@ -105,19 +112,19 @@ func(m *Manager)ScanWiFiOn(ctx context.Context,iface string)([]WiFiNetwork,error
  }
  if _,err:=r.LookPath("wpa_cli");err==nil{
   available=true
-  cacheCtx,cacheCancel:=context.WithTimeout(ctx,3*time.Second);output,cacheErr:=r.Run(cacheCtx,"","wpa_cli","-i",iface,"scan_results");cacheCancel()
+  cacheCtx,cacheCancel:=context.WithTimeout(ctx,1500*time.Millisecond);output,cacheErr:=r.Run(cacheCtx,"","wpa_cli","-i",iface,"scan_results");cacheCancel()
   if cacheErr==nil{successful=true;if networks:=tagWiFiInterface(parseWPAScan(output),iface);len(networks)>0{return networks,nil}}
-  activeCtx,activeCancel:=context.WithTimeout(ctx,6*time.Second);output,activeErr:=r.Run(activeCtx,"","wpa_cli","-i",iface,"scan");activeCancel()
+  activeCtx,activeCancel:=context.WithTimeout(ctx,1500*time.Millisecond);output,activeErr:=r.Run(activeCtx,"","wpa_cli","-i",iface,"scan");activeCancel()
   if activeErr==nil&&!strings.Contains(strings.ToUpper(output),"FAIL"){successful=true}else if activeErr!=nil{scanErrors=append(scanErrors,activeErr)}else{scanErrors=append(scanErrors,fmt.Errorf("wpa_cli rejected scan: %s",strings.TrimSpace(output)))}
-  deadline:=time.Now().Add(5*time.Second)
+  deadline:=time.Now().Add(7*time.Second)
   for time.Now().Before(deadline){
-   resultCtx,resultCancel:=context.WithTimeout(ctx,2*time.Second);output,err=r.Run(resultCtx,"","wpa_cli","-i",iface,"scan_results");resultCancel()
+   resultCtx,resultCancel:=context.WithTimeout(ctx,time.Second);output,err=r.Run(resultCtx,"","wpa_cli","-i",iface,"scan_results");resultCancel()
    if err==nil{successful=true;if networks:=tagWiFiInterface(parseWPAScan(output),iface);len(networks)>0{return networks,nil}}
    timer:=time.NewTimer(500*time.Millisecond);select{case <-ctx.Done():timer.Stop();return nil,ctx.Err();case <-timer.C:}
   }
  }
- if len(scanErrors)>0{return nil,fmt.Errorf("Wi-Fi scan failed: %w",errors.Join(scanErrors...))}
  if successful{return []WiFiNetwork{},nil}
+ if len(scanErrors)>0{return nil,fmt.Errorf("Wi-Fi scan failed: %w",errors.Join(scanErrors...))}
  if !available{return nil,errors.New("no supported Wi-Fi manager found (nmcli or wpa_cli)")}
  return []WiFiNetwork{},nil
 }

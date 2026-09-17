@@ -8,10 +8,12 @@
 </head>
 <body>
 <header><a href="/" data-i18n="back_player">← Player</a><div><strong data-i18n="admin_title">MuPiBox Admin</strong><small data-i18n="admin_subtitle">Persistente SQLite-Konfiguration</small></div><span id="state" data-i18n="loading">Lade …</span></header>
-<nav><button class="active" data-view="settings" data-i18n="nav_box">Box</button><button data-view="navigation" data-i18n="nav_content">Inhalte</button></nav>
-<main>
+<section id="login-view" class="login-card" hidden><form id="login-form"><h1 data-i18n="login_title">Administration anmelden</h1><p class="hint" data-i18n="login_hint">Bitte das Admin-Passwort eingeben.</p><label><span data-i18n="admin_password">Admin-Passwort</span><input id="login-password" type="password" autocomplete="current-password" maxlength="128" required></label><button class="primary" type="submit" data-i18n="login">Anmelden</button></form></section>
+<nav id="admin-nav" hidden><button class="active" data-view="settings" data-i18n="nav_box">Box</button><button data-view="navigation" data-i18n="nav_content">Inhalte</button></nav>
+<main id="admin-main" hidden>
 <section id="settings-view">
-<div class="warning"><strong data-i18n="password_warning_title">Noch ohne Passwortschutz.</strong> <span data-i18n="password_warning_text">Nur im vertrauenswürdigen Heimnetz verwenden.</span></div>
+<div id="password-warning" class="warning"><strong data-i18n="password_warning_title">Noch ohne Passwortschutz.</strong> <span data-i18n="password_warning_text">Nur im vertrauenswürdigen Heimnetz verwenden.</span></div>
+<fieldset><legend data-i18n="security">Sicherheit</legend><p id="password-state" class="hint"></p><label id="current-password-label" hidden><span data-i18n="current_password">Aktuelles Passwort</span><input id="current-password" type="password" autocomplete="current-password" maxlength="128"></label><label><span data-i18n="new_password">Neues Passwort</span><input id="new-password" type="password" autocomplete="new-password" minlength="10" maxlength="128"></label><label><span data-i18n="confirm_password">Passwort wiederholen</span><input id="confirm-password" type="password" autocomplete="new-password" minlength="10" maxlength="128"></label><div class="toolbar"><button id="save-password" type="button" data-i18n="save_password">Passwort setzen</button><button id="logout" type="button" data-i18n="logout" hidden>Abmelden</button></div></fieldset>
 <form id="settings-form">
 <fieldset><legend data-i18n="general">Allgemein</legend>
 <label><span data-i18n="admin_language">Admin-Sprache</span><select name="admin_language"><option value="de">Deutsch</option><option value="en">English</option></select></label>
@@ -38,7 +40,8 @@
 </fieldset>
 <fieldset class="connectivity"><legend data-i18n="connectivity">WLAN und Bluetooth</legend>
 <div class="connectivity-block"><strong data-i18n="wifi">WLAN</strong><p class="hint" data-i18n="wifi_hint">Netze suchen und verbinden. Das Passwort wird nicht gespeichert.</p>
-<label><span data-i18n="wifi_adapter">WLAN-Adapter</span><select id="wifi-adapter"><option value="all" data-i18n="wifi_all_adapters">Alle WLAN-Adapter</option></select></label>
+<div id="wifi-adapters" class="device-list"></div><button id="save-wifi-adapters" type="button" data-i18n="save_wifi_adapters">Adapterauswahl speichern</button>
+<label><span data-i18n="wifi_adapter">WLAN-Adapter für die Suche</span><select id="wifi-adapter"><option value="auto" data-i18n="wifi_auto_adapter">Automatisch (bevorzugt/aktiv)</option></select></label>
 <div class="toolbar"><button id="scan-wifi" type="button" data-i18n="scan_wifi">WLAN suchen</button></div>
 <label><span data-i18n="wifi_network">WLAN-Netz</span><select id="wifi-network"><option value="">—</option></select></label>
 <label><span data-i18n="wifi_password">WLAN-Passwort</span><input id="wifi-password" type="password" autocomplete="new-password" maxlength="63"></label>

@@ -4,7 +4,7 @@
 
 ## Wi-Fi
 
-Holding the Wi-Fi indicator for 1.2 seconds opens Wi-Fi management in the native touch UI. It lists discovered SSIDs with child-friendly signal bars, security type and the current connection. After selecting a network, the password can be entered using the on-screen keyboard.
+Holding the Wi-Fi indicator for about one second opens Wi-Fi management in the native touch UI. It lists discovered SSIDs with child-friendly signal bars, security type and the current connection. After selecting a network, the password can be entered using the native Qt on-screen keyboard.
 
 The Go service uses the network manager already present on the system:
 
@@ -19,6 +19,8 @@ API:
 - `POST /api/connectivity/wifi/connect` – connect the selected network.
 
 The admin web UI exposes the same scan/connect flow as a fallback.
+
+When multiple Wi-Fi adapters are present, each adapter can be enabled or excluded for MuPiBox and one can be marked preferred. Automatic discovery uses the preferred ready adapter and falls back to another enabled adapter with an active link or `wpa_supplicant` control socket. Hardware that is present but unmanaged remains visible and is not scanned implicitly.
 
 ### Hotel Wi-Fi / captive portals
 
@@ -45,4 +47,4 @@ Play/pause, next and previous from Bluetooth devices should emit the same comman
 
 ## Security
 
-The admin UI has no password in the current development build. Connectivity endpoints must therefore be used only on a trusted home network. They will be covered by the planned admin authentication before a production release.
+An admin password can be set and changed in the Security section. Only a salted PBKDF2-SHA-256 hash is stored. Once enabled, server-side sessions, logout and failed-login rate limiting protect admin and remotely accessed connectivity endpoints. The local touchscreen may still configure Wi-Fi through loopback so that the box cannot lock itself out.
