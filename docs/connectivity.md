@@ -20,6 +20,8 @@ API:
 
 Die Admin-Weboberfläche bietet dieselbe Scan-/Verbindungsfunktion als Rückfallweg.
 
+Der Backend-Dienst verwendet bewusst kein isoliertes `PrivateTmp`: `wpa_cli` erzeugt seinen lokalen Antwort-Socket unter `/tmp`, und der außerhalb der Unit laufende `wpa_supplicant` muss diesen Pfad erreichen können. Die übrigen systemd-Schutzoptionen bleiben aktiv.
+
 Sind mehrere WLAN-Adapter vorhanden, kann jeder Adapter für MuPiBox freigegeben oder ausgeschlossen und ein bevorzugter Adapter bestimmt werden. Die automatische Suche nutzt den bevorzugten einsatzbereiten Adapter; ist dieser nicht verfügbar, wird auf einen anderen freigegebenen Adapter mit aktivem Link bzw. `wpa_supplicant`-Steuerkanal zurückgefallen. Vorhandene, aber nicht verwaltete Adapter werden angezeigt und nicht ungefragt gescannt.
 
 ### Hotel-WLAN / Captive Portal

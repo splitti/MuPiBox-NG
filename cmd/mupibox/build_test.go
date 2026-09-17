@@ -28,6 +28,8 @@ func TestQtQuickSourceHasNoObjectSeparators(t *testing.T){
  if strings.Contains(text,"wifiKeyboardRows")||strings.Contains(text,"adminHintVisible"){t.Fatal("legacy touchscreen keyboard or device admin overlay is still present")}
  service,err:=os.ReadFile(filepath.Join("..","..","deploy","mupibox-ui.service"));if err!=nil{t.Fatal(err)}
  if !strings.Contains(string(service),"QT_IM_MODULE=qtvirtualkeyboard"){t.Fatal("Qt virtual keyboard input method is not enabled in the UI service")}
+ backendService,err:=os.ReadFile(filepath.Join("..","..","deploy","mupibox-ng.service"));if err!=nil{t.Fatal(err)}
+ if !strings.Contains(string(backendService),"PrivateTmp=false")||strings.Contains(string(backendService),"PrivateTmp=true"){t.Fatal("backend PrivateTmp isolation breaks wpa_cli reply sockets")}
  installer,err:=os.ReadFile(filepath.Join("..","..","scripts","install-dietpi.sh"));if err!=nil{t.Fatal(err)}
  if !strings.Contains(string(installer),"qml6-module-qtquick-virtualkeyboard"){t.Fatal("Qt virtual keyboard package is missing from the DietPi installer")}
 }

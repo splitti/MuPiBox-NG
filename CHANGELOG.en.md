@@ -4,6 +4,7 @@
 
 ## 0.1.0-dev – 2026-09-16
 
+- Fixed Wi-Fi discovery under systemd: the backend no longer isolates `PrivateTmp`, allowing `wpa_supplicant` to reach the `wpa_cli` reply socket.
 - Implemented admin password protection using PBKDF2-SHA-256, server-side sessions, logout and failed-login rate limiting.
 - Multiple Wi-Fi adapters are shown with state and driver; automatic discovery uses only the preferred ready adapter while enablement and priority are persisted in SQLite.
 - Quiet boot now separates the visible framebuffer from the kernel console and the installer adds Raspberry Pi Bluetooth firmware when available.

@@ -15,7 +15,9 @@ TimeoutStopSec=20
 StateDirectory=mupibox-ng
 UMask=0077
 NoNewPrivileges=true
-PrivateTmp=true
+# wpa_cli creates its reply socket below /tmp. wpa_supplicant runs outside
+# this unit and must be able to resolve that socket path to return scan data.
+PrivateTmp=false
 ProtectSystem=strict
 ProtectHome=true
 RestrictSUIDSGID=true
