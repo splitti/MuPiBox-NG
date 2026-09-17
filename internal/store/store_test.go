@@ -126,3 +126,17 @@ func TestValidation(t *testing.T) {
 		t.Fatal("resume limit above 100 accepted")
 	}
 }
+
+func TestNewAdminSettingsAreNormalizedAndValidated(t *testing.T) {
+	settings := NormalizeBoxSettings(BoxSettings{Language: "de", AdminLanguage: "de", Audio: AudioSettings{StartupVolume: 20, MaxVolume: 60}, Display: DisplaySettings{Brightness: 80}, Theme: "modern-dark"})
+	if settings.WiFi.IPv4.Mode != "dhcp" || settings.MQTT.Port != 1883 || len(settings.MuPiHAT.Profiles) != 4 || settings.System.PerformanceMode != "balanced" {
+		t.Fatalf("new settings were not normalized: %#v", settings)
+	}
+	if err := ValidateBoxSettings(settings); err != nil {
+		t.Fatal(err)
+	}
+	settings.WiFi.IPv4 = IPv4Settings{Mode: "static", Interface: "wlan0", Address: "not-an-address", Gateway: "192.168.1.1"}
+	if err := ValidateBoxSettings(settings); err == nil {
+		t.Fatal("invalid static address accepted")
+	}
+}

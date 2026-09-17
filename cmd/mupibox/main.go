@@ -111,6 +111,22 @@ func run() error {
 	go func() { defer close(workerDone); p.Run(ctx) }()
 	defer func() { cancel(); <-workerDone }()
 	connectivityManager := connectivity.New()
+	tuning := connectivity.SystemTuning{PerformanceMode: settings.System.PerformanceMode}
+	if settings.System.SwapPolicy != "keep" {
+		enabled := settings.System.SwapPolicy == "enabled"
+		tuning.SwapEnabled = &enabled
+	}
+	if settings.System.WaitOnlinePolicy != "keep" {
+		enabled := settings.System.WaitOnlinePolicy == "enabled"
+		tuning.WaitOnlineEnabled = &enabled
+	}
+	if _, statErr := os.Stat("/run/mupibox-system-agent/control.sock"); statErr == nil {
+		applyContext, applyCancel := context.WithTimeout(ctx, 35*time.Second)
+		if applyErr := connectivityManager.ApplySystemTuning(applyContext, tuning); applyErr != nil {
+			log.Printf("System tuning could not be applied: %v", applyErr)
+		}
+		applyCancel()
+	}
 	if settings.Bluetooth.Enabled {
 		if err = connectivityManager.SetBluetoothPower(ctx, true); err != nil {
 			log.Printf("Bluetooth could not be enabled: %v", err)

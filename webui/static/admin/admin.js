@@ -11,6 +11,7 @@ let wifiAdapters=[];
 let wifiPrimary='';
 let wifiSelected='';
 let authState={protected:false,authenticated:false};
+let systemStatus=null;
 
 const providerCatalog={
  'local-library':{label:'source_local',types:['library','path']},
@@ -40,7 +41,7 @@ async function setLocale(language){
  document.documentElement.lang=selected;
  document.querySelectorAll('[data-i18n]').forEach(el=>{el.textContent=t(el.dataset.i18n,el.textContent)});
  document.querySelectorAll('[data-i18n-placeholder]').forEach(el=>{el.placeholder=t(el.dataset.i18nPlaceholder,el.placeholder)});
- if(settings)renderNavigation()
+ if(settings){renderNavigation();if(systemStatus)renderSystemStatus()}
 }
 function message(text,error=false){const el=$('message');el.textContent=text;el.style.background=error?'#682f45':'#263348';el.hidden=false;setTimeout(()=>el.hidden=true,4000)}
 function field(name){return document.querySelector('[name="'+name+'"]')}
@@ -62,19 +63,34 @@ function fillSettings(v){
  field('tts_language').value=v.tts.language;
  field('tts_provider').value=v.tts.provider;
  field('bluetooth_enabled').checked=!!v.bluetooth?.enabled;
- v.wifi=v.wifi||{primary_interface:'',disabled_interfaces:[]};
+ v.wifi=v.wifi||{primary_interface:'',disabled_interfaces:[],ipv4:{mode:'dhcp'}};
+ v.wifi.ipv4=v.wifi.ipv4||{mode:'dhcp'};
+ field('ipv4_mode').value=v.wifi.ipv4.mode||'dhcp';field('ipv4_interface').value=v.wifi.ipv4.interface||'';field('ipv4_address').value=v.wifi.ipv4.address||'';field('ipv4_gateway').value=v.wifi.ipv4.gateway||'';field('ipv4_dns').value=(v.wifi.ipv4.dns||[]).join(', ');toggleStaticIP();
+ const spotify=v.providers?.spotify||{},amazon=v.providers?.amazon_music||{};
+ field('spotify_enabled').checked=!!spotify.enabled;field('spotify_client_id').value=spotify.client_id||'';field('spotify_client_secret').value=spotify.client_secret||'';field('spotify_country').value=spotify.country||'DE';
+ field('amazon_enabled').checked=!!amazon.enabled;field('amazon_client_id').value=amazon.client_id||'';field('amazon_client_secret').value=amazon.client_secret||'';field('amazon_country').value=amazon.country||'DE';
+ const mqtt=v.mqtt||{};field('mqtt_enabled').checked=!!mqtt.enabled;field('mqtt_broker').value=mqtt.broker||'';field('mqtt_port').value=mqtt.port||1883;field('mqtt_topic').value=mqtt.topic||'MuPiBox/Boxname';field('mqtt_client_id').value=mqtt.client_id||'MuPiBox';field('mqtt_username').value=mqtt.username||'';field('mqtt_password').value=mqtt.password||'';field('mqtt_refresh').value=mqtt.refresh_seconds||5;field('mqtt_refresh_idle').value=mqtt.refresh_idle_seconds||30;field('mqtt_timeout').value=mqtt.timeout_seconds||60;field('mqtt_debug').checked=!!mqtt.debug;field('ha_enabled').checked=!!mqtt.home_assistant_enabled;field('ha_topic').value=mqtt.home_assistant_topic||'homeassistant';
+ v.mupihat=v.mupihat||{enabled:false,selected_battery:'USB-C mode (no battery)',current_limit_ma:1790,battery_profiles:[]};field('mupihat_enabled').checked=!!v.mupihat.enabled;field('mupihat_current').value=String(v.mupihat.current_limit_ma||1790);const battery=field('mupihat_battery');battery.replaceChildren(...(v.mupihat.battery_profiles||[]).map(profile=>new Option(profile.name,profile.name)));battery.value=v.mupihat.selected_battery||'';fillBatteryProfile();
+ const system=v.system||{};field('swap_policy').value=system.swap_policy||'keep';field('wait_online_policy').value=system.wait_online_policy||'keep';field('performance_mode').value=system.performance_mode||'balanced';
  if(!$('content-language').dataset.userSelected)$('content-language').value=v.language||v.tts.language||'de'
 }
-function readSettings(){return{
+function fillBatteryProfile(){const profile=settings?.mupihat?.battery_profiles?.find(item=>item.name===field('mupihat_battery').value);if(!profile)return;field('battery_v100').value=profile.v_100;field('battery_v75').value=profile.v_75;field('battery_v50').value=profile.v_50;field('battery_v25').value=profile.v_25;field('battery_v0').value=profile.v_0;field('battery_warning').value=profile.warning;field('battery_shutdown').value=profile.shutdown}
+function readBatteryProfiles(){const profiles=[...(settings?.mupihat?.battery_profiles||[])];const selected=field('mupihat_battery').value;const index=profiles.findIndex(item=>item.name===selected);const updated={name:selected,v_100:Number(field('battery_v100').value),v_75:Number(field('battery_v75').value),v_50:Number(field('battery_v50').value),v_25:Number(field('battery_v25').value),v_0:Number(field('battery_v0').value),warning:Number(field('battery_warning').value),shutdown:Number(field('battery_shutdown').value)};if(index>=0)profiles[index]=updated;else if(selected)profiles.push(updated);return profiles}
+function toggleStaticIP(){const active=field('ipv4_mode').value==='static';$('static-ip-fields').hidden=!active;$('static-ip-notice').hidden=!active}
+function readSettings(){const ipv4={mode:field('ipv4_mode').value,interface:field('ipv4_interface').value.trim(),address:field('ipv4_address').value.trim(),gateway:field('ipv4_gateway').value.trim(),dns:field('ipv4_dns').value.split(',').map(value=>value.trim()).filter(Boolean)};return{
  language:field('language').value.trim(),
  admin_language:field('admin_language').value,
  theme:field('theme').value,
  audio:{startup_volume:Number(field('startup_volume').value),max_volume:Number(field('max_volume').value),start_sound_enabled:field('start_sound_enabled').checked,shutdown_sound_enabled:field('shutdown_sound_enabled').checked},
  display:{brightness:Number(field('brightness').value),ui_size:field('ui_size').value,idle_off_minutes:Number(field('display_idle').value)},
  power:{idle_shutdown_minutes:Number(field('shutdown_idle').value)},
- wifi:settings?.wifi||{primary_interface:'',disabled_interfaces:[]},
+ wifi:{...(settings?.wifi||{}),ipv4},
  bluetooth:{enabled:field('bluetooth_enabled').checked},
- tts:{enabled:field('tts_enabled').checked,language:field('tts_language').value.trim(),provider:field('tts_provider').value.trim()}
+ tts:{enabled:field('tts_enabled').checked,language:field('tts_language').value.trim(),provider:field('tts_provider').value.trim()},
+ providers:{spotify:{enabled:field('spotify_enabled').checked,client_id:field('spotify_client_id').value.trim(),client_secret:field('spotify_client_secret').value,country:field('spotify_country').value.trim().toUpperCase()},amazon_music:{enabled:field('amazon_enabled').checked,client_id:field('amazon_client_id').value.trim(),client_secret:field('amazon_client_secret').value,country:field('amazon_country').value.trim().toUpperCase()}},
+ mqtt:{enabled:field('mqtt_enabled').checked,broker:field('mqtt_broker').value.trim(),port:Number(field('mqtt_port').value),topic:field('mqtt_topic').value.trim(),client_id:field('mqtt_client_id').value.trim(),username:field('mqtt_username').value.trim(),password:field('mqtt_password').value,refresh_seconds:Number(field('mqtt_refresh').value),refresh_idle_seconds:Number(field('mqtt_refresh_idle').value),timeout_seconds:Number(field('mqtt_timeout').value),debug:field('mqtt_debug').checked,home_assistant_enabled:field('ha_enabled').checked,home_assistant_topic:field('ha_topic').value.trim()},
+ mupihat:{enabled:field('mupihat_enabled').checked,selected_battery:field('mupihat_battery').value,current_limit_ma:Number(field('mupihat_current').value),battery_profiles:readBatteryProfiles()},
+ system:{swap_policy:field('swap_policy').value,wait_online_policy:field('wait_online_policy').value,performance_mode:field('performance_mode').value}
 }}
 function activeContentLanguage(){return($('content-language').value||settings?.language||'de').trim().toLowerCase()}
 function labelFor(labels,id){const language=activeContentLanguage();return labels?.[language]||labels?.[language.split('-')[0]]||labels?.de||labels?.en||Object.values(labels||{})[0]||id}
@@ -175,14 +191,21 @@ function renderNavigation(){
 }
 async function load(){
  try{
-  const [s,n,d,w]=await Promise.all([request('/api/admin/settings'),request('/api/admin/navigation'),request('/api/admin/local-directories'),request('/api/connectivity/wifi/adapters').catch(()=>({adapters:[]}))]);
-  settings=s;localDirectories=d.directories||[];localRoot=d.root||localRoot;wifiAdapters=w.adapters||[];wifiPrimary=w.primary_interface||s.wifi?.primary_interface||'';wifiSelected=w.selected_interface||'';await setLocale(s.admin_language||'de');fillSettings(s);navigation=n;renderNavigation();renderWifiAdapters();renderPasswordState();$('state').textContent=t('sqlite_connected','SQLite verbunden')
+  const [s,n,d,w,sys]=await Promise.all([request('/api/admin/settings'),request('/api/admin/navigation'),request('/api/admin/local-directories'),request('/api/connectivity/wifi/adapters').catch(()=>({adapters:[]})),request('/api/admin/system').catch(()=>null)]);
+  settings=s;systemStatus=sys;localDirectories=d.directories||[];localRoot=d.root||localRoot;wifiAdapters=w.adapters||[];wifiPrimary=w.primary_interface||s.wifi?.primary_interface||'';wifiSelected=w.selected_interface||'';await setLocale(s.admin_language||'de');fillSettings(s);navigation=n;renderNavigation();renderWifiAdapters();renderPasswordState();renderSystemStatus();$('state').textContent=t('sqlite_connected','SQLite verbunden')
  }catch(error){$('state').textContent=t('error','Fehler');message(error.message,true)}
 }
-document.querySelectorAll('nav button').forEach(button=>button.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x===button));$('settings-view').hidden=button.dataset.view!=='settings';$('navigation-view').hidden=button.dataset.view!=='navigation'});
+function showView(name){document.querySelectorAll('#admin-nav button').forEach(button=>button.classList.toggle('active',button.dataset.view===name));document.querySelectorAll('[data-admin-view]').forEach(view=>view.hidden=view.dataset.adminView!==name);if(name==='system'&&!systemStatus)refreshSystem()}
+document.querySelectorAll('#admin-nav button').forEach(button=>button.onclick=()=>showView(button.dataset.view));
 field('admin_language').addEventListener('change',()=>setLocale(field('admin_language').value));
 field('ui_size').addEventListener('change',()=>$('settings-form').requestSubmit());
 field('theme').addEventListener('change',()=>$('settings-form').requestSubmit());
+field('ipv4_mode').addEventListener('change',toggleStaticIP);
+field('mupihat_battery').addEventListener('change',fillBatteryProfile);
+function formatDuration(ms){if(!ms)return '—';return ms>=1000?(ms/1000).toFixed(2)+' s':ms+' ms'}
+function statusItem(label,value){const item=document.createElement('div');const title=document.createElement('small');title.textContent=label;const content=document.createElement('strong');content.textContent=value;item.append(title,content);return item}
+function renderSystemStatus(){if(!systemStatus)return;const summary=$('system-summary');summary.replaceChildren(statusItem(t('device_model','Gerät'),systemStatus.model||'—'),statusItem(t('network_backend','Netzwerk-Backend'),systemStatus.network_backend||'—'),statusItem(t('swap_active','Swap aktiv'),systemStatus.swap_active?t('yes','Ja'):t('no','Nein')),statusItem(t('wait_online','Wait-online'),systemStatus.wait_online||'—'),statusItem(t('cpu_governor','CPU-Governor'),(systemStatus.cpu_governors||[]).join(', ')||'—'));const runtime=$('network-runtime');runtime.replaceChildren(statusItem(t('network_backend','Netzwerk-Backend'),systemStatus.network_backend||'—'));(systemStatus.interfaces||[]).forEach(item=>runtime.append(statusItem(item.name+(item.up?' · up':' · down'),(item.addresses||[]).join(', ')||'—')));$('static-ip-notice').textContent=t('static_ip_'+(systemStatus.static_apply_notice||'unknown'),t('static_ip_notice','Die Konfiguration wird gespeichert, aber noch nicht automatisch angewendet.'));$('boot-total').textContent=t('boot_total','Gesamte Bootzeit: {duration}').replace('{duration}',formatDuration(systemStatus.boot?.total_ms));const units=$('boot-units');units.replaceChildren();(systemStatus.boot?.top_units||[]).forEach(item=>{const row=document.createElement('div');const name=document.createElement('span');name.textContent=item.unit;const duration=document.createElement('strong');duration.textContent=formatDuration(item.duration_ms);row.append(name,duration);units.append(row)})}
+async function refreshSystem(){const button=$('refresh-system');button.disabled=true;try{systemStatus=await request('/api/admin/system');renderSystemStatus();message(t('analysis_updated','Systemanalyse aktualisiert.'))}catch(error){message(error.message,true)}finally{button.disabled=false}}
 function wifiBars(percent){const level=percent>=75?4:percent>=50?3:percent>=25?2:1;return '▂▄▆█'.slice(0,level)}
 function renderWifiAdapters(){
  const select=$('wifi-adapter');const selected=select.value||'auto';select.replaceChildren(new Option(t('wifi_auto_adapter','Automatisch (bevorzugt/aktiv)'),'auto'));
@@ -200,7 +223,7 @@ function renderWifiAdapters(){
 }
 async function setWifiAdapterState(adapter,enabled){if(!enabled&&adapter.selected&&!window.confirm(t('wifi_power_off_warning','Der aktuell verwendete WLAN-Adapter wird ausgeschaltet. Die Verbindung kann kurz abbrechen. Fortfahren?')))return;const verb=enabled?t('wifi_powering_on','WLAN-Adapter wird eingeschaltet …'):t('wifi_powering_off','WLAN-Adapter wird ausgeschaltet …');message(verb);try{const data=await request('/api/connectivity/wifi/adapters/state',{method:'POST',body:JSON.stringify({interface:adapter.interface,enabled})});wifiAdapters=data.adapters||[];wifiPrimary=data.primary_interface||'';wifiSelected=data.selected_interface||'';renderWifiAdapters();message(enabled?t('wifi_powered_on','WLAN-Adapter ist eingeschaltet.'):t('wifi_powered_off','WLAN-Adapter ist ausgeschaltet.'))}catch(error){message(error.message,true)}}
 function renderWifiScanOptions(selected){const select=$('wifi-adapter');const current=selected||select.value||'auto';select.replaceChildren(new Option(t('wifi_auto_adapter','Automatisch (bevorzugt/aktiv)'),'auto'));wifiAdapters.forEach(adapter=>{const enabled=$(`.wifi-enabled[data-interface="${CSS.escape(adapter.interface)}"]`)?.checked??adapter.enabled;if(!enabled||!adapter.usable)return;const details=[adapter.interface,adapter.driver,adapter.state].filter(Boolean).join(' · ');select.append(new Option(details,adapter.interface))});select.value=[...select.options].some(option=>option.value===current)?current:'auto'}
-async function saveWifiAdapters(){const disabled=[...document.querySelectorAll('.wifi-enabled')].filter(input=>!input.checked).map(input=>input.dataset.interface);const primary=document.querySelector('input[name="wifi-primary"]:checked')?.value||'';const button=$('save-wifi-adapters');button.disabled=true;try{const data=await request('/api/connectivity/wifi/preferences',{method:'PUT',body:JSON.stringify({primary_interface:primary,disabled_interfaces:disabled})});wifiAdapters=data.adapters||[];wifiPrimary=data.primary_interface||'';wifiSelected=data.selected_interface||'';settings.wifi={primary_interface:wifiPrimary,disabled_interfaces:disabled};renderWifiAdapters();message(t('wifi_preferences_saved','WLAN-Adapterauswahl gespeichert.'))}catch(error){message(error.message,true)}finally{button.disabled=false}}
+async function saveWifiAdapters(){const disabled=[...document.querySelectorAll('.wifi-enabled')].filter(input=>!input.checked).map(input=>input.dataset.interface);const primary=document.querySelector('input[name="wifi-primary"]:checked')?.value||'';const button=$('save-wifi-adapters');button.disabled=true;try{const data=await request('/api/connectivity/wifi/preferences',{method:'PUT',body:JSON.stringify({primary_interface:primary,disabled_interfaces:disabled})});wifiAdapters=data.adapters||[];wifiPrimary=data.primary_interface||'';wifiSelected=data.selected_interface||'';settings.wifi={...(settings.wifi||{}),primary_interface:wifiPrimary,disabled_interfaces:disabled};renderWifiAdapters();message(t('wifi_preferences_saved','WLAN-Adapterauswahl gespeichert.'))}catch(error){message(error.message,true)}finally{button.disabled=false}}
 async function scanWifi(){
  const button=$('scan-wifi');button.disabled=true;const original=button.textContent;button.textContent=t('wifi_scanning','WLAN-Suche läuft …');const adapter=$('wifi-adapter').value||'auto';
  try{const data=await request('/api/connectivity/wifi?interface='+encodeURIComponent(adapter));const select=$('wifi-network');const networks=data.networks||[];select.replaceChildren(new Option('—',''));networks.forEach(network=>{const suffix=network.interface?' · '+network.interface:'';const option=new Option((network.connected?'✓ ':'')+wifiBars(network.signal_percent)+'  '+network.ssid+(network.security?' · '+network.security:'')+suffix,network.ssid);option.dataset.security=network.security||'';option.dataset.interface=network.interface||adapter;select.append(option)});if(networks.length){message(t('wifi_scan_done','WLAN-Suche abgeschlossen.').replace('{count}',networks.length))}else{const empty=new Option(t('wifi_no_networks','Keine WLAN-Netze gefunden.'),'');empty.disabled=true;select.append(empty);message(t('wifi_no_networks','Keine WLAN-Netze gefunden.'),true)}}catch(error){message(error.message,true)}finally{button.disabled=false;button.textContent=original}
@@ -240,7 +263,7 @@ $('save-wifi-adapters').onclick=saveWifiAdapters;
 $('scan-wifi').onclick=scanWifi;
 $('connect-wifi').onclick=connectWifi;
 $('scan-bluetooth').onclick=scanBluetooth;
-$('settings-form').addEventListener('submit',async event=>{event.preventDefault();try{const result=await request('/api/admin/settings',{method:'PUT',body:JSON.stringify(readSettings())});fillSettings(result.settings);await setLocale(result.settings.admin_language);message(t('settings_saved','Einstellungen gespeichert.'))}catch(error){message(error.message,true)}});
+$('settings-form').addEventListener('submit',async event=>{event.preventDefault();const next=readSettings();const systemChanged=JSON.stringify(next.system)!==JSON.stringify(settings?.system||{});if(systemChanged&&!window.confirm(t('system_change_confirm','Systemoptionen werden jetzt angewendet. Netzwerk und Dienste können kurz unterbrochen werden. Fortfahren?')))return;try{const result=await request('/api/admin/settings',{method:'PUT',body:JSON.stringify(next)});fillSettings(result.settings);await setLocale(result.settings.admin_language);if(systemChanged)await refreshSystem();message(t('settings_saved','Einstellungen gespeichert.'))}catch(error){message(error.message,true)}});
 $('add-category').onclick=()=>{const language=activeContentLanguage();idCounter++;navigation.categories.push({id:'category-'+Date.now()+'-'+idCounter,labels:{[language]:t('new_category','Neue Kategorie')},rows:[]});renderNavigation()};
 $('save-navigation').onclick=async()=>{try{navigation=await request('/api/admin/navigation',{method:'PUT',body:JSON.stringify(navigation)});renderNavigation();message(t('content_saved','Inhalte gespeichert und Player aktualisiert.'))}catch(error){message(error.message,true)}};
 $('rescan-library').onclick=async()=>{try{const result=await request('/api/admin/library/rescan',{method:'POST'});localDirectories=result.directories||[];renderNavigation();message(t('library_rescanned','Medienordner neu eingelesen.'))}catch(error){message(error.message,true)}};
@@ -249,6 +272,7 @@ $('restore-backup').onclick=restoreBackup;
 $('load-releases').onclick=loadReleases;
 $('install-release').onclick=()=>switchRelease($('release-select').value);
 $('rollback-release').onclick=()=>switchRelease('rollback');
+$('refresh-system').onclick=refreshSystem;
 $('login-form').addEventListener('submit',login);
 $('save-password').onclick=savePassword;
 $('logout').onclick=logout;

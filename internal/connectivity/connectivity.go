@@ -74,6 +74,12 @@ type WiFiConnectRequest struct {
 	Interface string `json:"interface,omitempty"`
 }
 
+type SystemTuning struct {
+	SwapEnabled       *bool  `json:"swap_enabled,omitempty"`
+	WaitOnlineEnabled *bool  `json:"wait_online_enabled,omitempty"`
+	PerformanceMode   string `json:"performance_mode,omitempty"`
+}
+
 func (m *Manager) runner() Runner {
 	if m != nil && m.Runner != nil {
 		return m.Runner
@@ -233,6 +239,37 @@ func (m *Manager) StartReleaseUpdate(ctx context.Context, target string) error {
 	if !response.OK {
 		if response.Error == "" {
 			response.Error = "update could not be started"
+		}
+		return errors.New(response.Error)
+	}
+	return nil
+}
+
+func (m *Manager) ApplySystemTuning(ctx context.Context, tuning SystemTuning) error {
+	dialer := net.Dialer{}
+	connection, err := dialer.DialContext(ctx, "unix", m.agentSocket())
+	if err != nil {
+		return fmt.Errorf("system agent unavailable: %w", err)
+	}
+	defer connection.Close()
+	_ = connection.SetDeadline(time.Now().Add(35 * time.Second))
+	request := struct {
+		Action string `json:"action"`
+		SystemTuning
+	}{Action: "system-tuning", SystemTuning: tuning}
+	if err = json.NewEncoder(connection).Encode(request); err != nil {
+		return err
+	}
+	var response struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err = json.NewDecoder(connection).Decode(&response); err != nil {
+		return fmt.Errorf("system agent response: %w", err)
+	}
+	if !response.OK {
+		if response.Error == "" {
+			response.Error = "system tuning failed"
 		}
 		return errors.New(response.Error)
 	}

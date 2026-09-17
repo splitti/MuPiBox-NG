@@ -4,6 +4,9 @@
 
 ## 0.1.0-dev – 16.09.2026
 
+- Adminbereich in Box, Inhalte, Netzwerk, Provider, Hardware, Smart Home, System und Wartung gegliedert und kontextbezogene Best-Practice-Hinweise ergänzt.
+- Reale Bootanalyse mit langsamsten systemd-Units sowie privilegierte Profile für Swap, Network-Wait und CPU-Governor ergänzt.
+- Persistente IPv4-, Provider-, MQTT/Home-Assistant- und MuPiHAT-/Batterie-Konfiguration ergänzt; risikoreiches statisches DietPi-Netzwerk wird bis zur sicheren Backend-Erkennung nur gespeichert.
 - WLAN-Scan unter `ProtectSystem=strict` korrigiert und einen lokalen System-Agenten zum echten Aktivieren/Deaktivieren zusätzlicher WLAN-Adapter ergänzt.
 - Konfigurations- und optionale Medienbackups, validierten Restore mit automatischem Sicherheitsstand sowie GitHub-Releasewechsel mit Rollback ergänzt.
 - WLAN-Suche im systemd-Dienst repariert: `PrivateTmp` wird für das Backend nicht mehr isoliert, damit `wpa_supplicant` den Antwort-Socket von `wpa_cli` erreichen kann.

@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [rebuild/go-foundation]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24.x'
+          cache: true
+      - name: Go tests
+        run: go test ./...
+      - name: Go vet
+        run: go vet ./...
+      - name: Frontend syntax
+        run: |
+          node --check webui/static/admin/admin.js
+          node --check webui/static/app.js
+          node -e "for (const file of ['webui/static/admin/locales/de.json','webui/static/admin/locales/en.json']) JSON.parse(require('fs').readFileSync(file))"
+      - name: Shell syntax
+        run: bash -n scripts/*.sh

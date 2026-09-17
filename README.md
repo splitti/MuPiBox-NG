@@ -110,6 +110,7 @@ Unterstützte Endungen: MP3, FLAC, OGG, OPUS, WAV, M4A, AAC. Tatsächlich lesbar
 | `POST /api/connectivity/wifi/adapters/state` | WLAN-Adapter tatsächlich ein-/ausschalten |
 | `GET /api/admin/backup`, `POST /api/admin/restore` | Konfiguration und optional Medien sichern/wiederherstellen |
 | `GET /api/admin/releases`, `POST /api/admin/releases/switch` | Releases anzeigen, installieren oder zurückrollen |
+| `GET /api/admin/system` | Bootzeit, langsame Units, Swap, Netzwerk-Backend und CPU-Profil |
 | `GET /api/connectivity/wifi` | WLAN-Netze suchen |
 | `POST /api/connectivity/wifi/connect` | Mit WLAN verbinden (Passwort wird nicht von MuPiBox gespeichert) |
 | `GET /api/connectivity/bluetooth` | Bluetooth-Geräte suchen und Status lesen |
@@ -121,7 +122,7 @@ Die Admin- und extern aufgerufenen Konnektivitäts-APIs werden geschützt, sobal
 
 `go test ./...` prüft Bibliothek/Pfadgrenzen, Queue/EOF, Lautstärke, konkurrierende Bedienung, API, datengetriebene Home-Struktur, globale Box-Infos, RFID-/Tasten-Simulation sowie einen Linux-ARM64-Crossbuild.
 
-Noch offen: weitere Hardware-/Provider-Einstellungsseiten, produktiver lokaler TTS-Adapter, echter Idle-Shutdown, Webradio, RSS-Podcasts, Spotify-Katalog/Playback, Video/YouTube, echte RFID/GPIO-Module, MuPiHAT/Shutdown/Akku und vollständige native Playerbedienung.
+Noch offen: produktiver lokaler TTS-Adapter, echter Idle-Shutdown, Webradio, RSS-Podcasts, Spotify-/Amazon-Playback, MQTT-Publisher, Video/YouTube, echte RFID/GPIO-/MuPiHAT-Anbindung und vollständige native Playerbedienung. Die zugehörigen Admin-Konfigurationen sind teilweise bereits persistent vorbereitet.
 
 ## Dokumentation
 
@@ -134,6 +135,7 @@ Noch offen: weitere Hardware-/Provider-Einstellungsseiten, produktiver lokaler T
 - [MuPiHat-Integration](docs/mupihat.md) · [MuPiHat integration (English)](docs/mupihat.en.md)
 - [WLAN/Bluetooth](docs/connectivity.md) · [Wi-Fi/Bluetooth (English)](docs/connectivity.en.md)
 - [Backup/Restore/Updates](docs/backup-update.md) · [Backup/restore/updates (English)](docs/backup-update.en.md)
+- [Adminbereich/Best Practices](docs/admin-guide.md) · [Admin area/best practices (English)](docs/admin-guide.en.md)
 - [Spotify/Cache](docs/spotify.md) · [Spotify/cache (English)](docs/spotify.en.md)
 - [Bestandsprüfung](docs/repository-audit.md) · [Repository audit (English)](docs/repository-audit.en.md)
 - [DietPi-/Gerätetest](docs/device-install-dietpi.md)

@@ -29,10 +29,13 @@ var interfaceName = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 var releaseName = regexp.MustCompile(`^(rollback|v?[0-9][A-Za-z0-9._-]{0,63})$`)
 
 type request struct {
-	Action    string `json:"action"`
-	Interface string `json:"interface"`
-	Enabled   bool   `json:"enabled"`
-	Target    string `json:"target"`
+	Action            string `json:"action"`
+	Interface         string `json:"interface"`
+	Enabled           bool   `json:"enabled"`
+	Target            string `json:"target"`
+	SwapEnabled       *bool  `json:"swap_enabled,omitempty"`
+	WaitOnlineEnabled *bool  `json:"wait_online_enabled,omitempty"`
+	PerformanceMode   string `json:"performance_mode,omitempty"`
 }
 type response struct {
 	OK    bool   `json:"ok"`
@@ -151,6 +154,89 @@ func setWiFiState(ctx context.Context, name string, enabled bool) error {
 	return waitForControl(waitCtx, name)
 }
 
+func optionalSystemdUnit(ctx context.Context, action string, unit string) error {
+	err := runCommand(ctx, "systemctl", action, "--now", unit)
+	if err != nil && (strings.Contains(err.Error(), "does not exist") || strings.Contains(err.Error(), "not found")) {
+		return nil
+	}
+	return err
+}
+
+func setSwap(ctx context.Context, enabled bool) error {
+	if enabled {
+		if err := runCommand(ctx, "systemctl", "unmask", "swap.target"); err != nil {
+			return err
+		}
+		return runCommand(ctx, "systemctl", "start", "swap.target")
+	}
+	if err := runCommand(ctx, "swapoff", "-a"); err != nil {
+		return err
+	}
+	return runCommand(ctx, "systemctl", "mask", "--now", "swap.target")
+}
+
+func setWaitOnline(ctx context.Context, enabled bool) error {
+	units := []string{"systemd-networkd-wait-online.service", "NetworkManager-wait-online.service"}
+	action := "mask"
+	if enabled {
+		action = "unmask"
+	}
+	for _, unit := range units {
+		if err := optionalSystemdUnit(ctx, action, unit); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func setPerformanceMode(mode string) error {
+	if mode == "" {
+		return nil
+	}
+	if mode != "balanced" && mode != "performance" && mode != "powersave" {
+		return errors.New("invalid performance mode")
+	}
+	paths, err := filepath.Glob("/sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_governor")
+	if err != nil {
+		return err
+	}
+	if len(paths) == 0 {
+		return nil
+	}
+	governor := mode
+	if mode == "balanced" {
+		governor = "schedutil"
+	}
+	for _, path := range paths {
+		available, _ := os.ReadFile(filepath.Join(filepath.Dir(path), "scaling_available_governors"))
+		if !strings.Contains(" "+string(available)+" ", " "+governor+" ") {
+			if mode == "balanced" && strings.Contains(" "+string(available)+" ", " ondemand ") {
+				governor = "ondemand"
+			} else {
+				return fmt.Errorf("CPU governor %s is unavailable", governor)
+			}
+		}
+		if err = os.WriteFile(path, []byte(governor), 0644); err != nil {
+			return fmt.Errorf("set CPU governor: %w", err)
+		}
+	}
+	return nil
+}
+
+func applySystemTuning(ctx context.Context, input request) error {
+	if input.SwapEnabled != nil {
+		if err := setSwap(ctx, *input.SwapEnabled); err != nil {
+			return err
+		}
+	}
+	if input.WaitOnlineEnabled != nil {
+		if err := setWaitOnline(ctx, *input.WaitOnlineEnabled); err != nil {
+			return err
+		}
+	}
+	return setPerformanceMode(input.PerformanceMode)
+}
+
 func handle(connection net.Conn) {
 	defer connection.Close()
 	_ = connection.SetDeadline(time.Now().Add(25 * time.Second))
@@ -171,6 +257,10 @@ func handle(connection net.Conn) {
 		} else {
 			err = runCommand(context.Background(), "systemctl", "start", "--no-block", "mupibox-update@"+input.Target+".service")
 		}
+	case "system-tuning":
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		err = applySystemTuning(ctx, input)
+		cancel()
 	default:
 		err = errors.New("unsupported action")
 	}

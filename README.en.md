@@ -104,6 +104,7 @@ Supported extensions: MP3, FLAC, OGG, OPUS, WAV, M4A, AAC. Actual codec support 
 | `POST /api/connectivity/wifi/adapters/state` | actually enable or disable a Wi-Fi adapter |
 | `GET /api/admin/backup`, `POST /api/admin/restore` | back up or restore configuration and optional media |
 | `GET /api/admin/releases`, `POST /api/admin/releases/switch` | list, install or roll back releases |
+| `GET /api/admin/system` | boot time, slow units, swap, network backend and CPU profile |
 
 Admin and remotely accessed connectivity APIs are protected once an admin password is set. The development box must still remain on a trusted home network and must not be port-forwarded directly to the internet.
 
@@ -111,7 +112,7 @@ Admin and remotely accessed connectivity APIs are protected once an admin passwo
 
 `go test ./...` covers library/path boundaries, queue/EOF, volume, concurrent control, API, data-driven home model, global box info, RFID/button simulation and a Linux ARM64 cross-build.
 
-Still open: further hardware/provider settings pages, production local TTS, actual idle shutdown, web radio, RSS podcasts, Spotify catalogue/playback, video/YouTube, real RFID/GPIO modules, MuPiHAT/shutdown/battery and complete native player controls.
+Still open: production local TTS, actual idle shutdown, web radio, RSS podcasts, Spotify/Amazon playback, the MQTT publisher, video/YouTube, real RFID/GPIO/MuPiHAT access and complete native player controls. Parts of their admin configuration are already persisted.
 
 ## Documentation
 
@@ -122,6 +123,7 @@ Still open: further hardware/provider settings pages, production local TTS, actu
 - [Player/playback profiles (German)](docs/player-model.md) · [Player/playback profiles](docs/player-model.en.md)
 - [System/hardware settings (German)](docs/system-settings.md) · [System/hardware settings](docs/system-settings.en.md)
 - [Backup/restore/updates (German)](docs/backup-update.md) · [Backup/restore/updates](docs/backup-update.en.md)
+- [Admin area/best practices (German)](docs/admin-guide.md) · [Admin area/best practices](docs/admin-guide.en.md)
 - [Spotify/cache (German)](docs/spotify.md) · [Spotify/cache](docs/spotify.en.md)
 - [Repository audit (German)](docs/repository-audit.md) · [Repository audit](docs/repository-audit.en.md)
 - [DietPi/device test (German)](docs/device-install-dietpi.md)

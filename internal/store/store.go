@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -51,6 +52,67 @@ type BluetoothSettings struct {
 type WiFiSettings struct {
 	PrimaryInterface   string   `json:"primary_interface,omitempty"`
 	DisabledInterfaces []string `json:"disabled_interfaces,omitempty"`
+	IPv4               IPv4Settings `json:"ipv4"`
+}
+
+type IPv4Settings struct {
+	Mode      string   `json:"mode"`
+	Interface string   `json:"interface,omitempty"`
+	Address   string   `json:"address,omitempty"`
+	Gateway   string   `json:"gateway,omitempty"`
+	DNS       []string `json:"dns,omitempty"`
+}
+
+type ProviderAccountSettings struct {
+	Enabled      bool   `json:"enabled"`
+	ClientID     string `json:"client_id,omitempty"`
+	ClientSecret string `json:"client_secret,omitempty"`
+	Country      string `json:"country,omitempty"`
+}
+
+type ProviderSettings struct {
+	Spotify    ProviderAccountSettings `json:"spotify"`
+	AmazonMusic ProviderAccountSettings `json:"amazon_music"`
+}
+
+type MQTTSettings struct {
+	Enabled     bool   `json:"enabled"`
+	Broker      string `json:"broker,omitempty"`
+	Port        int    `json:"port"`
+	Topic       string `json:"topic,omitempty"`
+	ClientID    string `json:"client_id,omitempty"`
+	Username    string `json:"username,omitempty"`
+	Password    string `json:"password,omitempty"`
+	Refresh     int    `json:"refresh_seconds"`
+	RefreshIdle int    `json:"refresh_idle_seconds"`
+	Timeout     int    `json:"timeout_seconds"`
+	Debug       bool   `json:"debug"`
+	HAEnabled   bool   `json:"home_assistant_enabled"`
+	HATopic     string `json:"home_assistant_topic,omitempty"`
+}
+
+type BatteryProfile struct {
+	Name       string `json:"name"`
+	V100       int    `json:"v_100"`
+	V75        int    `json:"v_75"`
+	V50        int    `json:"v_50"`
+	V25        int    `json:"v_25"`
+	V0         int    `json:"v_0"`
+	Warning    int    `json:"warning"`
+	Shutdown   int    `json:"shutdown"`
+}
+
+type MuPiHATSettings struct {
+	Enabled         bool             `json:"enabled"`
+	SelectedBattery string           `json:"selected_battery"`
+	CurrentLimitMA  int              `json:"current_limit_ma"`
+	Profiles        []BatteryProfile `json:"battery_profiles"`
+}
+
+type SystemSettings struct {
+	SwapPolicy       string `json:"swap_policy"`
+	WaitOnlinePolicy string `json:"wait_online_policy"`
+	PerformanceMode  string `json:"performance_mode"`
 }
 
 type BoxSettings struct {
@@ -62,6 +124,10 @@ type BoxSettings struct {
 	Display       DisplaySettings   `json:"display"`
 	WiFi          WiFiSettings      `json:"wifi"`
 	Bluetooth     BluetoothSettings `json:"bluetooth"`
+	Providers     ProviderSettings  `json:"providers"`
+	MQTT          MQTTSettings      `json:"mqtt"`
+	MuPiHAT       MuPiHATSettings   `json:"mupihat"`
+	System        SystemSettings    `json:"system"`
 	Theme         string            `json:"theme"`
 }
 
@@ -317,10 +383,134 @@ func ValidateBoxSettings(v BoxSettings) error {
 	if disabled[v.WiFi.PrimaryInterface] && v.WiFi.PrimaryInterface != "" {
 		return errors.New("wifi.primary_interface cannot be disabled")
 	}
+	if v.WiFi.IPv4.Mode != "dhcp" && v.WiFi.IPv4.Mode != "static" {
+		return errors.New("wifi.ipv4.mode must be dhcp or static")
+	}
+	if v.WiFi.IPv4.Interface != "" && !interfaceName.MatchString(v.WiFi.IPv4.Interface) {
+		return errors.New("wifi.ipv4.interface is invalid")
+	}
+	if v.WiFi.IPv4.Mode == "static" {
+		if ip, _, err := net.ParseCIDR(v.WiFi.IPv4.Address); err != nil || ip.To4() == nil {
+			return errors.New("wifi.ipv4.address must be a valid IPv4 CIDR")
+		}
+		if ip := net.ParseIP(v.WiFi.IPv4.Gateway); ip == nil || ip.To4() == nil {
+			return errors.New("wifi.ipv4.gateway must be a valid IPv4 address")
+		}
+		for _, value := range v.WiFi.IPv4.DNS {
+			if ip := net.ParseIP(value); ip == nil || ip.To4() == nil {
+				return errors.New("wifi.ipv4.dns contains an invalid IPv4 address")
+			}
+		}
+	}
+	if v.MQTT.Port < 1 || v.MQTT.Port > 65535 {
+		return errors.New("mqtt.port must be 1..65535")
+	}
+	if v.MQTT.Refresh < 1 || v.MQTT.RefreshIdle < 1 || v.MQTT.Timeout < 1 {
+		return errors.New("mqtt intervals must be positive")
+	}
+	if v.MQTT.Enabled && strings.TrimSpace(v.MQTT.Broker) == "" {
+		return errors.New("enabled MQTT requires a broker")
+	}
+	if v.MQTT.HAEnabled && !v.MQTT.Enabled {
+		return errors.New("Home Assistant discovery requires MQTT")
+	}
+	if v.MuPiHAT.CurrentLimitMA != 1790 && v.MuPiHAT.CurrentLimitMA != 2200 && v.MuPiHAT.CurrentLimitMA != 2700 {
+		return errors.New("mupihat.current_limit_ma must be 1790, 2200 or 2700")
+	}
+	profileNames := map[string]bool{}
+	for _, profile := range v.MuPiHAT.Profiles {
+		if strings.TrimSpace(profile.Name) == "" || profileNames[profile.Name] {
+			return errors.New("mupihat battery profile names must be unique")
+		}
+		profileNames[profile.Name] = true
+		if profile.V100 < profile.V75 || profile.V75 < profile.V50 || profile.V50 < profile.V25 || profile.V25 < profile.V0 {
+			return fmt.Errorf("mupihat battery profile %s has invalid voltage order", profile.Name)
+		}
+	}
+	if v.MuPiHAT.Enabled && !profileNames[v.MuPiHAT.SelectedBattery] {
+		return errors.New("enabled MuPiHAT requires a selected battery profile")
+	}
+	if v.System.SwapPolicy != "keep" && v.System.SwapPolicy != "enabled" && v.System.SwapPolicy != "disabled" {
+		return errors.New("system.swap_policy must be keep, enabled or disabled")
+	}
+	if v.System.WaitOnlinePolicy != "keep" && v.System.WaitOnlinePolicy != "enabled" && v.System.WaitOnlinePolicy != "disabled" {
+		return errors.New("system.wait_online_policy must be keep, enabled or disabled")
+	}
+	if v.System.PerformanceMode != "balanced" && v.System.PerformanceMode != "performance" && v.System.PerformanceMode != "powersave" {
+		return errors.New("system.performance_mode must be balanced, performance or powersave")
+	}
 	if strings.TrimSpace(v.Theme) == "" {
 		return errors.New("theme is required")
 	}
 	return nil
+}
+
+func defaultBatteryProfiles() []BatteryProfile {
+	return []BatteryProfile{
+		{Name: "Ansmann 2S1P", V100: 8100, V75: 7800, V50: 7400, V25: 7000, V0: 6700, Warning: 7000, Shutdown: 6800},
+		{Name: "ENERpower 2S2P 10.000mAh", V100: 8000, V75: 7700, V50: 7300, V25: 6900, V0: 6000, Warning: 6500, Shutdown: 6150},
+		{Name: "USB-C mode (no battery)", V100: 1, V75: 1, V50: 1, V25: 1, V0: 1, Warning: 0, Shutdown: 0},
+		{Name: "Custom", V100: 8100, V75: 7800, V50: 7400, V25: 7000, V0: 6700, Warning: 7000, Shutdown: 6800},
+	}
+}
+
+func normalizeBoxSettings(v *BoxSettings) {
+	if strings.TrimSpace(v.AdminLanguage) == "" {
+		v.AdminLanguage = v.Language
+		if strings.TrimSpace(v.AdminLanguage) == "" {
+			v.AdminLanguage = "de"
+		}
+	}
+	if strings.TrimSpace(v.Display.UISize) == "" {
+		v.Display.UISize = "normal"
+	}
+	if v.WiFi.IPv4.Mode == "" {
+		v.WiFi.IPv4.Mode = "dhcp"
+	}
+	if v.MQTT.Port == 0 {
+		v.MQTT.Port = 1883
+	}
+	if v.MQTT.Refresh == 0 {
+		v.MQTT.Refresh = 5
+	}
+	if v.MQTT.RefreshIdle == 0 {
+		v.MQTT.RefreshIdle = 30
+	}
+	if v.MQTT.Timeout == 0 {
+		v.MQTT.Timeout = 60
+	}
+	if v.MQTT.ClientID == "" {
+		v.MQTT.ClientID = "MuPiBox"
+	}
+	if v.MQTT.Topic == "" {
+		v.MQTT.Topic = "MuPiBox/Boxname"
+	}
+	if v.MQTT.HATopic == "" {
+		v.MQTT.HATopic = "homeassistant"
+	}
+	if len(v.MuPiHAT.Profiles) == 0 {
+		v.MuPiHAT.Profiles = defaultBatteryProfiles()
+	}
+	if v.MuPiHAT.SelectedBattery == "" {
+		v.MuPiHAT.SelectedBattery = "USB-C mode (no battery)"
+	}
+	if v.MuPiHAT.CurrentLimitMA == 0 {
+		v.MuPiHAT.CurrentLimitMA = 1790
+	}
+	if v.System.SwapPolicy == "" {
+		v.System.SwapPolicy = "keep"
+	}
+	if v.System.WaitOnlinePolicy == "" {
+		v.System.WaitOnlinePolicy = "keep"
+	}
+	if v.System.PerformanceMode == "" {
+		v.System.PerformanceMode = "balanced"
+	}
+}
+
+func NormalizeBoxSettings(v BoxSettings) BoxSettings {
+	normalizeBoxSettings(&v)
+	return v
 }
 func (s *Store) LoadBoxSettings() (BoxSettings, bool, error) {
 	var raw string
@@ -335,21 +525,11 @@ func (s *Store) LoadBoxSettings() (BoxSettings, bool, error) {
 	if err = json.Unmarshal([]byte(raw), &v); err != nil {
 		return BoxSettings{}, false, fmt.Errorf("decode box settings: %w", err)
 	}
-	if strings.TrimSpace(v.AdminLanguage) == "" {
-		v.AdminLanguage = v.Language
-		if strings.TrimSpace(v.AdminLanguage) == "" {
-			v.AdminLanguage = "de"
-		}
-	}
-	if strings.TrimSpace(v.Display.UISize) == "" {
-		v.Display.UISize = "normal"
-	}
+	normalizeBoxSettings(&v)
 	return v, true, nil
 }
 func (s *Store) SaveBoxSettings(v BoxSettings) error {
-	if strings.TrimSpace(v.Display.UISize) == "" {
-		v.Display.UISize = "normal"
-	}
+	normalizeBoxSettings(&v)
 	if err := ValidateBoxSettings(v); err != nil {
 		return err
 	}
@@ -362,6 +542,7 @@ func (s *Store) SaveBoxSettings(v BoxSettings) error {
 	return err
 }
 func (s *Store) EnsureBoxSettings(defaults BoxSettings) (BoxSettings, error) {
+	normalizeBoxSettings(&defaults)
 	v, ok, err := s.LoadBoxSettings()
 	if err != nil {
 		return BoxSettings{}, err

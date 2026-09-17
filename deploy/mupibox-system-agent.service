@@ -18,7 +18,8 @@ PrivateTmp=true
 ProtectSystem=strict
 ProtectHome=true
 ReadWritePaths=/run/wpa_supplicant /var/lib/mupibox-ng/network
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_KILL CAP_CHOWN CAP_FOWNER
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_KILL CAP_CHOWN CAP_FOWNER CAP_SYS_ADMIN
+ProtectKernelTunables=false
 RestrictSUIDSGID=true
 
 [Install]

@@ -4,6 +4,9 @@
 
 ## 0.1.0-dev – 2026-09-16
 
+- Split administration into Box, Content, Network, Providers, Hardware, Smart Home, System and Maintenance, with contextual best-practice guidance.
+- Added measured boot analysis with the slowest systemd units and privileged profiles for swap, network wait and CPU governor.
+- Added persistent IPv4, provider, MQTT/Home Assistant and MuPiHAT/battery configuration; risky static DietPi networking is stored but not applied until the backend is safely supported.
 - Fixed Wi-Fi scanning under `ProtectSystem=strict` and added a local system agent that can genuinely enable or disable additional Wi-Fi adapters.
 - Added configuration and optional media backups, validated restore with an automatic safety snapshot, and GitHub release switching with rollback.
 - Fixed Wi-Fi discovery under systemd: the backend no longer isolates `PrivateTmp`, allowing `wpa_supplicant` to reach the `wpa_cli` reply socket.

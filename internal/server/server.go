@@ -367,6 +367,7 @@ func (a *API) wifiAdapter(name string) (connectivity.WiFiAdapter, error) {
 func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()
 	a.registerMaintenanceRoutes(mux)
+	a.registerSystemRoutes(mux)
 	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) { jsonResponse(w, 200, a.Player.Status()) })
 	mux.HandleFunc("GET /api/system", func(w http.ResponseWriter, r *http.Request) { jsonResponse(w, 200, a.currentSystemStatus()) })
 	mux.HandleFunc("GET /api/connectivity/wifi/adapters", func(w http.ResponseWriter, r *http.Request) {
@@ -698,6 +699,7 @@ func (a *API) Handler() http.Handler {
 			problem(w, 400, err)
 			return
 		}
+		v = store.NormalizeBoxSettings(v)
 		current, _, err := a.Store.LoadBoxSettings()
 		if err != nil {
 			problem(w, 500, err)
@@ -713,13 +715,39 @@ func (a *API) Handler() http.Handler {
 				return
 			}
 		}
+		if current.System != v.System {
+			if a.Connectivity == nil {
+				problem(w, 503, fmt.Errorf("system agent unavailable"))
+				return
+			}
+			tuning := connectivity.SystemTuning{}
+			if v.System.SwapPolicy != "keep" && v.System.SwapPolicy != current.System.SwapPolicy {
+				enabled := v.System.SwapPolicy == "enabled"
+				tuning.SwapEnabled = &enabled
+			}
+			if v.System.WaitOnlinePolicy != "keep" && v.System.WaitOnlinePolicy != current.System.WaitOnlinePolicy {
+				enabled := v.System.WaitOnlinePolicy == "enabled"
+				tuning.WaitOnlineEnabled = &enabled
+			}
+			if v.System.PerformanceMode != current.System.PerformanceMode {
+				tuning.PerformanceMode = v.System.PerformanceMode
+			}
+			ctx, cancel := context.WithTimeout(r.Context(), 35*time.Second)
+			err = a.Connectivity.ApplySystemTuning(ctx, tuning)
+			cancel()
+			if err != nil {
+				problem(w, 502, err)
+				return
+			}
+		}
 		if err = a.Store.SaveBoxSettings(v); err != nil {
 			problem(w, 400, err)
 			return
 		}
 		a.TTS = TTSConfig{Enabled: v.TTS.Enabled, Language: v.TTS.Language, Provider: v.TTS.Provider}
 		a.Power = PowerConfig{IdleShutdownMinutes: v.Power.IdleShutdownMinutes}
-		jsonResponse(w, 200, map[string]any{"settings": v, "restart_required": []string{"audio.max_volume", "audio.startup_volume"}})
+		saved, _, _ := a.Store.LoadBoxSettings()
+		jsonResponse(w, 200, map[string]any{"settings": saved, "restart_required": []string{"audio.max_volume", "audio.startup_volume"}})
 	})
 	mux.HandleFunc("GET /api/admin/navigation", func(w http.ResponseWriter, r *http.Request) {
 		if a.Store == nil {
