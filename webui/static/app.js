@@ -17,7 +17,7 @@ function setupAdminHold(){
   if(event.type==='pointerdown'&&event.button!==0)return;
   if(timer||triggered)return;
   event.preventDefault();target.classList.add('admin-hold');
-  timer=setTimeout(()=>{triggered=true;target.classList.remove('admin-hold');window.location.assign('/admin/')},5000)
+  timer=setTimeout(()=>{triggered=true;target.classList.remove('admin-hold');window.location.assign('/admin/')},2000)
  };
  target.addEventListener('pointerdown',start);
  ['pointerup','pointercancel','pointerleave'].forEach(name=>target.addEventListener(name,cancel));

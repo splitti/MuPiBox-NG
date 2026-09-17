@@ -3,6 +3,8 @@ package connectivity
 import (
  "context"
  "errors"
+ "os"
+ "path/filepath"
  "strings"
  "testing"
 )
@@ -40,6 +42,20 @@ func TestScanWiFiFallsBackFromEmptyNMCLIToWPA(t *testing.T){
  if err!=nil{t.Fatal(err)}
  if len(networks)!=1||networks[0].SSID!="hocuspocus"{t.Fatalf("unexpected networks: %#v",networks)}
  if !strings.Contains(strings.Join(runner.calls,"\n"),"wpa_cli -i wlan0 scan_results"){t.Fatalf("wpa_cli fallback was not used: %#v",runner.calls)}
+}
+
+func TestListWiFiAdapters(t *testing.T){
+ root:=t.TempDir()
+ for _,adapter:=range []struct{name,mac,driver,state string}{{"wlan0","00:11:22:33:44:55","brcmfmac","up"},{"wlan1","66:77:88:99:aa:bb","rtl8192cu","down"}}{
+  base:=filepath.Join(root,adapter.name)
+  if err:=os.MkdirAll(filepath.Join(base,"wireless"),0700);err!=nil{t.Fatal(err)}
+  if err:=os.MkdirAll(filepath.Join(base,"device"),0700);err!=nil{t.Fatal(err)}
+  if err:=os.WriteFile(filepath.Join(base,"address"),[]byte(adapter.mac+"\n"),0600);err!=nil{t.Fatal(err)}
+  if err:=os.WriteFile(filepath.Join(base,"operstate"),[]byte(adapter.state+"\n"),0600);err!=nil{t.Fatal(err)}
+  if err:=os.WriteFile(filepath.Join(base,"device","uevent"),[]byte("DRIVER="+adapter.driver+"\n"),0600);err!=nil{t.Fatal(err)}
+ }
+ adapters,err:=(&Manager{NetworkPath:root}).ListWiFiAdapters();if err!=nil{t.Fatal(err)}
+ if len(adapters)!=2||adapters[0].Interface!="wlan0"||adapters[0].Driver!="brcmfmac"||adapters[1].Interface!="wlan1"||adapters[1].MAC!="66:77:88:99:aa:bb"{t.Fatalf("unexpected adapters: %#v",adapters)}
 }
 
 func TestConnectWiFiUsesArgumentSafeNMCLI(t *testing.T){

@@ -23,4 +23,11 @@ func TestQtQuickSourceHasNoObjectSeparators(t *testing.T){
  if strings.Count(string(source),"{")!=strings.Count(string(source),"}"){t.Fatal("unbalanced QML braces")}
  font,err:=os.Stat(filepath.Join("..","..","ui","qtquick","assets","PressStart2P-Regular.ttf"));if err!=nil{t.Fatal(err)}
  if font.Size()<10000{t.Fatalf("bundled retro font is unexpectedly small: %d bytes",font.Size())}
+ text:=string(source)
+ if !strings.Contains(text,"import QtQuick.VirtualKeyboard")||!strings.Contains(text,"InputPanel {"){t.Fatal("native Qt virtual keyboard is not wired into the touchscreen UI")}
+ if strings.Contains(text,"wifiKeyboardRows")||strings.Contains(text,"adminHintVisible"){t.Fatal("legacy touchscreen keyboard or device admin overlay is still present")}
+ service,err:=os.ReadFile(filepath.Join("..","..","deploy","mupibox-ui.service"));if err!=nil{t.Fatal(err)}
+ if !strings.Contains(string(service),"QT_IM_MODULE=qtvirtualkeyboard"){t.Fatal("Qt virtual keyboard input method is not enabled in the UI service")}
+ installer,err:=os.ReadFile(filepath.Join("..","..","scripts","install-dietpi.sh"));if err!=nil{t.Fatal(err)}
+ if !strings.Contains(string(installer),"qml6-module-qtquick-virtualkeyboard"){t.Fatal("Qt virtual keyboard package is missing from the DietPi installer")}
 }

@@ -7,6 +7,7 @@ let translations={};
 let idCounter=0;
 let localDirectories=[];
 let localRoot='/srv/mupibox/music';
+let wifiAdapters=[];
 
 const providerCatalog={
  'local-library':{label:'source_local',types:['library','path']},
@@ -168,8 +169,8 @@ function renderNavigation(){
 }
 async function load(){
  try{
-  const [s,n,d]=await Promise.all([request('/api/admin/settings'),request('/api/admin/navigation'),request('/api/admin/local-directories')]);
-  settings=s;localDirectories=d.directories||[];localRoot=d.root||localRoot;await setLocale(s.admin_language||'de');fillSettings(s);navigation=n;renderNavigation();$('state').textContent=t('sqlite_connected','SQLite verbunden')
+  const [s,n,d,w]=await Promise.all([request('/api/admin/settings'),request('/api/admin/navigation'),request('/api/admin/local-directories'),request('/api/connectivity/wifi/adapters').catch(()=>({adapters:[]}))]);
+  settings=s;localDirectories=d.directories||[];localRoot=d.root||localRoot;wifiAdapters=w.adapters||[];await setLocale(s.admin_language||'de');fillSettings(s);navigation=n;renderNavigation();renderWifiAdapters();$('state').textContent=t('sqlite_connected','SQLite verbunden')
  }catch(error){$('state').textContent=t('error','Fehler');message(error.message,true)}
 }
 document.querySelectorAll('nav button').forEach(button=>button.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x===button));$('settings-view').hidden=button.dataset.view!=='settings';$('navigation-view').hidden=button.dataset.view!=='navigation'});
@@ -177,15 +178,16 @@ field('admin_language').addEventListener('change',()=>setLocale(field('admin_lan
 field('ui_size').addEventListener('change',()=>$('settings-form').requestSubmit());
 field('theme').addEventListener('change',()=>$('settings-form').requestSubmit());
 function wifiBars(percent){const level=percent>=75?4:percent>=50?3:percent>=25?2:1;return '▂▄▆█'.slice(0,level)}
+function renderWifiAdapters(){const select=$('wifi-adapter');const selected=select.value||'all';select.replaceChildren(new Option(t('wifi_all_adapters','Alle WLAN-Adapter'),'all'));wifiAdapters.forEach(adapter=>{const details=[adapter.interface,adapter.driver,adapter.mac,adapter.state].filter(Boolean).join(' · ');select.append(new Option(details,adapter.interface))});select.value=[...select.options].some(option=>option.value===selected)?selected:'all'}
 async function scanWifi(){
- const button=$('scan-wifi');button.disabled=true;
- try{const data=await request('/api/connectivity/wifi');const select=$('wifi-network');const networks=data.networks||[];select.replaceChildren(new Option('—',''));networks.forEach(network=>{const option=new Option((network.connected?'✓ ':'')+wifiBars(network.signal_percent)+'  '+network.ssid+(network.security?' · '+network.security:''),network.ssid);option.dataset.security=network.security||'';select.append(option)});if(networks.length){message(t('wifi_scan_done','WLAN-Suche abgeschlossen.').replace('{count}',networks.length))}else{const empty=new Option(t('wifi_no_networks','Keine WLAN-Netze gefunden.'),'');empty.disabled=true;select.append(empty);message(t('wifi_no_networks','Keine WLAN-Netze gefunden.'),true)}}catch(error){message(error.message,true)}finally{button.disabled=false}
+ const button=$('scan-wifi');button.disabled=true;const original=button.textContent;button.textContent=t('wifi_scanning','WLAN-Suche läuft …');const adapter=$('wifi-adapter').value||'all';
+ try{const data=await request('/api/connectivity/wifi?interface='+encodeURIComponent(adapter));const select=$('wifi-network');const networks=data.networks||[];select.replaceChildren(new Option('—',''));networks.forEach(network=>{const suffix=network.interface?' · '+network.interface:'';const option=new Option((network.connected?'✓ ':'')+wifiBars(network.signal_percent)+'  '+network.ssid+(network.security?' · '+network.security:'')+suffix,network.ssid);option.dataset.security=network.security||'';option.dataset.interface=network.interface||adapter;select.append(option)});if(networks.length){message(t('wifi_scan_done','WLAN-Suche abgeschlossen.').replace('{count}',networks.length))}else{const empty=new Option(t('wifi_no_networks','Keine WLAN-Netze gefunden.'),'');empty.disabled=true;select.append(empty);message(t('wifi_no_networks','Keine WLAN-Netze gefunden.'),true)}}catch(error){message(error.message,true)}finally{button.disabled=false;button.textContent=original}
 }
 async function connectWifi(){
  const ssid=$('wifi-network').value;if(!ssid){message(t('choose_wifi','Bitte ein WLAN auswählen.'),true);return}
  const selected=$('wifi-network').selectedOptions[0];const security=selected?.dataset.security||'';const password=$('wifi-password').value;if(security&&security!=='--'&&security.toLowerCase()!=='open'&&password.length<8){message(t('wifi_password_short','Das WLAN-Passwort muss mindestens 8 Zeichen haben.'),true);return}
  const button=$('connect-wifi');button.disabled=true;
- try{await request('/api/connectivity/wifi/connect',{method:'POST',body:JSON.stringify({ssid,password})});$('wifi-password').value='';message(t('wifi_connected','WLAN-Verbindung wurde eingerichtet.'));setTimeout(scanWifi,1500)}catch(error){message(error.message,true)}finally{button.disabled=false}
+ const interfaceName=selected?.dataset.interface||$('wifi-adapter').value||'';try{await request('/api/connectivity/wifi/connect',{method:'POST',body:JSON.stringify({ssid,password,interface:interfaceName==='all'?'':interfaceName})});$('wifi-password').value='';message(t('wifi_connected','WLAN-Verbindung wurde eingerichtet.'));setTimeout(scanWifi,1500)}catch(error){message(error.message,true)}finally{button.disabled=false}
 }
 function renderBluetooth(devices){
  const root=$('bluetooth-devices');root.replaceChildren();
@@ -200,6 +202,7 @@ async function scanBluetooth(){const button=$('scan-bluetooth');button.disabled=
 async function bluetoothAction(action,address){try{await request('/api/connectivity/bluetooth/command',{method:'POST',body:JSON.stringify({action,address})});message(t('bluetooth_action_done','Bluetooth-Aktion abgeschlossen.'));setTimeout(scanBluetooth,800)}catch(error){message(error.message,true)}}
 
 $('content-language').addEventListener('change',()=>{$('content-language').dataset.userSelected='true';renderNavigation()});
+$('wifi-adapter').addEventListener('change',()=>{$('wifi-network').replaceChildren(new Option('—',''))});
 $('scan-wifi').onclick=scanWifi;
 $('connect-wifi').onclick=connectWifi;
 $('scan-bluetooth').onclick=scanBluetooth;

@@ -5,7 +5,9 @@ import (
  "context"
  "errors"
  "fmt"
+ "os"
  "os/exec"
+ "path/filepath"
  "regexp"
  "sort"
  "strconv"
@@ -32,6 +34,7 @@ func(ExecRunner)Run(ctx context.Context,input,name string,args ...string)(string
 type Manager struct{
  Runner Runner
  WiFiInterface string
+ NetworkPath string
 }
 
 func New()*Manager{return &Manager{Runner:ExecRunner{},WiFiInterface:"wlan0"}}
@@ -41,39 +44,76 @@ type WiFiNetwork struct{
  SignalPercent int `json:"signal_percent"`
  Security string `json:"security,omitempty"`
  Connected bool `json:"connected"`
+ Interface string `json:"interface,omitempty"`
+}
+
+type WiFiAdapter struct{
+ Interface string `json:"interface"`
+ MAC string `json:"mac,omitempty"`
+ Driver string `json:"driver,omitempty"`
+ State string `json:"state,omitempty"`
 }
 
 type WiFiConnectRequest struct{
  SSID string `json:"ssid"`
  Password string `json:"password,omitempty"`
+ Interface string `json:"interface,omitempty"`
 }
 
 func(m *Manager)runner()Runner{if m!=nil&&m.Runner!=nil{return m.Runner};return ExecRunner{}}
 func(m *Manager)wifiInterface()string{if m!=nil&&strings.TrimSpace(m.WiFiInterface)!=""{return m.WiFiInterface};return "wlan0"}
+func(m *Manager)networkPath()string{if m!=nil&&strings.TrimSpace(m.NetworkPath)!=""{return m.NetworkPath};return "/sys/class/net"}
+
+var wifiInterfaceName=regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
+
+func readTrimmed(path string)string{value,err:=os.ReadFile(path);if err!=nil{return ""};return strings.TrimSpace(string(value))}
+
+func(m *Manager)ListWiFiAdapters()([]WiFiAdapter,error){
+ entries,err:=os.ReadDir(m.networkPath());if err!=nil{return nil,err};adapters:=[]WiFiAdapter{}
+ for _,entry:=range entries{
+  name:=entry.Name();if !wifiInterfaceName.MatchString(name){continue};base:=filepath.Join(m.networkPath(),name)
+  if _,err=os.Stat(filepath.Join(base,"wireless"));err!=nil{continue}
+  driver:="";if target,linkErr:=filepath.EvalSymlinks(filepath.Join(base,"device","driver"));linkErr==nil{driver=filepath.Base(target)}
+  if driver==""{for _,line:=range strings.Split(readTrimmed(filepath.Join(base,"device","uevent")),"\n"){if strings.HasPrefix(line,"DRIVER="){driver=strings.TrimPrefix(line,"DRIVER=");break}}}
+  adapters=append(adapters,WiFiAdapter{Interface:name,MAC:readTrimmed(filepath.Join(base,"address")),Driver:driver,State:readTrimmed(filepath.Join(base,"operstate"))})
+ }
+ sort.Slice(adapters,func(i,j int)bool{return adapters[i].Interface<adapters[j].Interface});return adapters,nil
+}
 
 func(m *Manager)ScanWiFi(ctx context.Context)([]WiFiNetwork,error){
+ adapters,_:=m.ListWiFiAdapters();interfaces:=[]string{}
+ for _,adapter:=range adapters{interfaces=append(interfaces,adapter.Interface)}
+ if len(interfaces)==0{interfaces=[]string{m.wifiInterface()}}
+ type scanResult struct{iface string;networks []WiFiNetwork;err error}
+ results:=make(chan scanResult,len(interfaces))
+ for _,iface:=range interfaces{go func(name string){found,err:=m.ScanWiFiOn(ctx,name);results<-scanResult{iface:name,networks:found,err:err}}(iface)}
+ networks:=[]WiFiNetwork{};scanErrors:=[]error{};successful:=false
+ for range interfaces{result:=<-results;if result.err!=nil{scanErrors=append(scanErrors,fmt.Errorf("%s: %w",result.iface,result.err));continue};successful=true;networks=append(networks,result.networks...)}
+ if len(networks)>0{return deduplicateWiFi(networks),nil}
+ if successful{return []WiFiNetwork{},nil}
+ if len(scanErrors)>0{return nil,errors.Join(scanErrors...)}
+ return []WiFiNetwork{},nil
+}
+
+func(m *Manager)ScanWiFiOn(ctx context.Context,iface string)([]WiFiNetwork,error){
+ iface=strings.TrimSpace(iface);if iface==""{iface=m.wifiInterface()};if !wifiInterfaceName.MatchString(iface){return nil,errors.New("invalid Wi-Fi interface")}
  r:=m.runner();available:=false;successful:=false;scanErrors:=[]error{}
  if _,err:=r.LookPath("nmcli");err==nil{
   available=true
-  scanCtx,cancel:=context.WithTimeout(ctx,20*time.Second);defer cancel()
-  output,err:=r.Run(scanCtx,"","nmcli","-t","--escape","yes","-f","IN-USE,SIGNAL,SECURITY,SSID","device","wifi","list","--rescan","yes","ifname",m.wifiInterface())
-  if err==nil{successful=true;if networks:=parseNMCLI(output);len(networks)>0{return networks,nil}}else{scanErrors=append(scanErrors,err)}
+  scanCtx,cancel:=context.WithTimeout(ctx,8*time.Second);output,err:=r.Run(scanCtx,"","nmcli","-t","--escape","yes","-f","IN-USE,SIGNAL,SECURITY,SSID","device","wifi","list","--rescan","yes","ifname",iface);cancel()
+  if err==nil{successful=true;if networks:=tagWiFiInterface(parseNMCLI(output),iface);len(networks)>0{return networks,nil}}else{scanErrors=append(scanErrors,err)}
  }
  if _,err:=r.LookPath("wpa_cli");err==nil{
   available=true
-  scanCtx,cancel:=context.WithTimeout(ctx,20*time.Second);defer cancel()
-  output,err:=r.Run(scanCtx,"","wpa_cli","-i",m.wifiInterface(),"scan")
-  if err!=nil{scanErrors=append(scanErrors,err)}else if strings.Contains(strings.ToUpper(output),"FAIL"){scanErrors=append(scanErrors,fmt.Errorf("wpa_cli rejected scan: %s",strings.TrimSpace(output)))}else{
-   successful=true;deadline:=time.Now().Add(9*time.Second)
-   for{
-    output,err=r.Run(scanCtx,"","wpa_cli","-i",m.wifiInterface(),"scan_results")
-    if err!=nil{scanErrors=append(scanErrors,err);break}
-    if networks:=parseWPAScan(output);len(networks)>0{return networks,nil}
-    if time.Now().After(deadline){break}
-    timer:=time.NewTimer(500*time.Millisecond)
-    select{case <-scanCtx.Done():timer.Stop();scanErrors=append(scanErrors,scanCtx.Err());break;case <-timer.C:}
-    if scanCtx.Err()!=nil{break}
-   }
+  cacheCtx,cacheCancel:=context.WithTimeout(ctx,3*time.Second);output,cacheErr:=r.Run(cacheCtx,"","wpa_cli","-i",iface,"scan_results");cacheCancel()
+  if cacheErr==nil{successful=true;if networks:=tagWiFiInterface(parseWPAScan(output),iface);len(networks)>0{return networks,nil}}
+  activeCtx,activeCancel:=context.WithTimeout(ctx,6*time.Second);output,activeErr:=r.Run(activeCtx,"","wpa_cli","-i",iface,"scan");activeCancel()
+  if activeErr==nil&&!strings.Contains(strings.ToUpper(output),"FAIL"){successful=true}else if activeErr!=nil{scanErrors=append(scanErrors,activeErr)}else{scanErrors=append(scanErrors,fmt.Errorf("wpa_cli rejected scan: %s",strings.TrimSpace(output)))}
+  deadline:=time.Now().Add(5*time.Second)
+  for time.Now().Before(deadline){
+   resultCtx,resultCancel:=context.WithTimeout(ctx,2*time.Second);output,err=r.Run(resultCtx,"","wpa_cli","-i",iface,"scan_results");resultCancel()
+   if err==nil{successful=true;if networks:=tagWiFiInterface(parseWPAScan(output),iface);len(networks)>0{return networks,nil}}
+   timer:=time.NewTimer(500*time.Millisecond);select{case <-ctx.Done():timer.Stop();return nil,ctx.Err();case <-timer.C:}
   }
  }
  if len(scanErrors)>0{return nil,fmt.Errorf("Wi-Fi scan failed: %w",errors.Join(scanErrors...))}
@@ -87,20 +127,20 @@ func(m *Manager)ConnectWiFi(ctx context.Context,request WiFiConnectRequest)error
  if request.SSID==""||len([]byte(request.SSID))>32{return errors.New("SSID must contain 1..32 bytes")}
  if len(request.Password)>63{return errors.New("Wi-Fi password must not exceed 63 characters")}
  if request.Password!=""&&len(request.Password)<8{return errors.New("secured Wi-Fi passwords must contain at least 8 characters")}
- r:=m.runner()
+ iface:=strings.TrimSpace(request.Interface);if iface==""{iface=m.wifiInterface()};if !wifiInterfaceName.MatchString(iface){return errors.New("invalid Wi-Fi interface")};r:=m.runner()
  connectCtx,cancel:=context.WithTimeout(ctx,45*time.Second);defer cancel();connectErrors:=[]error{}
  if _,err:=r.LookPath("nmcli");err==nil{
-  args:=[]string{"--wait","35","device","wifi","connect",request.SSID,"ifname",m.wifiInterface()}
+  args:=[]string{"--wait","35","device","wifi","connect",request.SSID,"ifname",iface}
   input:="";if request.Password!=""{args=append([]string{"--ask"},args...);input=request.Password+"\n"}
   if _,err=r.Run(connectCtx,input,"nmcli",args...);err==nil{return nil};connectErrors=append(connectErrors,err)
  }
- if _,err:=r.LookPath("wpa_cli");err==nil{if err=m.connectWPA(connectCtx,request);err==nil{return nil};connectErrors=append(connectErrors,err)}
+ if _,err:=r.LookPath("wpa_cli");err==nil{if err=m.connectWPA(connectCtx,request,iface);err==nil{return nil};connectErrors=append(connectErrors,err)}
  if len(connectErrors)>0{return fmt.Errorf("Wi-Fi connection failed: %w",errors.Join(connectErrors...))}
  return errors.New("no supported Wi-Fi manager found (nmcli or wpa_cli)")
 }
 
-func(m *Manager)connectWPA(ctx context.Context,request WiFiConnectRequest)error{
- r:=m.runner();iface:=m.wifiInterface()
+func(m *Manager)connectWPA(ctx context.Context,request WiFiConnectRequest,iface string)error{
+ r:=m.runner()
  output,err:=r.Run(ctx,"","wpa_cli","-i",iface,"add_network");if err!=nil{return err}
  id:=strings.TrimSpace(output);if _,err=strconv.Atoi(id);err!=nil{return fmt.Errorf("wpa_cli returned invalid network id")}
  cleanup:=func(){cleanupCtx,cancel:=context.WithTimeout(context.Background(),5*time.Second);defer cancel();_,_=r.Run(cleanupCtx,"","wpa_cli","-i",iface,"remove_network",id)}
@@ -112,6 +152,8 @@ func(m *Manager)connectWPA(ctx context.Context,request WiFiConnectRequest)error{
  if strings.Contains(output,"FAIL"){cleanup();return errors.New("wpa_supplicant rejected the Wi-Fi configuration")}
  return nil
 }
+
+func tagWiFiInterface(networks []WiFiNetwork,iface string)[]WiFiNetwork{for index:=range networks{networks[index].Interface=iface};return networks}
 
 func splitEscaped(line string,separator rune)[]string{
  fields:=[]string{};var b strings.Builder;escaped:=false

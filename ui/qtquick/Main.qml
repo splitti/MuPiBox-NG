@@ -1,5 +1,6 @@
 import QtQuick 2.15
 import QtQuick.Window 2.15
+import QtQuick.VirtualKeyboard
 
 Window {
     id: root
@@ -35,9 +36,9 @@ Window {
     property var wifiNetworks: []
     property string wifiSelectedSSID: ""
     property string wifiSelectedSecurity: ""
+    property string wifiSelectedInterface: ""
     property string wifiPassword: ""
-    property bool wifiUppercase: false
-    property bool wifiSymbols: false
+    property int wifiHoldMs: 0
     property color backgroundColor: retroTheme ? "#1A1666" : "#0B0D11"
     property color statusColor: retroTheme ? "#25207A" : "#0A0C10"
     property color panelColor: retroTheme ? "#40318D" : "#202632"
@@ -65,7 +66,6 @@ Window {
         "cover": ""
     })
     property string transientMessage: ""
-    property bool adminHintVisible: false
 
     function localized(labels, fallback) {
         if (!labels) return fallback || ""
@@ -99,6 +99,11 @@ Window {
         return value <= 15 ? "#ef4b5f" : (value <= 25 ? "#f2cf4a" : (value <= 50 ? "#b7c94b" : (value <= 75 ? "#8bd66a" : "#43c86a")))
     }
 
+    function wifiSecurityRequired(security) {
+        var value = String(security || "").toLowerCase()
+        return value !== "" && value !== "--" && value !== "open" && value !== "offen"
+    }
+
     function coverUrl(path) {
         if (!path) return ""
         if (path.indexOf("http://") === 0 || path.indexOf("https://") === 0 || path.indexOf("file:") === 0)
@@ -122,15 +127,11 @@ Window {
         messageTimer.restart()
     }
 
-    function wifiKeyboardRows() {
-        if (wifiSymbols) return [["1","2","3","4","5","6","7","8","9","0"],["!","@","#","$","%","&","*","(",")","?"],["-","_","+","=",":",";",".",",","/","\\"]]
-        return [["1","2","3","4","5","6","7","8","9","0"],["q","w","e","r","t","z","u","i","o","p"],["a","s","d","f","g","h","j","k","l"],["y","x","c","v","b","n","m"]]
-    }
-
     function openWifiPanel() {
         wifiPanelVisible = true
         wifiSelectedSSID = ""
         wifiSelectedSecurity = ""
+        wifiSelectedInterface = ""
         wifiPassword = ""
         scanWifiNetworks()
     }
@@ -149,24 +150,20 @@ Window {
 
     function connectSelectedWifi() {
         if (wifiBusy || wifiSelectedSSID === "") return
-        var secure = wifiSelectedSecurity !== "" && wifiSelectedSecurity !== "--" && wifiSelectedSecurity.toLowerCase() !== "open"
+        var secure = wifiSecurityRequired(wifiSelectedSecurity)
         if (secure && wifiPassword.length < 8) { showMessage("WLAN-Passwort muss mindestens 8 Zeichen haben."); return }
         wifiBusy = true
-        requestJson("POST", "/api/connectivity/wifi/connect", {"ssid": wifiSelectedSSID, "password": wifiPassword}, function() {
+        requestJson("POST", "/api/connectivity/wifi/connect", {"ssid": wifiSelectedSSID, "password": wifiPassword, "interface": wifiSelectedInterface}, function() {
             wifiBusy = false
             wifiPassword = ""
             wifiPanelVisible = false
+            Qt.inputMethod.hide()
             showMessage("WLAN wird verbunden …")
             refreshSystem()
         }, function() {
             wifiBusy = false
             showMessage("WLAN-Verbindung fehlgeschlagen.")
         })
-    }
-
-    function appendWifiKey(key) {
-        if (wifiPassword.length >= 63) return
-        wifiPassword += wifiUppercase ? key.toUpperCase() : key
     }
 
     function requestJson(method, path, payload, done, failed) {
@@ -396,11 +393,62 @@ Window {
                         }
                     }
 
+                    Text {
+                        visible: root.wifiBusy
+                        anchors.centerIn: parent
+                        text: "↻"
+                        color: root.accentColor
+                        font.pixelSize: 20
+                        font.family: root.uiFont
+                        NumberAnimation on rotation {
+                            running: root.wifiBusy
+                            loops: Animation.Infinite
+                            from: 0
+                            to: 360
+                            duration: 700
+                        }
+                    }
+
+                    Rectangle {
+                        anchors.left: parent.left
+                        anchors.bottom: parent.bottom
+                        anchors.bottomMargin: -7
+                        width: parent.width * Math.min(1, root.wifiHoldMs / 900)
+                        height: 3
+                        radius: root.retroTheme ? 0 : 1
+                        color: root.accentColor
+                        visible: wifiStatusTouch.pressed
+                    }
+
                     MouseArea {
+                        id: wifiStatusTouch
                         anchors.fill: parent
                         anchors.margins: -8
-                        pressAndHoldInterval: 1200
-                        onPressAndHold: root.openWifiPanel()
+                        pressAndHoldInterval: 900
+                        onPressed: {
+                            root.wifiHoldMs = 0
+                            wifiHoldProgress.start()
+                        }
+                        onReleased: {
+                            wifiHoldProgress.stop()
+                            root.wifiHoldMs = 0
+                        }
+                        onCanceled: {
+                            wifiHoldProgress.stop()
+                            root.wifiHoldMs = 0
+                        }
+                        onPressAndHold: {
+                            wifiHoldProgress.stop()
+                            root.wifiHoldMs = 0
+                            root.openWifiPanel()
+                        }
+                    }
+
+                    Timer {
+                        id: wifiHoldProgress
+                        interval: 30
+                        repeat: true
+                        onTriggered: root.wifiHoldMs = Math.min(900, root.wifiHoldMs + interval)
                     }
                 }
 
@@ -451,11 +499,9 @@ Window {
                     }
                 }
 
-                Rectangle {
+                Item {
                     width: 48
                     height: 28
-                    radius: root.retroTheme ? 0 : 7
-                    color: clockTouch.pressed ? root.panelColor : "transparent"
 
                     Text {
                         anchors.centerIn: parent
@@ -463,49 +509,6 @@ Window {
                         color: root.textColor
                         font.pixelSize: 11
                         font.family: root.uiFont
-                    }
-
-                    Rectangle {
-                        anchors.left: parent.left
-                        anchors.leftMargin: 4
-                        anchors.bottom: parent.bottom
-                        anchors.bottomMargin: 1
-                        height: 2
-                        width: clockTouch.pressed ? (parent.width - 8) * Math.min(1, clockTouch.heldMs / 5000) : 0
-                        radius: root.retroTheme ? 0 : 1
-                        color: root.accentColor
-                    }
-
-                    MouseArea {
-                        id: clockTouch
-                        anchors.fill: parent
-                        property int heldMs: 0
-                        onPressed: {
-                            heldMs = 0
-                            holdProgress.start()
-                        }
-                        onReleased: {
-                            holdProgress.stop()
-                            heldMs = 0
-                        }
-                        onCanceled: {
-                            holdProgress.stop()
-                            heldMs = 0
-                        }
-                    }
-
-                    Timer {
-                        id: holdProgress
-                        interval: 50
-                        repeat: true
-                        onTriggered: {
-                            clockTouch.heldMs += interval
-                            if (clockTouch.heldMs >= 5000) {
-                                stop()
-                                root.adminHintVisible = true
-                                clockTouch.heldMs = 0
-                            }
-                        }
                     }
                 }
             }
@@ -961,13 +964,16 @@ Window {
             Text { x: 20; y: 12; text: "WLAN"; color: root.textColor; font.pixelSize: 26; font.family: root.uiFont; font.bold: true }
             Rectangle {
                 x: 650; y: 8; width: 58; height: 44; radius: root.retroTheme ? 0 : 11; color: wifiScanTouch.pressed ? root.lineColor : root.panelColor
-                Text { anchors.centerIn: parent; text: "↻"; color: root.textColor; font.pixelSize: 25; font.family: root.uiFont }
+                Text {
+                    anchors.centerIn: parent; text: "↻"; color: root.textColor; font.pixelSize: 25; font.family: root.uiFont
+                    NumberAnimation on rotation { running: root.wifiBusy; loops: Animation.Infinite; from: 0; to: 360; duration: 700 }
+                }
                 MouseArea { id: wifiScanTouch; anchors.fill: parent; enabled: !root.wifiBusy; onClicked: root.scanWifiNetworks() }
             }
             Rectangle {
                 x: 720; y: 8; width: 58; height: 44; radius: root.retroTheme ? 0 : 11; color: wifiCloseTouch.pressed ? root.lineColor : root.panelColor
                 Text { anchors.centerIn: parent; text: "×"; color: root.textColor; font.pixelSize: 27; font.family: root.uiFont }
-                MouseArea { id: wifiCloseTouch; anchors.fill: parent; onClicked: { root.wifiPassword = ""; root.wifiSelectedSecurity = ""; root.wifiPanelVisible = false } }
+                MouseArea { id: wifiCloseTouch; anchors.fill: parent; onClicked: { Qt.inputMethod.hide(); root.wifiPassword = ""; root.wifiSelectedSecurity = ""; root.wifiSelectedInterface = ""; root.wifiPanelVisible = false } }
             }
 
             Rectangle {
@@ -982,12 +988,23 @@ Window {
                         color: root.wifiSelectedSSID === networkData.ssid ? root.accentColor : (wifiNetworkTouch.pressed ? root.panelColor : root.backgroundColor)
                         border.color: networkData.connected ? "#43c86a" : root.lineColor
                         Text { x: 12; y: 7; width: 225; text: (networkData.connected ? "✓ " : "") + networkData.ssid; color: root.wifiSelectedSSID === networkData.ssid ? root.accentTextColor : root.textColor; font.pixelSize: 17; font.family: root.uiFont; font.bold: true; elide: Text.ElideRight }
-                        Text { x: 12; y: 31; width: 225; text: networkData.security || "Offen"; color: root.wifiSelectedSSID === networkData.ssid ? root.accentTextColor : root.mutedColor; font.pixelSize: 10; font.family: root.uiFont; elide: Text.ElideRight }
+                        Text { x: 12; y: 31; width: 225; text: (networkData.security || "Offen") + (networkData.interface ? " · " + networkData.interface : ""); color: root.wifiSelectedSSID === networkData.ssid ? root.accentTextColor : root.mutedColor; font.pixelSize: 10; font.family: root.uiFont; elide: Text.ElideRight }
                         Row {
                             anchors.right: parent.right; anchors.rightMargin: 10; anchors.bottom: parent.bottom; anchors.bottomMargin: 10; spacing: 2
                             Repeater { model: 4; delegate: Rectangle { width: 5; height: 6 + index * 4; anchors.bottom: parent.bottom; color: index < root.signalLevel(networkData.signal_percent) ? root.signalColor(networkData.signal_percent) : "#343b47" } }
                         }
-                        MouseArea { id: wifiNetworkTouch; anchors.fill: parent; onClicked: { root.wifiSelectedSSID = networkData.ssid; root.wifiSelectedSecurity = networkData.security || ""; root.wifiPassword = ""; wifiPasswordInput.forceActiveFocus() } }
+                        MouseArea {
+                            id: wifiNetworkTouch
+                            anchors.fill: parent
+                            onClicked: {
+                                root.wifiSelectedSSID = networkData.ssid
+                                root.wifiSelectedSecurity = networkData.security || ""
+                                root.wifiSelectedInterface = networkData.interface || ""
+                                root.wifiPassword = ""
+                                if (root.wifiSecurityRequired(root.wifiSelectedSecurity)) wifiPasswordInput.forceActiveFocus()
+                                else Qt.inputMethod.hide()
+                            }
+                        }
                     }
                 }
             }
@@ -995,106 +1012,39 @@ Window {
             Item {
                 x: 370; y: 62; width: 410; height: 354
                 Text { x: 0; y: 0; width: parent.width; text: root.wifiSelectedSSID === "" ? "WLAN auswählen" : root.wifiSelectedSSID; color: root.textColor; font.pixelSize: 20; font.family: root.uiFont; font.bold: true; elide: Text.ElideRight }
+                Text { x: 0; y: 30; width: parent.width; text: root.wifiSelectedSSID === "" ? "" : (root.wifiSelectedSecurity || "Offen") + (root.wifiSelectedInterface ? " · " + root.wifiSelectedInterface : ""); color: root.mutedColor; font.pixelSize: 12; font.family: root.uiFont; elide: Text.ElideRight }
                 Rectangle {
-                    x: 0; y: 36; width: parent.width; height: 46; radius: root.retroTheme ? 0 : 9; color: root.cardColor; border.color: root.lineColor
-                    TextInput { id: wifiPasswordInput; anchors.fill: parent; anchors.margins: 10; text: root.wifiPassword; onTextChanged: if (text !== root.wifiPassword) root.wifiPassword = text.slice(0,63); echoMode: TextInput.Password; color: root.textColor; font.pixelSize: 18; font.family: root.uiFont; enabled: root.wifiSelectedSSID !== ""; clip: true }
-                }
-                Column {
-                    x: 0; y: 92; width: parent.width; spacing: 5
-                    Repeater {
-                        model: root.wifiKeyboardRows()
-                        delegate: Row {
-                            spacing: 4
-                            property var keyRow: modelData
-                            Repeater {
-                                model: keyRow
-                                delegate: Rectangle {
-                                    width: Math.floor((410 - (keyRow.length - 1) * 4) / keyRow.length); height: 43; radius: root.retroTheme ? 0 : 7
-                                    color: keyTouch.pressed ? root.lineColor : root.panelColor
-                                    Text { anchors.centerIn: parent; text: root.wifiUppercase && !root.wifiSymbols ? String(modelData).toUpperCase() : modelData; color: root.textColor; font.pixelSize: 17; font.family: root.uiFont }
-                                    MouseArea { id: keyTouch; anchors.fill: parent; enabled: root.wifiSelectedSSID !== ""; onClicked: root.appendWifiKey(String(modelData)) }
-                                }
-                            }
-                        }
+                    x: 0; y: 54; width: parent.width; height: 54; radius: root.retroTheme ? 0 : 9; color: root.cardColor; border.color: wifiPasswordInput.activeFocus ? root.accentColor : root.lineColor
+                    opacity: root.wifiSelectedSSID === "" || !root.wifiSecurityRequired(root.wifiSelectedSecurity) ? 0.45 : 1
+                    TextInput {
+                        id: wifiPasswordInput
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        text: root.wifiPassword
+                        onTextChanged: if (text !== root.wifiPassword) root.wifiPassword = text.slice(0,63)
+                        echoMode: TextInput.Password
+                        inputMethodHints: Qt.ImhSensitiveData | Qt.ImhNoPredictiveText
+                        color: root.textColor
+                        font.pixelSize: 20
+                        font.family: root.uiFont
+                        enabled: root.wifiSelectedSSID !== "" && root.wifiSecurityRequired(root.wifiSelectedSecurity)
+                        clip: true
+                        Keys.onReturnPressed: root.connectSelectedWifi()
+                    }
+                    Text {
+                        visible: wifiPasswordInput.text === "" && !wifiPasswordInput.activeFocus
+                        anchors.fill: parent
+                        anchors.margins: 12
+                        text: root.wifiSelectedSSID !== "" && !root.wifiSecurityRequired(root.wifiSelectedSecurity) ? "Kein Passwort erforderlich" : "Passwort"
+                        color: root.mutedColor
+                        font.pixelSize: 17
+                        font.family: root.uiFont
+                        verticalAlignment: Text.AlignVCenter
                     }
                 }
-                Row {
-                    x: 0; y: 244; spacing: 6
-                    Rectangle {
-                        width: 82
-                        height: 43
-                        radius: root.retroTheme ? 0 : 7
-                        color: shiftTouch.pressed ? root.lineColor : root.panelColor
-                        Text {
-                            anchors.centerIn: parent
-                            text: root.wifiUppercase ? "abc" : "ABC"
-                            color: root.textColor
-                            font.pixelSize: 15
-                            font.family: root.uiFont
-                        }
-                        MouseArea {
-                            id: shiftTouch
-                            anchors.fill: parent
-                            onClicked: root.wifiUppercase = !root.wifiUppercase
-                        }
-                    }
-                    Rectangle {
-                        width: 82
-                        height: 43
-                        radius: root.retroTheme ? 0 : 7
-                        color: symbolsTouch.pressed ? root.lineColor : root.panelColor
-                        Text {
-                            anchors.centerIn: parent
-                            text: root.wifiSymbols ? "abc" : "#+="
-                            color: root.textColor
-                            font.pixelSize: 15
-                            font.family: root.uiFont
-                        }
-                        MouseArea {
-                            id: symbolsTouch
-                            anchors.fill: parent
-                            onClicked: root.wifiSymbols = !root.wifiSymbols
-                        }
-                    }
-                    Rectangle {
-                        width: 82
-                        height: 43
-                        radius: root.retroTheme ? 0 : 7
-                        color: spaceTouch.pressed ? root.lineColor : root.panelColor
-                        Text {
-                            anchors.centerIn: parent
-                            text: "Leer"
-                            color: root.textColor
-                            font.pixelSize: 14
-                            font.family: root.uiFont
-                        }
-                        MouseArea {
-                            id: spaceTouch
-                            anchors.fill: parent
-                            onClicked: root.appendWifiKey(" ")
-                        }
-                    }
-                    Rectangle {
-                        width: 82
-                        height: 43
-                        radius: root.retroTheme ? 0 : 7
-                        color: deleteKeyTouch.pressed ? root.lineColor : root.panelColor
-                        Text {
-                            anchors.centerIn: parent
-                            text: "⌫"
-                            color: root.textColor
-                            font.pixelSize: 21
-                            font.family: root.uiFont
-                        }
-                        MouseArea {
-                            id: deleteKeyTouch
-                            anchors.fill: parent
-                            onClicked: root.wifiPassword = root.wifiPassword.slice(0, -1)
-                        }
-                    }
-                }
+                Text { x: 0; y: 122; width: parent.width; text: root.wifiSecurityRequired(root.wifiSelectedSecurity) ? "Zum Eingeben das Passwortfeld antippen." : "Offenes WLAN – direkte Verbindung möglich."; color: root.mutedColor; font.pixelSize: 13; font.family: root.uiFont; wrapMode: Text.WordWrap }
                 Rectangle {
-                    x: 0; y: 300; width: parent.width; height: 52; radius: root.retroTheme ? 0 : 10; color: connectWifiTouch.pressed ? root.accentPressedColor : root.accentColor; opacity: root.wifiSelectedSSID === "" || root.wifiBusy ? 0.45 : 1
+                    x: 0; y: 170; width: parent.width; height: 58; radius: root.retroTheme ? 0 : 10; color: connectWifiTouch.pressed ? root.accentPressedColor : root.accentColor; opacity: root.wifiSelectedSSID === "" || root.wifiBusy ? 0.45 : 1
                     Text { anchors.centerIn: parent; text: root.wifiBusy ? "Bitte warten …" : "Verbinden"; color: root.accentTextColor; font.pixelSize: 18; font.family: root.uiFont; font.bold: true }
                     MouseArea { id: connectWifiTouch; anchors.fill: parent; enabled: root.wifiSelectedSSID !== "" && !root.wifiBusy; onClicked: root.connectSelectedWifi() }
                 }
@@ -1237,43 +1187,6 @@ Window {
         }
 
         Rectangle {
-            visible: root.adminHintVisible
-            anchors.fill: parent
-            color: "#cc0b0d11"
-            z: 90
-
-            Rectangle {
-                anchors.centerIn: parent
-                width: 500
-                height: 190
-                radius: root.retroTheme ? 0 : 18
-                color: root.panelColor
-                border.color: root.lineColor
-
-                Column {
-                    anchors.fill: parent
-                    anchors.margins: 22
-                    spacing: 14
-                    Text { text: "Administration"; color: root.textColor; font.pixelSize: 24; font.family: root.uiFont; font.bold: true }
-                    Text {
-                        width: parent.width
-                        text: "Öffne auf Handy oder Computer:\nhttp://<Box-IP>:8090/admin/"
-                        color: root.textColor
-                        font.pixelSize: 17
-                        font.family: root.uiFont
-                        wrapMode: Text.WordWrap
-                    }
-                    Rectangle {
-                        width: 130; height: 42; radius: root.retroTheme ? 0 : 12
-                        color: closeAdmin.pressed ? root.accentPressedColor : root.accentColor
-                        Text { anchors.centerIn: parent; text: "Schließen"; color: root.accentTextColor; font.pixelSize: 14; font.family: root.uiFont; font.bold: true }
-                        MouseArea { id: closeAdmin; anchors.fill: parent; onClicked: root.adminHintVisible = false }
-                    }
-                }
-            }
-        }
-
-        Rectangle {
             id: splash
             anchors.fill: parent
             z: 100
@@ -1296,5 +1209,14 @@ Window {
                 onTriggered: splash.opacity = 0
             }
         }
+    }
+
+    InputPanel {
+        id: virtualKeyboard
+        z: 200
+        x: 0
+        width: root.width
+        y: active ? root.height - height : root.height
+        Behavior on y { NumberAnimation { duration: 160; easing.type: Easing.OutQuad } }
     }
 }
