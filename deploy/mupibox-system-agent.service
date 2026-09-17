@@ -1,0 +1,25 @@
+[Unit]
+Description=MuPiBox-NG restricted system agent
+Before=mupibox-ng.service
+After=local-fs.target
+
+[Service]
+Type=simple
+User=root
+Group=mupibox
+ExecStart=/usr/local/lib/mupibox-ng/mupibox-system-agent
+Restart=on-failure
+RestartSec=2
+RuntimeDirectory=mupibox-system-agent
+RuntimeDirectoryMode=0770
+UMask=0007
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/run/wpa_supplicant /var/lib/mupibox-ng/network
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_KILL CAP_CHOWN CAP_FOWNER
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

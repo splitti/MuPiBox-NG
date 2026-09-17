@@ -20,6 +20,7 @@ A modular music player for **DietPi ARM64, Raspberry Pi 3 or newer**. Touch, bro
 - Simulated button and RFID mappings. No real hardware drivers yet.
 - SQLite database with automatic migrations for box settings, navigation and playback progress.
 - First real admin web UI at `/admin/` for global settings plus categories/rows.
+- Optional admin password protection plus backup/restore for SQLite data and media, and guarded GitHub release switching with rollback.
 - Persistent resume for local audio including single very long files; shared progress contract for future providers such as Spotify, with live radio excluded.
 
 The target UI is not a hard-coded music page. Categories such as Audiobooks, Music, Radio or Podcasts are data. The future admin UI will manage this model together with global box settings.
@@ -100,6 +101,9 @@ Supported extensions: MP3, FLAC, OGG, OPUS, WAV, M4A, AAC. Actual codec support 
 | `PUT /api/admin/password`, `POST /api/admin/logout` | set/change password and end the session |
 | `GET /api/connectivity/wifi/adapters` | Wi-Fi adapters, state and active selection |
 | `PUT /api/connectivity/wifi/preferences` | persist enabled and preferred Wi-Fi adapters |
+| `POST /api/connectivity/wifi/adapters/state` | actually enable or disable a Wi-Fi adapter |
+| `GET /api/admin/backup`, `POST /api/admin/restore` | back up or restore configuration and optional media |
+| `GET /api/admin/releases`, `POST /api/admin/releases/switch` | list, install or roll back releases |
 
 Admin and remotely accessed connectivity APIs are protected once an admin password is set. The development box must still remain on a trusted home network and must not be port-forwarded directly to the internet.
 
@@ -107,7 +111,7 @@ Admin and remotely accessed connectivity APIs are protected once an admin passwo
 
 `go test ./...` covers library/path boundaries, queue/EOF, volume, concurrent control, API, data-driven home model, global box info, RFID/button simulation and a Linux ARM64 cross-build.
 
-Still open: further hardware/provider settings pages, production local TTS, actual idle shutdown, web radio, RSS podcasts, Spotify catalogue/playback, video/YouTube, real RFID/GPIO modules, MuPiHAT/shutdown/battery, complete native player controls, releases and rollback.
+Still open: further hardware/provider settings pages, production local TTS, actual idle shutdown, web radio, RSS podcasts, Spotify catalogue/playback, video/YouTube, real RFID/GPIO modules, MuPiHAT/shutdown/battery and complete native player controls.
 
 ## Documentation
 
@@ -117,6 +121,7 @@ Still open: further hardware/provider settings pages, production local TTS, actu
 - [Navigation/content (German)](docs/navigation-model.md) · [Navigation/content](docs/navigation-model.en.md)
 - [Player/playback profiles (German)](docs/player-model.md) · [Player/playback profiles](docs/player-model.en.md)
 - [System/hardware settings (German)](docs/system-settings.md) · [System/hardware settings](docs/system-settings.en.md)
+- [Backup/restore/updates (German)](docs/backup-update.md) · [Backup/restore/updates](docs/backup-update.en.md)
 - [Spotify/cache (German)](docs/spotify.md) · [Spotify/cache](docs/spotify.en.md)
 - [Repository audit (German)](docs/repository-audit.md) · [Repository audit](docs/repository-audit.en.md)
 - [DietPi/device test (German)](docs/device-install-dietpi.md)

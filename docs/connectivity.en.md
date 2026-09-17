@@ -22,6 +22,8 @@ The admin web UI exposes the same scan/connect flow as a fallback.
 
 The backend service deliberately does not isolate `PrivateTmp`: `wpa_cli` creates its local reply socket below `/tmp`, and `wpa_supplicant`, which runs outside the unit, must be able to reach that path. The other systemd hardening options remain active.
 
+A separate, restricted root service named `mupibox-system-agent` performs actual Wi-Fi adapter up/down operations. It has no network port and accepts only validated commands through a Unix socket restricted to the `mupibox` group. A USB adapter can therefore be enabled and connected before the onboard adapter is disabled after an explicit connection-loss warning.
+
 When multiple Wi-Fi adapters are present, each adapter can be enabled or excluded for MuPiBox and one can be marked preferred. Automatic discovery uses the preferred ready adapter and falls back to another enabled adapter with an active link or `wpa_supplicant` control socket. Hardware that is present but unmanaged remains visible and is not scanned implicitly.
 
 ### Hotel Wi-Fi / captive portals

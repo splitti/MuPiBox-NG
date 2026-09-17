@@ -4,6 +4,8 @@
 
 ## 0.1.0-dev – 16.09.2026
 
+- WLAN-Scan unter `ProtectSystem=strict` korrigiert und einen lokalen System-Agenten zum echten Aktivieren/Deaktivieren zusätzlicher WLAN-Adapter ergänzt.
+- Konfigurations- und optionale Medienbackups, validierten Restore mit automatischem Sicherheitsstand sowie GitHub-Releasewechsel mit Rollback ergänzt.
 - WLAN-Suche im systemd-Dienst repariert: `PrivateTmp` wird für das Backend nicht mehr isoliert, damit `wpa_supplicant` den Antwort-Socket von `wpa_cli` erreichen kann.
 - Admin-Passwortschutz mit PBKDF2-SHA-256, serverseitigen Sitzungen, Logout und Rate-Limit für Fehlanmeldungen implementiert.
 - Mehrere WLAN-Adapter werden mit Zustand und Treiber angezeigt; automatische Suche nutzt nur den bevorzugten einsatzbereiten Adapter, Freigabe und Priorität sind in SQLite konfigurierbar.

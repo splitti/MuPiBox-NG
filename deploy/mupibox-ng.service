@@ -1,12 +1,13 @@
 [Unit]
 Description=MuPiBox-NG music player
-After=network.target sound.target
+After=network.target sound.target mupibox-system-agent.service
+Wants=mupibox-system-agent.service
 
 [Service]
 Type=simple
 User=mupibox
 Group=mupibox
-SupplementaryGroups=audio
+SupplementaryGroups=audio netdev
 ExecStart=/usr/local/lib/mupibox-ng/mupibox -config /etc/mupibox-ng/config.json
 WorkingDirectory=/var/lib/mupibox-ng
 Restart=on-failure
@@ -19,6 +20,9 @@ NoNewPrivileges=true
 # this unit and must be able to resolve that socket path to return scan data.
 PrivateTmp=false
 ProtectSystem=strict
+# wpa_cli places its client socket below /tmp. ProtectSystem=strict would make
+# the shared directory read-only unless this narrow write exception is present.
+ReadWritePaths=/tmp /srv/mupibox/music
 ProtectHome=true
 RestrictSUIDSGID=true
 

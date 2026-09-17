@@ -25,6 +25,7 @@ Neuentwicklung eines modularen Musikplayers für **DietPi ARM64, Raspberry Pi 3 
 - SQLite-Datenbank mit automatischer Migration für Box-Einstellungen, Navigation und Wiedergabefortschritt.
 - Erste echte Admin-Weboberfläche unter `/admin/` für globale Einstellungen sowie Kategorien/Reihen.
 - Optionaler Admin-Passwortschutz mit sicherem Hash, Login-Sitzung, Abmeldung und begrenzten Fehlversuchen.
+- Backup/Restore für SQLite-Konfiguration und optional lokale Medien; GitHub-Releasewechsel mit automatischer Sicherung und Rücksprung.
 - Persistentes Fortsetzen lokaler Audiodateien, auch bei einzelnen sehr langen Dateien; Fortschrittsvertrag für spätere Provider wie Spotify, Live-Radio ausgeschlossen.
 - Frei platzierbare Medienquelle „Fortsetzen / Resume-Liste“ mit 1–100 zuletzt begonnenen, noch nicht abgeschlossenen Medien.
 
@@ -106,6 +107,9 @@ Unterstützte Endungen: MP3, FLAC, OGG, OPUS, WAV, M4A, AAC. Tatsächlich lesbar
 | `PUT /api/admin/password`, `POST /api/admin/logout` | Passwort setzen/ändern und Sitzung beenden |
 | `GET /api/connectivity/wifi/adapters` | WLAN-Adapter, Zustand und aktive Auswahl |
 | `PUT /api/connectivity/wifi/preferences` | Freigegebene und bevorzugte WLAN-Adapter speichern |
+| `POST /api/connectivity/wifi/adapters/state` | WLAN-Adapter tatsächlich ein-/ausschalten |
+| `GET /api/admin/backup`, `POST /api/admin/restore` | Konfiguration und optional Medien sichern/wiederherstellen |
+| `GET /api/admin/releases`, `POST /api/admin/releases/switch` | Releases anzeigen, installieren oder zurückrollen |
 | `GET /api/connectivity/wifi` | WLAN-Netze suchen |
 | `POST /api/connectivity/wifi/connect` | Mit WLAN verbinden (Passwort wird nicht von MuPiBox gespeichert) |
 | `GET /api/connectivity/bluetooth` | Bluetooth-Geräte suchen und Status lesen |
@@ -117,7 +121,7 @@ Die Admin- und extern aufgerufenen Konnektivitäts-APIs werden geschützt, sobal
 
 `go test ./...` prüft Bibliothek/Pfadgrenzen, Queue/EOF, Lautstärke, konkurrierende Bedienung, API, datengetriebene Home-Struktur, globale Box-Infos, RFID-/Tasten-Simulation sowie einen Linux-ARM64-Crossbuild.
 
-Noch offen: Admin-Authentifizierung und weitere Hardware-/Provider-Einstellungsseiten, produktiver lokaler TTS-Adapter, echter Idle-Shutdown, Webradio, RSS-Podcasts, Spotify-Katalog/Playback, Video/YouTube, echte RFID/GPIO-Module, MuPiHAT/Shutdown/Akku, vollständige native Playerbedienung, Releases und Rollback.
+Noch offen: weitere Hardware-/Provider-Einstellungsseiten, produktiver lokaler TTS-Adapter, echter Idle-Shutdown, Webradio, RSS-Podcasts, Spotify-Katalog/Playback, Video/YouTube, echte RFID/GPIO-Module, MuPiHAT/Shutdown/Akku und vollständige native Playerbedienung.
 
 ## Dokumentation
 
@@ -129,6 +133,7 @@ Noch offen: Admin-Authentifizierung und weitere Hardware-/Provider-Einstellungss
 - [System-/Hardwareeinstellungen](docs/system-settings.md) · [System/hardware settings (English)](docs/system-settings.en.md)
 - [MuPiHat-Integration](docs/mupihat.md) · [MuPiHat integration (English)](docs/mupihat.en.md)
 - [WLAN/Bluetooth](docs/connectivity.md) · [Wi-Fi/Bluetooth (English)](docs/connectivity.en.md)
+- [Backup/Restore/Updates](docs/backup-update.md) · [Backup/restore/updates (English)](docs/backup-update.en.md)
 - [Spotify/Cache](docs/spotify.md) · [Spotify/cache (English)](docs/spotify.en.md)
 - [Bestandsprüfung](docs/repository-audit.md) · [Repository audit (English)](docs/repository-audit.en.md)
 - [DietPi-/Gerätetest](docs/device-install-dietpi.md)

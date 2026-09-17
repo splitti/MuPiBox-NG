@@ -48,7 +48,7 @@ fi
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y \
-    ca-certificates curl git build-essential pkg-config \
+    ca-certificates curl git build-essential pkg-config iproute2 util-linux \
     mpv alsa-utils fbi wpasupplicant bluez rfkill \
     qmlscene-qt6 qml6-module-qtquick qml6-module-qtquick-window qml6-module-qtqml \
     qml6-module-qtquick-virtualkeyboard qt6-virtualkeyboard-plugin \
@@ -115,9 +115,14 @@ GOFLAGS=-buildvcs=false CGO_ENABLED=1 "$GO_BIN" test ./...
 GOFLAGS=-buildvcs=false CGO_ENABLED=1 "$GO_BIN" build -trimpath \
     -ldflags "-X main.version=$(cat VERSION)" \
     -o bin/mupibox ./cmd/mupibox
+GOFLAGS=-buildvcs=false CGO_ENABLED=0 "$GO_BIN" build -trimpath \
+    -o bin/mupibox-system-agent ./cmd/mupibox-system-agent
 
 if ! getent passwd mupibox >/dev/null; then
     useradd --system --home-dir /var/lib/mupibox-ng --shell /usr/sbin/nologin mupibox
+fi
+if ! getent group netdev >/dev/null; then
+    groupadd --system netdev
 fi
 
 for group in audio video render input tty netdev bluetooth; do
@@ -128,11 +133,15 @@ done
 
 install -d -m 0755 /usr/local/lib/mupibox-ng
 install -d -m 0755 /usr/local/share/mupibox-ng/ui/assets
-install -d -m 0755 /srv/mupibox/music
+install -d -m 0775 -o mupibox -g mupibox /srv/mupibox/music
+chown -R mupibox:mupibox /srv/mupibox/music
 install -d -m 0750 -o root -g mupibox /etc/mupibox-ng
 install -d -m 0750 -o mupibox -g mupibox /var/lib/mupibox-ng
+install -d -m 0750 -o root -g mupibox /var/lib/mupibox-ng/network
 
 install -m 0755 bin/mupibox /usr/local/lib/mupibox-ng/mupibox
+install -m 0755 bin/mupibox-system-agent /usr/local/lib/mupibox-ng/mupibox-system-agent
+install -m 0755 scripts/update-release.sh /usr/local/lib/mupibox-ng/update-release.sh
 if [[ ! -e /etc/mupibox-ng/config.json ]]; then
     install -m 0640 -o root -g mupibox deploy/config.example.json /etc/mupibox-ng/config.json
 fi
@@ -159,6 +168,8 @@ if [[ "$ACTUAL_SPLASH_SHA256" != "$EXPECTED_SPLASH_SHA256" ]]; then
 fi
 
 install -m 0644 deploy/mupibox-ng.service /etc/systemd/system/mupibox-ng.service
+install -m 0644 deploy/mupibox-system-agent.service /etc/systemd/system/mupibox-system-agent.service
+install -m 0644 deploy/mupibox-update@.service /etc/systemd/system/mupibox-update@.service
 install -m 0644 deploy/mupibox-splash.service /etc/systemd/system/mupibox-splash.service
 install -m 0644 deploy/mupibox-ui.service /etc/systemd/system/mupibox-ui.service
 
@@ -171,11 +182,12 @@ if [[ "$CONFIGURE_WAVESHARE" -eq 1 ]]; then
 fi
 
 systemctl daemon-reload
-systemctl enable mupibox-ng.service mupibox-splash.service mupibox-ui.service
+systemctl enable mupibox-system-agent.service mupibox-ng.service mupibox-splash.service mupibox-ui.service
 
 if [[ "$START_SERVICES" -eq 1 ]]; then
     # The framebuffer splash starts on the next boot. Restarting it while Qt owns
     # the display can block a live update; the QML UI shows its own startup image.
+    systemctl restart mupibox-system-agent.service
     systemctl restart mupibox-ng.service
     systemctl restart mupibox-ui.service || true
 fi

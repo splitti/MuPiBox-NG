@@ -22,6 +22,8 @@ Die Admin-Weboberfläche bietet dieselbe Scan-/Verbindungsfunktion als Rückfall
 
 Der Backend-Dienst verwendet bewusst kein isoliertes `PrivateTmp`: `wpa_cli` erzeugt seinen lokalen Antwort-Socket unter `/tmp`, und der außerhalb der Unit laufende `wpa_supplicant` muss diesen Pfad erreichen können. Die übrigen systemd-Schutzoptionen bleiben aktiv.
 
+Ein lokaler `mupibox-system-agent` übernimmt als eigener, eingeschränkter Root-Dienst das tatsächliche Hoch- und Herunterfahren von WLAN-Adaptern. Er besitzt keinen Netzwerkport und akzeptiert nur validierte Befehle über einen Unix-Socket für die Gruppe `mupibox`. Dadurch kann ein USB-Adapter zuerst aktiviert und verbunden werden, bevor der Onboard-Adapter mit bestätigter Verbindungswarnung abgeschaltet wird.
+
 Sind mehrere WLAN-Adapter vorhanden, kann jeder Adapter für MuPiBox freigegeben oder ausgeschlossen und ein bevorzugter Adapter bestimmt werden. Die automatische Suche nutzt den bevorzugten einsatzbereiten Adapter; ist dieser nicht verfügbar, wird auf einen anderen freigegebenen Adapter mit aktivem Link bzw. `wpa_supplicant`-Steuerkanal zurückgefallen. Vorhandene, aber nicht verwaltete Adapter werden angezeigt und nicht ungefragt gescannt.
 
 ### Hotel-WLAN / Captive Portal
