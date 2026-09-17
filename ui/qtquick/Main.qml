@@ -1015,10 +1015,78 @@ Window {
                 }
                 Row {
                     x: 0; y: 244; spacing: 6
-                    Rectangle { width: 82; height: 43; radius: root.retroTheme ? 0 : 7; color: shiftTouch.pressed ? root.lineColor : root.panelColor; Text { anchors.centerIn: parent; text: root.wifiUppercase ? "abc" : "ABC"; color: root.textColor; font.pixelSize: 15; font.family: root.uiFont }; MouseArea { id: shiftTouch; anchors.fill: parent; onClicked: root.wifiUppercase = !root.wifiUppercase } }
-                    Rectangle { width: 82; height: 43; radius: root.retroTheme ? 0 : 7; color: symbolsTouch.pressed ? root.lineColor : root.panelColor; Text { anchors.centerIn: parent; text: root.wifiSymbols ? "abc" : "#+="; color: root.textColor; font.pixelSize: 15; font.family: root.uiFont }; MouseArea { id: symbolsTouch; anchors.fill: parent; onClicked: root.wifiSymbols = !root.wifiSymbols } }
-                    Rectangle { width: 82; height: 43; radius: root.retroTheme ? 0 : 7; color: spaceTouch.pressed ? root.lineColor : root.panelColor; Text { anchors.centerIn: parent; text: "Leer"; color: root.textColor; font.pixelSize: 14; font.family: root.uiFont }; MouseArea { id: spaceTouch; anchors.fill: parent; onClicked: root.appendWifiKey(" ") } }
-                    Rectangle { width: 82; height: 43; radius: root.retroTheme ? 0 : 7; color: deleteKeyTouch.pressed ? root.lineColor : root.panelColor; Text { anchors.centerIn: parent; text: "⌫"; color: root.textColor; font.pixelSize: 21; font.family: root.uiFont }; MouseArea { id: deleteKeyTouch; anchors.fill: parent; onClicked: root.wifiPassword = root.wifiPassword.slice(0,-1) } }
+                    Rectangle {
+                        width: 82
+                        height: 43
+                        radius: root.retroTheme ? 0 : 7
+                        color: shiftTouch.pressed ? root.lineColor : root.panelColor
+                        Text {
+                            anchors.centerIn: parent
+                            text: root.wifiUppercase ? "abc" : "ABC"
+                            color: root.textColor
+                            font.pixelSize: 15
+                            font.family: root.uiFont
+                        }
+                        MouseArea {
+                            id: shiftTouch
+                            anchors.fill: parent
+                            onClicked: root.wifiUppercase = !root.wifiUppercase
+                        }
+                    }
+                    Rectangle {
+                        width: 82
+                        height: 43
+                        radius: root.retroTheme ? 0 : 7
+                        color: symbolsTouch.pressed ? root.lineColor : root.panelColor
+                        Text {
+                            anchors.centerIn: parent
+                            text: root.wifiSymbols ? "abc" : "#+="
+                            color: root.textColor
+                            font.pixelSize: 15
+                            font.family: root.uiFont
+                        }
+                        MouseArea {
+                            id: symbolsTouch
+                            anchors.fill: parent
+                            onClicked: root.wifiSymbols = !root.wifiSymbols
+                        }
+                    }
+                    Rectangle {
+                        width: 82
+                        height: 43
+                        radius: root.retroTheme ? 0 : 7
+                        color: spaceTouch.pressed ? root.lineColor : root.panelColor
+                        Text {
+                            anchors.centerIn: parent
+                            text: "Leer"
+                            color: root.textColor
+                            font.pixelSize: 14
+                            font.family: root.uiFont
+                        }
+                        MouseArea {
+                            id: spaceTouch
+                            anchors.fill: parent
+                            onClicked: root.appendWifiKey(" ")
+                        }
+                    }
+                    Rectangle {
+                        width: 82
+                        height: 43
+                        radius: root.retroTheme ? 0 : 7
+                        color: deleteKeyTouch.pressed ? root.lineColor : root.panelColor
+                        Text {
+                            anchors.centerIn: parent
+                            text: "⌫"
+                            color: root.textColor
+                            font.pixelSize: 21
+                            font.family: root.uiFont
+                        }
+                        MouseArea {
+                            id: deleteKeyTouch
+                            anchors.fill: parent
+                            onClicked: root.wifiPassword = root.wifiPassword.slice(0, -1)
+                        }
+                    }
                 }
                 Rectangle {
                     x: 0; y: 300; width: parent.width; height: 52; radius: root.retroTheme ? 0 : 10; color: connectWifiTouch.pressed ? root.accentPressedColor : root.accentColor; opacity: root.wifiSelectedSSID === "" || root.wifiBusy ? 0.45 : 1
