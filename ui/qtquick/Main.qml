@@ -25,6 +25,14 @@ Window {
     property bool retroTheme: themeName === "arcade-8bit"
     property bool networkOnline: true
     property bool playerView: false
+    property bool wifiPanelVisible: false
+    property bool wifiBusy: false
+    property var wifiNetworks: []
+    property string wifiSelectedSSID: ""
+    property string wifiSelectedSecurity: ""
+    property string wifiPassword: ""
+    property bool wifiUppercase: false
+    property bool wifiSymbols: false
     property color backgroundColor: retroTheme ? "#1A1666" : "#0B0D11"
     property color statusColor: retroTheme ? "#25207A" : "#0A0C10"
     property color panelColor: retroTheme ? "#40318D" : "#202632"
@@ -107,6 +115,53 @@ Window {
     function showMessage(message) {
         transientMessage = message || ""
         messageTimer.restart()
+    }
+
+    function wifiKeyboardRows() {
+        if (wifiSymbols) return [["1","2","3","4","5","6","7","8","9","0"],["!","@","#","$","%","&","*","(",")","?"],["-","_","+","=",":",";",".",",","/","\\"]]
+        return [["1","2","3","4","5","6","7","8","9","0"],["q","w","e","r","t","z","u","i","o","p"],["a","s","d","f","g","h","j","k","l"],["y","x","c","v","b","n","m"]]
+    }
+
+    function openWifiPanel() {
+        wifiPanelVisible = true
+        wifiSelectedSSID = ""
+        wifiSelectedSecurity = ""
+        wifiPassword = ""
+        scanWifiNetworks()
+    }
+
+    function scanWifiNetworks() {
+        if (wifiBusy) return
+        wifiBusy = true
+        requestJson("GET", "/api/connectivity/wifi", null, function(data) {
+            wifiNetworks = data && data.networks ? data.networks : []
+            wifiBusy = false
+        }, function() {
+            wifiBusy = false
+            showMessage("WLAN-Suche nicht verfügbar.")
+        })
+    }
+
+    function connectSelectedWifi() {
+        if (wifiBusy || wifiSelectedSSID === "") return
+        var secure = wifiSelectedSecurity !== "" && wifiSelectedSecurity !== "--" && wifiSelectedSecurity.toLowerCase() !== "open"
+        if (secure && wifiPassword.length < 8) { showMessage("WLAN-Passwort muss mindestens 8 Zeichen haben."); return }
+        wifiBusy = true
+        requestJson("POST", "/api/connectivity/wifi/connect", {"ssid": wifiSelectedSSID, "password": wifiPassword}, function() {
+            wifiBusy = false
+            wifiPassword = ""
+            wifiPanelVisible = false
+            showMessage("WLAN wird verbunden …")
+            refreshSystem()
+        }, function() {
+            wifiBusy = false
+            showMessage("WLAN-Verbindung fehlgeschlagen.")
+        })
+    }
+
+    function appendWifiKey(key) {
+        if (wifiPassword.length >= 63) return
+        wifiPassword += wifiUppercase ? key.toUpperCase() : key
     }
 
     function requestJson(method, path, payload, done, failed) {
@@ -334,6 +389,13 @@ Window {
                                 color: index < root.signalLevel(root.wifiStatus.quality_percent) ? root.signalColor(root.wifiStatus.quality_percent) : "#343b47"
                             }
                         }
+                    }
+
+                    MouseArea {
+                        anchors.fill: parent
+                        anchors.margins: -8
+                        pressAndHoldInterval: 1200
+                        onPressAndHold: root.openWifiPanel()
                     }
                 }
 
@@ -877,6 +939,91 @@ Window {
                         font.pixelSize: 9
                         font.family: root.uiFont
                     }
+                }
+            }
+        }
+
+        Rectangle {
+            id: wifiPanel
+            visible: root.wifiPanelVisible
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: statusBar.bottom
+            anchors.bottom: parent.bottom
+            color: root.backgroundColor
+            z: 85
+
+            Text { x: 20; y: 12; text: "WLAN"; color: root.textColor; font.pixelSize: 26; font.family: root.uiFont; font.bold: true }
+            Rectangle {
+                x: 650; y: 8; width: 58; height: 44; radius: root.retroTheme ? 0 : 11; color: wifiScanTouch.pressed ? root.lineColor : root.panelColor
+                Text { anchors.centerIn: parent; text: "↻"; color: root.textColor; font.pixelSize: 25; font.family: root.uiFont }
+                MouseArea { id: wifiScanTouch; anchors.fill: parent; enabled: !root.wifiBusy; onClicked: root.scanWifiNetworks() }
+            }
+            Rectangle {
+                x: 720; y: 8; width: 58; height: 44; radius: root.retroTheme ? 0 : 11; color: wifiCloseTouch.pressed ? root.lineColor : root.panelColor
+                Text { anchors.centerIn: parent; text: "×"; color: root.textColor; font.pixelSize: 27; font.family: root.uiFont }
+                MouseArea { id: wifiCloseTouch; anchors.fill: parent; onClicked: { root.wifiPassword = ""; root.wifiSelectedSecurity = ""; root.wifiPanelVisible = false } }
+            }
+
+            Rectangle {
+                x: 18; y: 62; width: 330; height: 354; radius: root.retroTheme ? 0 : 14; color: root.cardColor; border.color: root.lineColor
+                Text { visible: root.wifiBusy; anchors.centerIn: parent; text: "Suche …"; color: root.mutedColor; font.pixelSize: 20; font.family: root.uiFont }
+                Text { visible: !root.wifiBusy && root.wifiNetworks.length === 0; anchors.centerIn: parent; text: "Keine Netze gefunden"; color: root.mutedColor; font.pixelSize: 17; font.family: root.uiFont }
+                ListView {
+                    anchors.fill: parent; anchors.margins: 8; clip: true; spacing: 5; model: root.wifiNetworks
+                    delegate: Rectangle {
+                        property var networkData: modelData
+                        width: ListView.view.width; height: 54; radius: root.retroTheme ? 0 : 10
+                        color: root.wifiSelectedSSID === networkData.ssid ? root.accentColor : (wifiNetworkTouch.pressed ? root.panelColor : root.backgroundColor)
+                        border.color: networkData.connected ? "#43c86a" : root.lineColor
+                        Text { x: 12; y: 7; width: 225; text: (networkData.connected ? "✓ " : "") + networkData.ssid; color: root.wifiSelectedSSID === networkData.ssid ? root.accentTextColor : root.textColor; font.pixelSize: 17; font.family: root.uiFont; font.bold: true; elide: Text.ElideRight }
+                        Text { x: 12; y: 31; width: 225; text: networkData.security || "Offen"; color: root.wifiSelectedSSID === networkData.ssid ? root.accentTextColor : root.mutedColor; font.pixelSize: 10; font.family: root.uiFont; elide: Text.ElideRight }
+                        Row {
+                            anchors.right: parent.right; anchors.rightMargin: 10; anchors.bottom: parent.bottom; anchors.bottomMargin: 10; spacing: 2
+                            Repeater { model: 4; delegate: Rectangle { width: 5; height: 6 + index * 4; anchors.bottom: parent.bottom; color: index < root.signalLevel(networkData.signal_percent) ? root.signalColor(networkData.signal_percent) : "#343b47" } }
+                        }
+                        MouseArea { id: wifiNetworkTouch; anchors.fill: parent; onClicked: { root.wifiSelectedSSID = networkData.ssid; root.wifiSelectedSecurity = networkData.security || ""; root.wifiPassword = ""; wifiPasswordInput.forceActiveFocus() } }
+                    }
+                }
+            }
+
+            Item {
+                x: 370; y: 62; width: 410; height: 354
+                Text { x: 0; y: 0; width: parent.width; text: root.wifiSelectedSSID === "" ? "WLAN auswählen" : root.wifiSelectedSSID; color: root.textColor; font.pixelSize: 20; font.family: root.uiFont; font.bold: true; elide: Text.ElideRight }
+                Rectangle {
+                    x: 0; y: 36; width: parent.width; height: 46; radius: root.retroTheme ? 0 : 9; color: root.cardColor; border.color: root.lineColor
+                    TextInput { id: wifiPasswordInput; anchors.fill: parent; anchors.margins: 10; text: root.wifiPassword; onTextChanged: if (text !== root.wifiPassword) root.wifiPassword = text.slice(0,63); echoMode: TextInput.Password; color: root.textColor; font.pixelSize: 18; font.family: root.uiFont; enabled: root.wifiSelectedSSID !== ""; clip: true }
+                }
+                Column {
+                    x: 0; y: 92; width: parent.width; spacing: 5
+                    Repeater {
+                        model: root.wifiKeyboardRows()
+                        delegate: Row {
+                            spacing: 4
+                            property var keyRow: modelData
+                            Repeater {
+                                model: keyRow
+                                delegate: Rectangle {
+                                    width: Math.floor((410 - (keyRow.length - 1) * 4) / keyRow.length); height: 43; radius: root.retroTheme ? 0 : 7
+                                    color: keyTouch.pressed ? root.lineColor : root.panelColor
+                                    Text { anchors.centerIn: parent; text: root.wifiUppercase && !root.wifiSymbols ? String(modelData).toUpperCase() : modelData; color: root.textColor; font.pixelSize: 17; font.family: root.uiFont }
+                                    MouseArea { id: keyTouch; anchors.fill: parent; enabled: root.wifiSelectedSSID !== ""; onClicked: root.appendWifiKey(String(modelData)) }
+                                }
+                            }
+                        }
+                    }
+                }
+                Row {
+                    x: 0; y: 244; spacing: 6
+                    Rectangle { width: 82; height: 43; radius: root.retroTheme ? 0 : 7; color: shiftTouch.pressed ? root.lineColor : root.panelColor; Text { anchors.centerIn: parent; text: root.wifiUppercase ? "abc" : "ABC"; color: root.textColor; font.pixelSize: 15; font.family: root.uiFont }; MouseArea { id: shiftTouch; anchors.fill: parent; onClicked: root.wifiUppercase = !root.wifiUppercase } }
+                    Rectangle { width: 82; height: 43; radius: root.retroTheme ? 0 : 7; color: symbolsTouch.pressed ? root.lineColor : root.panelColor; Text { anchors.centerIn: parent; text: root.wifiSymbols ? "abc" : "#+="; color: root.textColor; font.pixelSize: 15; font.family: root.uiFont }; MouseArea { id: symbolsTouch; anchors.fill: parent; onClicked: root.wifiSymbols = !root.wifiSymbols } }
+                    Rectangle { width: 82; height: 43; radius: root.retroTheme ? 0 : 7; color: spaceTouch.pressed ? root.lineColor : root.panelColor; Text { anchors.centerIn: parent; text: "Leer"; color: root.textColor; font.pixelSize: 14; font.family: root.uiFont }; MouseArea { id: spaceTouch; anchors.fill: parent; onClicked: root.appendWifiKey(" ") } }
+                    Rectangle { width: 82; height: 43; radius: root.retroTheme ? 0 : 7; color: deleteKeyTouch.pressed ? root.lineColor : root.panelColor; Text { anchors.centerIn: parent; text: "⌫"; color: root.textColor; font.pixelSize: 21; font.family: root.uiFont }; MouseArea { id: deleteKeyTouch; anchors.fill: parent; onClicked: root.wifiPassword = root.wifiPassword.slice(0,-1) } }
+                }
+                Rectangle {
+                    x: 0; y: 300; width: parent.width; height: 52; radius: root.retroTheme ? 0 : 10; color: connectWifiTouch.pressed ? root.accentPressedColor : root.accentColor; opacity: root.wifiSelectedSSID === "" || root.wifiBusy ? 0.45 : 1
+                    Text { anchors.centerIn: parent; text: root.wifiBusy ? "Bitte warten …" : "Verbinden"; color: root.accentTextColor; font.pixelSize: 18; font.family: root.uiFont; font.bold: true }
+                    MouseArea { id: connectWifiTouch; anchors.fill: parent; enabled: root.wifiSelectedSSID !== "" && !root.wifiBusy; onClicked: root.connectSelectedWifi() }
                 }
             }
         }

@@ -15,6 +15,7 @@ import (
  "time"
 
  "mupibox/internal/audio"
+ "mupibox/internal/connectivity"
  "mupibox/internal/core"
  "mupibox/internal/library"
  "mupibox/internal/server"
@@ -52,6 +53,7 @@ func run()error{
   Power:store.PowerSettings{IdleShutdownMinutes:0},
   Audio:store.AudioSettings{StartupVolume:30,MaxVolume:60},
   Display:store.DisplaySettings{IdleOffMinutes:0,Brightness:100,UISize:"normal"},
+  Bluetooth:store.BluetoothSettings{Enabled:false},
   Theme:"modern-dark",
  });if err!=nil{return fmt.Errorf("initialize settings: %w",err)}
  if err=stateStore.EnsureNavigation(defaultNavigation());err!=nil{return fmt.Errorf("initialize navigation: %w",err)}
@@ -62,7 +64,9 @@ func run()error{
  ctx,cancel:=signal.NotifyContext(context.Background(),os.Interrupt,syscall.SIGTERM);defer cancel()
  workerDone:=make(chan struct{});go func(){defer close(workerDone);p.Run(ctx)}()
  defer func(){cancel();<-workerDone}()
- api:=&server.API{Player:p,Library:lib,Store:stateStore,Version:version}
+ connectivityManager:=connectivity.New()
+ if settings.Bluetooth.Enabled{if err=connectivityManager.SetBluetoothPower(ctx,true);err!=nil{log.Printf("Bluetooth could not be enabled: %v",err)}}
+ api:=&server.API{Player:p,Library:lib,Store:stateStore,Connectivity:connectivityManager,Version:version}
  httpServer:=&http.Server{Addr:cfg.Listen,Handler:api.Handler(),ReadHeaderTimeout:5*time.Second,ReadTimeout:10*time.Second,WriteTimeout:30*time.Second,IdleTimeout:60*time.Second}
  shutdownDone:=make(chan struct{});go func(){defer close(shutdownDone);<-ctx.Done();c,stop:=context.WithTimeout(context.Background(),15*time.Second);defer stop();if err:=httpServer.Shutdown(c);err!=nil{_ = httpServer.Close()}}()
  log.Printf("MuPiBox %s: http://%s, backend=%s, folders=%d, database=%s",version,cfg.Listen,backend.Name(),len(lib.Folders),cfg.DatabasePath)

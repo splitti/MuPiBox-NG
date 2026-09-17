@@ -11,6 +11,8 @@ Neuentwicklung eines modularen Musikplayers für **DietPi ARM64, Raspberry Pi 3 
 - Go-HTTP-Dienst mit eingebetteter Weboberfläche.
 - Kleine Touch-Oberfläche, primär für 800 × 480 quer entworfen, mit eigener großflächiger 5-Zoll-Wiedergabeebene.
 - Auswählbares Commodore-inspiriertes 8-Bit-Theme mit Terminus-/Terminalschrift neben der modernen Oberfläche.
+- WLAN-Suche und Verbindung am Touchdisplay (Haltedruck auf das WLAN-Symbol) sowie im Adminbereich; vorhandenes `wpa_cli` oder `nmcli` wird verwendet.
+- Bluetooth global ein-/ausschalten sowie Geräte im Adminbereich suchen, koppeln, verbinden, trennen und entfernen.
 - Datengetriebene Kategorien und Inhaltsreihen über `/api/home`; Medien verschiedener Provider erscheinen innerhalb einer Kategorie gemischt.
 - Bei fehlender Netzwerkverbindung zeigt der Player nur als offline verfügbar markierte lokale Inhalte.
 - Kategorien, Medienquellen und lokalisierte Namen werden in SQLite gespeichert und über die Admin-Weboberfläche gepflegt.
@@ -99,6 +101,10 @@ Unterstützte Endungen: MP3, FLAC, OGG, OPUS, WAV, M4A, AAC. Tatsächlich lesbar
 | `POST /api/input` | Simulierte Taste/RFID im Entwicklungsmodus |
 | `GET/PUT /api/admin/settings` | Persistente globale Box-Einstellungen |
 | `GET/PUT /api/admin/navigation` | Persistente Kategorien und Reihen |
+| `GET /api/connectivity/wifi` | WLAN-Netze suchen |
+| `POST /api/connectivity/wifi/connect` | Mit WLAN verbinden (Passwort wird nicht von MuPiBox gespeichert) |
+| `GET /api/connectivity/bluetooth` | Bluetooth-Geräte suchen und Status lesen |
+| `POST /api/connectivity/bluetooth/command` | Bluetooth koppeln, verbinden, trennen oder entfernen |
 
 Die Entwicklungs-API ist für ein vertrauenswürdiges Heimnetz vorgesehen. Sie hat noch keine Benutzeranmeldung. Kein Internet-Portforwarding. Das spätere Admin-Interface benötigt eine getrennte Authentifizierung und Schreib-API.
 
@@ -117,6 +123,7 @@ Noch offen: Admin-Authentifizierung und weitere Hardware-/Provider-Einstellungss
 - [Player/Wiedergabeprofile](docs/player-model.md) · [Player/playback profiles (English)](docs/player-model.en.md)
 - [System-/Hardwareeinstellungen](docs/system-settings.md) · [System/hardware settings (English)](docs/system-settings.en.md)
 - [MuPiHat-Integration](docs/mupihat.md) · [MuPiHat integration (English)](docs/mupihat.en.md)
+- [WLAN/Bluetooth](docs/connectivity.md) · [Wi-Fi/Bluetooth (English)](docs/connectivity.en.md)
 - [Spotify/Cache](docs/spotify.md) · [Spotify/cache (English)](docs/spotify.en.md)
 - [Bestandsprüfung](docs/repository-audit.md) · [Repository audit (English)](docs/repository-audit.en.md)
 - [DietPi-/Gerätetest](docs/device-install-dietpi.md)

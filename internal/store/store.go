@@ -41,6 +41,10 @@ type DisplaySettings struct {
  UISize string `json:"ui_size"`
 }
 
+type BluetoothSettings struct {
+ Enabled bool `json:"enabled"`
+}
+
 type BoxSettings struct {
  Language string `json:"language"`
  AdminLanguage string `json:"admin_language"`
@@ -48,6 +52,7 @@ type BoxSettings struct {
  Power PowerSettings `json:"power"`
  Audio AudioSettings `json:"audio"`
  Display DisplaySettings `json:"display"`
+ Bluetooth BluetoothSettings `json:"bluetooth"`
  Theme string `json:"theme"`
 }
 

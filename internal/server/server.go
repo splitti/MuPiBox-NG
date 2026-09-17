@@ -12,6 +12,7 @@ import (
  "sync"
  "sync/atomic"
 
+ "mupibox/internal/connectivity"
  "mupibox/internal/core"
  "mupibox/internal/library"
  "mupibox/internal/store"
@@ -80,6 +81,7 @@ type API struct {
  TTS TTSConfig
  Power PowerConfig
  Store *store.Store
+ Connectivity *connectivity.Manager
  System func() SystemStatus
  Version string
  libraryMu sync.RWMutex
@@ -168,12 +170,16 @@ func(a *API) Home()Home{
 func(a *API) currentSettings()(store.BoxSettings,error){
  if a.Store!=nil{v,ok,err:=a.Store.LoadBoxSettings();if err!=nil{return store.BoxSettings{},err};if ok{return v,nil}}
  status:=a.Player.Status()
- return store.BoxSettings{Language:"de",AdminLanguage:"de",TTS:store.TTSSettings{Enabled:a.TTS.Enabled,Language:a.TTS.Language,Provider:a.TTS.Provider},Power:store.PowerSettings{IdleShutdownMinutes:a.Power.IdleShutdownMinutes},Audio:store.AudioSettings{StartupVolume:min(30,status.MaxVolume),MaxVolume:status.MaxVolume},Display:store.DisplaySettings{Brightness:100,UISize:"normal"},Theme:"modern-dark"},nil
+ return store.BoxSettings{Language:"de",AdminLanguage:"de",TTS:store.TTSSettings{Enabled:a.TTS.Enabled,Language:a.TTS.Language,Provider:a.TTS.Provider},Power:store.PowerSettings{IdleShutdownMinutes:a.Power.IdleShutdownMinutes},Audio:store.AudioSettings{StartupVolume:min(30,status.MaxVolume),MaxVolume:status.MaxVolume},Display:store.DisplaySettings{Brightness:100,UISize:"normal"},Bluetooth:store.BluetoothSettings{Enabled:false},Theme:"modern-dark"},nil
 }
 func(a *API) Handler()http.Handler{
  mux:=http.NewServeMux()
  mux.HandleFunc("GET /api/status",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,a.Player.Status())})
  mux.HandleFunc("GET /api/system",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,a.currentSystemStatus())})
+ mux.HandleFunc("GET /api/connectivity/wifi",func(w http.ResponseWriter,r *http.Request){if a.Connectivity==nil{problem(w,503,fmt.Errorf("connectivity manager unavailable"));return};networks,err:=a.Connectivity.ScanWiFi(r.Context());if err!=nil{problem(w,503,err);return};jsonResponse(w,200,map[string]any{"networks":networks})})
+ mux.HandleFunc("POST /api/connectivity/wifi/connect",func(w http.ResponseWriter,r *http.Request){if a.Connectivity==nil{problem(w,503,fmt.Errorf("connectivity manager unavailable"));return};var request connectivity.WiFiConnectRequest;if err:=decode(w,r,&request);err!=nil{problem(w,400,err);return};if err:=a.Connectivity.ConnectWiFi(r.Context(),request);err!=nil{problem(w,502,err);return};jsonResponse(w,200,map[string]bool{"connected":true})})
+ mux.HandleFunc("GET /api/connectivity/bluetooth",func(w http.ResponseWriter,r *http.Request){if a.Connectivity==nil{problem(w,503,fmt.Errorf("connectivity manager unavailable"));return};settings,err:=a.currentSettings();if err!=nil{problem(w,500,err);return};if !settings.Bluetooth.Enabled{problem(w,409,fmt.Errorf("Bluetooth is disabled"));return};devices,err:=a.Connectivity.ScanBluetooth(r.Context());if err!=nil{problem(w,503,err);return};jsonResponse(w,200,map[string]any{"enabled":true,"devices":devices})})
+ mux.HandleFunc("POST /api/connectivity/bluetooth/command",func(w http.ResponseWriter,r *http.Request){if a.Connectivity==nil{problem(w,503,fmt.Errorf("connectivity manager unavailable"));return};settings,err:=a.currentSettings();if err!=nil{problem(w,500,err);return};if !settings.Bluetooth.Enabled{problem(w,409,fmt.Errorf("Bluetooth is disabled"));return};var request struct{Action string `json:"action"`;Address string `json:"address"`};if err=decode(w,r,&request);err!=nil{problem(w,400,err);return};if err=a.Connectivity.BluetoothCommand(r.Context(),request.Action,request.Address);err!=nil{problem(w,502,err);return};jsonResponse(w,200,map[string]bool{"ok":true})})
  mux.HandleFunc("GET /api/ui-state",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,map[string]uint64{"restart_generation":a.uiRestartGeneration.Load()})})
  mux.HandleFunc("GET /api/library",func(w http.ResponseWriter,r *http.Request){lib:=a.librarySnapshot();if lib==nil{problem(w,503,fmt.Errorf("library unavailable"));return};jsonResponse(w,200,lib.Folders)})
  mux.HandleFunc("GET /api/home",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,a.Home())})
@@ -183,7 +189,7 @@ func(a *API) Handler()http.Handler{
  })
  mux.HandleFunc("GET /api/health",func(w http.ResponseWriter,r *http.Request){jsonResponse(w,200,map[string]string{"status":"ok","version":a.Version})})
  mux.HandleFunc("GET /api/admin/settings",func(w http.ResponseWriter,r *http.Request){if a.Store==nil{problem(w,503,fmt.Errorf("persistent store unavailable"));return};v,ok,err:=a.Store.LoadBoxSettings();if err!=nil{problem(w,500,err);return};if !ok{problem(w,404,fmt.Errorf("settings not initialized"));return};jsonResponse(w,200,v)})
- mux.HandleFunc("PUT /api/admin/settings",func(w http.ResponseWriter,r *http.Request){if a.Store==nil{problem(w,503,fmt.Errorf("persistent store unavailable"));return};var v store.BoxSettings;if err:=decode(w,r,&v);err!=nil{problem(w,400,err);return};if err:=a.Store.SaveBoxSettings(v);err!=nil{problem(w,400,err);return};a.TTS=TTSConfig{Enabled:v.TTS.Enabled,Language:v.TTS.Language,Provider:v.TTS.Provider};a.Power=PowerConfig{IdleShutdownMinutes:v.Power.IdleShutdownMinutes};jsonResponse(w,200,map[string]any{"settings":v,"restart_required":[]string{"audio.max_volume","audio.startup_volume"}})})
+ mux.HandleFunc("PUT /api/admin/settings",func(w http.ResponseWriter,r *http.Request){if a.Store==nil{problem(w,503,fmt.Errorf("persistent store unavailable"));return};var v store.BoxSettings;if err:=decode(w,r,&v);err!=nil{problem(w,400,err);return};current,_,err:=a.Store.LoadBoxSettings();if err!=nil{problem(w,500,err);return};if current.Bluetooth.Enabled!=v.Bluetooth.Enabled{if a.Connectivity==nil{problem(w,503,fmt.Errorf("connectivity manager unavailable"));return};if err=a.Connectivity.SetBluetoothPower(r.Context(),v.Bluetooth.Enabled);err!=nil{problem(w,502,err);return}};if err=a.Store.SaveBoxSettings(v);err!=nil{problem(w,400,err);return};a.TTS=TTSConfig{Enabled:v.TTS.Enabled,Language:v.TTS.Language,Provider:v.TTS.Provider};a.Power=PowerConfig{IdleShutdownMinutes:v.Power.IdleShutdownMinutes};jsonResponse(w,200,map[string]any{"settings":v,"restart_required":[]string{"audio.max_volume","audio.startup_volume"}})})
  mux.HandleFunc("GET /api/admin/navigation",func(w http.ResponseWriter,r *http.Request){if a.Store==nil{problem(w,503,fmt.Errorf("persistent store unavailable"));return};v,err:=a.Store.LoadNavigation();if err!=nil{problem(w,500,err);return};jsonResponse(w,200,v)})
  mux.HandleFunc("GET /api/admin/local-directories",func(w http.ResponseWriter,r *http.Request){directories,err:=a.localDirectories();if err!=nil{problem(w,500,err);return};lib:=a.librarySnapshot();jsonResponse(w,200,map[string]any{"root":lib.Root,"directories":directories})})
  mux.HandleFunc("POST /api/admin/library/rescan",func(w http.ResponseWriter,r *http.Request){if err:=a.rescanLibrary();err!=nil{problem(w,500,err);return};directories,err:=a.localDirectories();if err!=nil{problem(w,500,err);return};jsonResponse(w,200,map[string]any{"directories":directories,"folders":len(a.librarySnapshot().Folders)})})

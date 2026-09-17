@@ -56,6 +56,7 @@ function fillSettings(v){
  field('tts_enabled').checked=v.tts.enabled;
  field('tts_language').value=v.tts.language;
  field('tts_provider').value=v.tts.provider;
+ field('bluetooth_enabled').checked=!!v.bluetooth?.enabled;
  if(!$('content-language').dataset.userSelected)$('content-language').value=v.language||v.tts.language||'de'
 }
 function readSettings(){return{
@@ -65,6 +66,7 @@ function readSettings(){return{
  audio:{startup_volume:Number(field('startup_volume').value),max_volume:Number(field('max_volume').value),start_sound_enabled:field('start_sound_enabled').checked,shutdown_sound_enabled:field('shutdown_sound_enabled').checked},
  display:{brightness:Number(field('brightness').value),ui_size:field('ui_size').value,idle_off_minutes:Number(field('display_idle').value)},
  power:{idle_shutdown_minutes:Number(field('shutdown_idle').value)},
+ bluetooth:{enabled:field('bluetooth_enabled').checked},
  tts:{enabled:field('tts_enabled').checked,language:field('tts_language').value.trim(),provider:field('tts_provider').value.trim()}
 }}
 function activeContentLanguage(){return($('content-language').value||settings?.language||'de').trim().toLowerCase()}
@@ -174,7 +176,33 @@ document.querySelectorAll('nav button').forEach(button=>button.onclick=()=>{docu
 field('admin_language').addEventListener('change',()=>setLocale(field('admin_language').value));
 field('ui_size').addEventListener('change',()=>$('settings-form').requestSubmit());
 field('theme').addEventListener('change',()=>$('settings-form').requestSubmit());
+function wifiBars(percent){const level=percent>=75?4:percent>=50?3:percent>=25?2:1;return '▂▄▆█'.slice(0,level)}
+async function scanWifi(){
+ const button=$('scan-wifi');button.disabled=true;
+ try{const data=await request('/api/connectivity/wifi');const select=$('wifi-network');select.replaceChildren(new Option('—',''));(data.networks||[]).forEach(network=>{const option=new Option((network.connected?'✓ ':'')+wifiBars(network.signal_percent)+'  '+network.ssid+(network.security?' · '+network.security:''),network.ssid);option.dataset.security=network.security||'';select.append(option)});message(t('wifi_scan_done','WLAN-Suche abgeschlossen.'))}catch(error){message(error.message,true)}finally{button.disabled=false}
+}
+async function connectWifi(){
+ const ssid=$('wifi-network').value;if(!ssid){message(t('choose_wifi','Bitte ein WLAN auswählen.'),true);return}
+ const selected=$('wifi-network').selectedOptions[0];const security=selected?.dataset.security||'';const password=$('wifi-password').value;if(security&&security!=='--'&&security.toLowerCase()!=='open'&&password.length<8){message(t('wifi_password_short','Das WLAN-Passwort muss mindestens 8 Zeichen haben.'),true);return}
+ const button=$('connect-wifi');button.disabled=true;
+ try{await request('/api/connectivity/wifi/connect',{method:'POST',body:JSON.stringify({ssid,password})});$('wifi-password').value='';message(t('wifi_connected','WLAN-Verbindung wurde eingerichtet.'));setTimeout(scanWifi,1500)}catch(error){message(error.message,true)}finally{button.disabled=false}
+}
+function renderBluetooth(devices){
+ const root=$('bluetooth-devices');root.replaceChildren();
+ if(!devices.length){const empty=document.createElement('p');empty.className='hint';empty.textContent=t('no_bluetooth_devices','Keine Geräte gefunden.');root.append(empty);return}
+ devices.forEach(device=>{const row=document.createElement('div');row.className='device-row';const info=document.createElement('span');info.textContent=(device.connected?'● ':'')+(device.name||device.address);const actions=document.createElement('div');actions.className='toolbar';
+  const action=device.paired?(device.connected?'disconnect':'connect'):'pair';const button=document.createElement('button');button.type='button';button.textContent=t('bluetooth_'+action,action);button.onclick=()=>bluetoothAction(action,device.address);actions.append(button);
+  if(device.paired){const remove=document.createElement('button');remove.type='button';remove.className='danger';remove.textContent=t('bluetooth_remove','Entfernen');remove.onclick=()=>bluetoothAction('remove',device.address);actions.append(remove)}
+  row.append(info,actions);root.append(row)
+ })
+}
+async function scanBluetooth(){const button=$('scan-bluetooth');button.disabled=true;try{const data=await request('/api/connectivity/bluetooth');renderBluetooth(data.devices||[])}catch(error){message(error.message,true)}finally{button.disabled=false}}
+async function bluetoothAction(action,address){try{await request('/api/connectivity/bluetooth/command',{method:'POST',body:JSON.stringify({action,address})});message(t('bluetooth_action_done','Bluetooth-Aktion abgeschlossen.'));setTimeout(scanBluetooth,800)}catch(error){message(error.message,true)}}
+
 $('content-language').addEventListener('change',()=>{$('content-language').dataset.userSelected='true';renderNavigation()});
+$('scan-wifi').onclick=scanWifi;
+$('connect-wifi').onclick=connectWifi;
+$('scan-bluetooth').onclick=scanBluetooth;
 $('settings-form').addEventListener('submit',async event=>{event.preventDefault();try{const result=await request('/api/admin/settings',{method:'PUT',body:JSON.stringify(readSettings())});fillSettings(result.settings);await setLocale(result.settings.admin_language);message(t('settings_saved','Einstellungen gespeichert.'))}catch(error){message(error.message,true)}});
 $('add-category').onclick=()=>{const language=activeContentLanguage();idCounter++;navigation.categories.push({id:'category-'+Date.now()+'-'+idCounter,labels:{[language]:t('new_category','Neue Kategorie')},rows:[]});renderNavigation()};
 $('save-navigation').onclick=async()=>{try{navigation=await request('/api/admin/navigation',{method:'PUT',body:JSON.stringify(navigation)});renderNavigation();message(t('content_saved','Inhalte gespeichert und Player aktualisiert.'))}catch(error){message(error.message,true)}};

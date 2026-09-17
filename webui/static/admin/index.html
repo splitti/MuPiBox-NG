@@ -36,6 +36,18 @@
 <label><span data-i18n="tts_language">TTS-Sprache</span><input name="tts_language" maxlength="16" list="language-codes"></label>
 <label><span data-i18n="provider">Provider</span><input name="tts_provider" maxlength="64" placeholder="z. B. offline" data-i18n-placeholder="provider_example"></label>
 </fieldset>
+<fieldset class="connectivity"><legend data-i18n="connectivity">WLAN und Bluetooth</legend>
+<div class="connectivity-block"><strong data-i18n="wifi">WLAN</strong><p class="hint" data-i18n="wifi_hint">Netze suchen und verbinden. Das Passwort wird nicht gespeichert.</p>
+<div class="toolbar"><button id="scan-wifi" type="button" data-i18n="scan_wifi">WLAN suchen</button></div>
+<label><span data-i18n="wifi_network">WLAN-Netz</span><select id="wifi-network"><option value="">—</option></select></label>
+<label><span data-i18n="wifi_password">WLAN-Passwort</span><input id="wifi-password" type="password" autocomplete="new-password" maxlength="63"></label>
+<button id="connect-wifi" type="button" data-i18n="connect_wifi">Verbinden</button></div>
+<div class="connectivity-block"><strong data-i18n="bluetooth">Bluetooth</strong>
+<label class="toggle"><input name="bluetooth_enabled" type="checkbox"> <span data-i18n="bluetooth_enabled">Bluetooth aktiv</span></label>
+<div class="toolbar"><button id="scan-bluetooth" type="button" data-i18n="scan_bluetooth">Geräte suchen</button></div>
+<div id="bluetooth-devices" class="device-list"></div>
+<p class="hint" data-i18n="bluetooth_controls_hint">Medientasten kompatibler Geräte werden später der gemeinsamen Playersteuerung zugeordnet.</p></div>
+</fieldset>
 <fieldset><legend data-i18n="maintenance">Wartung</legend>
 <p class="hint" data-i18n="ui_restart_hint">Die Darstellung wird live übernommen. Falls die Oberfläche einmal nicht reagiert, kann nur die Touch-Oberfläche neu gestartet werden.</p>
 <button id="restart-ui" type="button" data-i18n="restart_ui">Touch-Oberfläche neu starten</button>

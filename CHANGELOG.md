@@ -46,4 +46,7 @@
 - Das große 5-Zoll-Profil wechselt nach der Medienauswahl in eine eigene kindgerechte Wiedergabeebene mit Cover, 10-Sekunden-Sprüngen und großen Bedienelementen.
 - Commodore-inspiriertes 8-Bit-Theme für Qt-, Web- und Adminoberfläche ergänzt; DietPi installiert dafür die Terminus-Schrift.
 - MuPiHat-Integration als lokaler Python-Hardware-Agent plus Go-Sicherheitslogik geplant; vorhandene Batterie- und Eingangsstromprofile zweisprachig dokumentiert.
+- WLAN-Suche und Verbindung über `wpa_cli`/`nmcli` ergänzt; 1,2 Sekunden Haltedruck auf das WLAN-Symbol öffnet Scan, Auswahl, Passwortfeld und Bildschirmtastatur.
+- Bluetooth als globale SQLite-Einstellung ergänzt; BlueZ-Geräte können im Adminbereich gesucht, gekoppelt, verbunden, getrennt und entfernt werden.
+- Hotel-WLAN/Captive Portal und Bluetooth-Medientasten sind als nächste hardwareabhängige Stufe dokumentiert.
 - Noch ausstehend: echte MuPiHat-/RFID-/GPIO-Hardwareadapter, Spotify-/Amazon-Music-/Radio-/Podcast-Integration, produktiver TTS-Adapter, echter Idle-Shutdown und Rollback.

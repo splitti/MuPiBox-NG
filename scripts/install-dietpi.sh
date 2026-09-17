@@ -49,7 +49,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y \
     ca-certificates curl git build-essential pkg-config \
-    mpv alsa-utils fbi \
+    mpv alsa-utils fbi wpasupplicant bluez rfkill \
     qmlscene-qt6 qml6-module-qtquick qml6-module-qtquick-window qml6-module-qtqml \
     qt6-qpa-plugins libqt6opengl6 libgl1-mesa-dri libegl1 libgbm1 \
     fonts-dejavu-core fonts-terminus
@@ -113,7 +113,7 @@ if ! getent passwd mupibox >/dev/null; then
     useradd --system --home-dir /var/lib/mupibox-ng --shell /usr/sbin/nologin mupibox
 fi
 
-for group in audio video render input tty; do
+for group in audio video render input tty netdev bluetooth; do
     if getent group "$group" >/dev/null; then
         usermod -a -G "$group" mupibox
     fi

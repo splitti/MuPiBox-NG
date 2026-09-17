@@ -46,4 +46,7 @@
 - The large 5-inch profile now opens a dedicated child-friendly playback layer with artwork, 10-second skips and large controls after media selection.
 - Added a Commodore-inspired 8-bit theme for the Qt, web and admin UIs; DietPi installs the Terminus font for it.
 - Defined the MuPiHat integration as a local Python hardware agent with Go-owned safety logic and documented the existing battery/input-current profiles in both languages.
+- Added Wi-Fi scanning and connection through `wpa_cli`/`nmcli`; holding the Wi-Fi indicator for 1.2 seconds opens discovery, selection, password entry and an on-screen keyboard.
+- Added Bluetooth as a global SQLite setting; BlueZ devices can be discovered, paired, connected, disconnected and removed from the admin UI.
+- Documented hotel Wi-Fi/captive portals and Bluetooth media buttons as the next hardware-dependent stage.
 - Still missing: real MuPiHat/RFID/GPIO hardware adapters, Spotify/Amazon Music/radio/podcast integration, production TTS, actual idle shutdown and rollback.
