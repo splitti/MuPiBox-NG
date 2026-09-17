@@ -180,3 +180,9 @@ Voraussichtliche Kernobjekte sind:
 
 Die bisherige `categories`-/`content_rows`-Struktur im Entwicklungsprototyp ist ein Zwischenschritt und darf beim
 SQLite-Umbau in dieses allgemeinere Modell migriert werden.
+
+## Dynamische Fortsetzen-Liste
+
+Eine Kategorie kann als Medienquelle `resume-list` mit dem Quelltyp `limit` verwenden. `source_ref` enthält die gewünschte Anzahl von 1 bis 100. Name, Position und Kombination mit weiteren Medienquellen bleiben dadurch vollständig frei konfigurierbar.
+
+Die Liste zeigt nur begonnene, noch nicht abgeschlossene Medien und sortiert sie nach der letzten Wiedergabe. Mehrere Fortschrittseinträge desselben Kontextes werden zu einer Kachel zusammengefasst. Die Kachel startet den gespeicherten Titel bzw. die gespeicherte Folge direkt an der letzten Position. Lokale Resume-Einträge bleiben offline sichtbar; Einträge externer Provider nur, wenn der jeweilige Adapter erreichbar und der Inhalt verfügbar ist.

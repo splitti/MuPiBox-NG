@@ -9,6 +9,7 @@ import (
  "os"
  "path/filepath"
  "regexp"
+ "strconv"
  "strings"
  "time"
 
@@ -201,6 +202,9 @@ func ValidateNavigation(v Navigation)error{
     ref:=filepath.Clean(filepath.FromSlash(strings.TrimSpace(r.SourceRef)))
     if strings.TrimSpace(r.SourceRef)==""||filepath.IsAbs(ref)||ref==".."||strings.HasPrefix(ref,".."+string(filepath.Separator)){return fmt.Errorf("media %s: local path must be below the media root",r.ID)}
    }
+   if r.Provider=="resume-list"{
+    limit,err:=strconv.Atoi(strings.TrimSpace(r.SourceRef));if r.SourceType!="limit"||err!=nil||limit<1||limit>100{return fmt.Errorf("media %s: resume limit must be 1..100",r.ID)}
+   }
   }
  }
  return nil
@@ -253,6 +257,19 @@ func(s *Store)LoadProgress(provider,accountID,mediaID string)(Progress,bool,erro
  if errors.Is(err,sql.ErrNoRows){return Progress{},false,nil};if err!=nil{return Progress{},false,err}
  v.Provider=provider;v.AccountID=accountID;v.MediaID=mediaID;v.Completed=completed==1;v.UpdatedAt,_=time.Parse(time.RFC3339Nano,updated)
  return v,true,nil
+}
+
+func(s *Store)ListRecentProgress(limit int)([]Progress,error){
+ if limit<1{limit=1}else if limit>1000{limit=1000}
+ rows,err:=s.db.Query(`SELECT provider,account_id,media_id,position_ms,duration_ms,context_id,item_index,completed,updated_at
+  FROM playback_progress WHERE completed=0 AND position_ms>=5000 ORDER BY updated_at DESC LIMIT ?`,limit)
+ if err!=nil{return nil,err};defer rows.Close()
+ out:=[]Progress{}
+ for rows.Next(){var v Progress;var completed int;var updated string
+  if err=rows.Scan(&v.Provider,&v.AccountID,&v.MediaID,&v.PositionMS,&v.DurationMS,&v.ContextID,&v.ItemIndex,&completed,&updated);err!=nil{return nil,err}
+  v.Completed=completed==1;v.UpdatedAt,_=time.Parse(time.RFC3339Nano,updated);out=append(out,v)
+ }
+ return out,rows.Err()
 }
 
 func(s *Store)PutProgress(provider,accountID,mediaID string,positionMS,durationMS int64,contextID string,itemIndex int,completed bool)error{

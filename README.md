@@ -9,8 +9,10 @@ Neuentwicklung eines modularen Musikplayers für **DietPi ARM64, Raspberry Pi 3 
 ## Was jetzt funktioniert
 
 - Go-HTTP-Dienst mit eingebetteter Weboberfläche.
-- Kleine Touch-Oberfläche, primär für 800 × 480 quer entworfen.
-- Datengetriebene Kategorien und Inhaltsreihen über `/api/home`.
+- Kleine Touch-Oberfläche, primär für 800 × 480 quer entworfen, mit eigener großflächiger 5-Zoll-Wiedergabeebene.
+- Auswählbares Commodore-inspiriertes 8-Bit-Theme mit Terminus-/Terminalschrift neben der modernen Oberfläche.
+- Datengetriebene Kategorien und Inhaltsreihen über `/api/home`; Medien verschiedener Provider erscheinen innerhalb einer Kategorie gemischt.
+- Bei fehlender Netzwerkverbindung zeigt der Player nur als offline verfügbar markierte lokale Inhalte.
 - Kategorien, Medienquellen und lokalisierte Namen werden in SQLite gespeichert und über die Admin-Weboberfläche gepflegt.
 - Globale TTS-Entwicklungseinstellung: Ein/Aus, Sprache und Provider; `browser-dev` dient nur als Testfallback.
 - Globale Power-Entwicklungseinstellung mit `idle_shutdown_minutes`; der echte Shutdown ist noch nicht implementiert.
@@ -21,6 +23,7 @@ Neuentwicklung eines modularen Musikplayers für **DietPi ARM64, Raspberry Pi 3 
 - SQLite-Datenbank mit automatischer Migration für Box-Einstellungen, Navigation und Wiedergabefortschritt.
 - Erste echte Admin-Weboberfläche unter `/admin/` für globale Einstellungen sowie Kategorien/Reihen.
 - Persistentes Fortsetzen lokaler Audiodateien, auch bei einzelnen sehr langen Dateien; Fortschrittsvertrag für spätere Provider wie Spotify, Live-Radio ausgeschlossen.
+- Frei platzierbare Medienquelle „Fortsetzen / Resume-Liste“ mit 1–100 zuletzt begonnenen, noch nicht abgeschlossenen Medien.
 
 Die Zieloberfläche ist keine fest verdrahtete Musikseite. Kategorien wie Hörbücher, Musik, Radio oder Podcasts werden als Daten geliefert. Das spätere Admin-Interface soll dieses Modell und die globalen Box-Einstellungen verwalten.
 
@@ -113,6 +116,7 @@ Noch offen: Admin-Authentifizierung und weitere Hardware-/Provider-Einstellungss
 - [Navigation/Inhalte](docs/navigation-model.md) · [Navigation/content (English)](docs/navigation-model.en.md)
 - [Player/Wiedergabeprofile](docs/player-model.md) · [Player/playback profiles (English)](docs/player-model.en.md)
 - [System-/Hardwareeinstellungen](docs/system-settings.md) · [System/hardware settings (English)](docs/system-settings.en.md)
+- [MuPiHat-Integration](docs/mupihat.md) · [MuPiHat integration (English)](docs/mupihat.en.md)
 - [Spotify/Cache](docs/spotify.md) · [Spotify/cache (English)](docs/spotify.en.md)
 - [Bestandsprüfung](docs/repository-audit.md) · [Repository audit (English)](docs/repository-audit.en.md)
 - [DietPi-/Gerätetest](docs/device-install-dietpi.md)

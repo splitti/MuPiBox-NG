@@ -177,3 +177,9 @@ Expected core objects include:
 
 The current `categories`/`content_rows` structure in the development prototype is an intermediate step and may be migrated
 to this more general model during the SQLite conversion.
+
+## Dynamic resume list
+
+A category can use `resume-list` as a media source with source type `limit`. Its `source_ref` contains the desired number of items from 1 to 100. This keeps the name, position and combination with other media sources fully configurable.
+
+The list includes only started, unfinished media and sorts it by last playback. Multiple progress records from the same context are collapsed into one tile. Selecting the tile starts the saved track or episode at its saved position. Local resume items remain visible offline; external-provider items require their adapter and content to be available.

@@ -42,3 +42,10 @@ func TestPersistentResumeForLongSingleTrack(t *testing.T){
  if err:=c.Execute(Command{Action:"pause"});err!=nil{t.Fatal(err)}
  if repo.puts==0||repo.provider!="local"||repo.media==""{t.Fatalf("progress not stored: %#v",repo)}
 }
+
+func TestResumeCommandStartsSavedQueueItem(t *testing.T){
+ c,b,id:=setup(t);repo:=&fakeProgress{position:120000,duration:3600000,found:true};c.SetProgressRepository(repo)
+ if err:=c.Execute(Command{Action:"resume",FolderID:id,ItemIndex:1});err!=nil{t.Fatal(err)}
+ if c.Status().Index!=1||b.seek!=120{t.Fatalf("resume did not start saved item: status=%#v seek=%v",c.Status(),b.seek)}
+ if err:=c.Execute(Command{Action:"resume",FolderID:id,ItemIndex:99});err==nil{t.Fatal("out-of-range resume item accepted")}
+}

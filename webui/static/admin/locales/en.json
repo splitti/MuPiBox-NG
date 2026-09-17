@@ -78,5 +78,9 @@
   "choose_directory": "Choose folder",
   "no_local_directories": "No subfolders were found in the media directory.",
   "library_rescanned": "Media folders rescanned.",
-  "ui_restarting": "Touchscreen interface is restarting."
+  "ui_restarting": "Touchscreen interface is restarting.",
+  "source_resume": "Continue / Resume list",
+  "type_limit": "Item count",
+  "resume_limit": "Number of items (1–100)",
+  "resume_hint": "Shows the most recently started media that has not been completed. Its name and position are controlled by the category and ordering."
 }

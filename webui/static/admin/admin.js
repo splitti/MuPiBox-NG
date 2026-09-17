@@ -10,12 +10,13 @@ let localRoot='/srv/mupibox/music';
 
 const providerCatalog={
  'local-library':{label:'source_local',types:['library','path']},
+ 'resume-list':{label:'source_resume',types:['limit']},
  spotify:{label:'source_spotify',types:['artist','playlist','album','track']},
  'amazon-music':{label:'source_amazon',types:['artist','playlist','album','track']},
  stream:{label:'source_stream',types:['url']},
  podcast:{label:'source_podcast',types:['feed']}
 };
-const typeKeys={library:'type_library',path:'type_path',artist:'type_artist',playlist:'type_playlist',album:'type_album',track:'type_track',url:'type_url',feed:'type_feed'};
+const typeKeys={library:'type_library',path:'type_path',limit:'type_limit',artist:'type_artist',playlist:'type_playlist',album:'type_album',track:'type_track',url:'type_url',feed:'type_feed'};
 
 async function request(path,options={}){
  const r=await fetch(path,{...options,headers:{'Content-Type':'application/json',...(options.headers||{})}});
@@ -43,6 +44,7 @@ function fillSettings(v){
  field('admin_language').value=v.admin_language||'de';
  field('language').value=v.language;
  field('theme').value=v.theme;
+ document.documentElement.dataset.theme=v.theme||'modern-dark';
  field('startup_volume').value=v.audio.startup_volume;
  field('max_volume').value=v.audio.max_volume;
  field('start_sound_enabled').checked=v.audio.start_sound_enabled;
@@ -72,6 +74,9 @@ function labeledInput(value,onchange,label,options={}){
  const l=document.createElement('label');
  const span=document.createElement('span');span.textContent=label;
  const i=document.createElement('input');i.value=value||'';
+ if(options.type)i.type=options.type;
+ if(options.min!==undefined)i.min=options.min;
+ if(options.max!==undefined)i.max=options.max;
  if(options.placeholder)i.placeholder=options.placeholder;
  if(options.maxLength)i.maxLength=options.maxLength;
  i.addEventListener('input',()=>onchange(i.value));
@@ -96,6 +101,7 @@ function sourceReferenceLabel(type){
  if(type==='path')return t('source_path','Pfad');
  if(type==='url')return t('source_url','Stream-URL');
  if(type==='feed')return t('source_feed','Feed-URL');
+ if(type==='limit')return t('resume_limit','Anzahl');
  return t('source_reference','Quelle / ID / Link')
 }
 function renderMediaSource(row,category,index){
@@ -110,7 +116,7 @@ function renderMediaSource(row,category,index){
   labeledInput(row.id,v=>row.id=v,t('technical_id','Technische ID'),{maxLength:64})
  );
  const providerChoices=Object.entries(providerCatalog).map(([value,p])=>({value,label:t(p.label,value)}));
- const providerSelect=labeledSelect(row.provider||'local-library',v=>{row.provider=v;row.source_type=providerCatalog[v].types[0];row.source_ref='';renderNavigation()},t('media_source','Medienquelle'),providerChoices);
+ const providerSelect=labeledSelect(row.provider||'local-library',v=>{row.provider=v;row.source_type=providerCatalog[v].types[0];row.source_ref=v==='resume-list'?'10':'';renderNavigation()},t('media_source','Medienquelle'),providerChoices);
  grid.append(providerSelect);
  const provider=providerCatalog[row.provider]||providerCatalog['local-library'];
  if(!providerCatalog[row.provider])providerChoices.push({value:row.provider,label:row.provider});
@@ -124,6 +130,10 @@ function renderMediaSource(row,category,index){
   if(choices.length){grid.append(labeledSelect(row.source_ref||'',v=>row.source_ref=v,t('choose_directory','Ordner auswählen'),choices))}
   else{const info=document.createElement('p');info.className='source-info';info.textContent=t('no_local_directories','Noch keine Unterordner im Medienverzeichnis gefunden.');grid.append(info)}
   const hint=document.createElement('p');hint.className='directory-hint';hint.textContent=localRoot+(row.source_ref?'/'+row.source_ref:'');grid.append(hint)
+ }else if(row.provider==='resume-list'){
+  if(!/^\d+$/.test(String(row.source_ref||'')))row.source_ref='10';
+  grid.append(labeledInput(row.source_ref,v=>row.source_ref=v,t('resume_limit','Anzahl der Einträge'),{type:'number',min:1,max:100}));
+  const info=document.createElement('p');info.className='source-info';info.textContent=t('resume_hint','Zeigt die zuletzt begonnenen, noch nicht beendeten Medien.');grid.append(info)
  }else if(row.source_type!=='library'){
   grid.append(labeledInput(row.source_ref||'',v=>row.source_ref=v,sourceReferenceLabel(row.source_type),{maxLength:2048,placeholder:t('source_reference_placeholder','URL, URI, ID oder Pfad')}));
  }else{
@@ -163,6 +173,7 @@ async function load(){
 document.querySelectorAll('nav button').forEach(button=>button.onclick=()=>{document.querySelectorAll('nav button').forEach(x=>x.classList.toggle('active',x===button));$('settings-view').hidden=button.dataset.view!=='settings';$('navigation-view').hidden=button.dataset.view!=='navigation'});
 field('admin_language').addEventListener('change',()=>setLocale(field('admin_language').value));
 field('ui_size').addEventListener('change',()=>$('settings-form').requestSubmit());
+field('theme').addEventListener('change',()=>$('settings-form').requestSubmit());
 $('content-language').addEventListener('change',()=>{$('content-language').dataset.userSelected='true';renderNavigation()});
 $('settings-form').addEventListener('submit',async event=>{event.preventDefault();try{const result=await request('/api/admin/settings',{method:'PUT',body:JSON.stringify(readSettings())});fillSettings(result.settings);await setLocale(result.settings.admin_language);message(t('settings_saved','Einstellungen gespeichert.'))}catch(error){message(error.message,true)}});
 $('add-category').onclick=()=>{const language=activeContentLanguage();idCounter++;navigation.categories.push({id:'category-'+Date.now()+'-'+idCounter,labels:{[language]:t('new_category','Neue Kategorie')},rows:[]});renderNavigation()};

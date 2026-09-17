@@ -38,7 +38,9 @@ func TestHomeConfigIsDataDrivenAndLocalized(t *testing.T){
  var home Home;if err:=json.Unmarshal(w.Body.Bytes(),&home);err!=nil{t.Fatal(err)}
  if len(home.Categories)!=2||home.Categories[0].Labels["en"]!="Audiobooks"{t.Fatalf("unexpected categories: %#v",home.Categories)}
  if len(home.Categories[1].Rows)!=1||len(home.Categories[1].Rows[0].Items)!=1{t.Fatalf("local provider not rendered: %#v",home.Categories[1])}
- if home.Categories[1].Rows[0].Items[0].Command.FolderID!=l.Folders[0].ID{t.Fatal("media command does not target scanned folder")}
+ item:=home.Categories[1].Rows[0].Items[0]
+ if item.Command.FolderID!=l.Folders[0].ID{t.Fatal("media command does not target scanned folder")}
+ if item.Provider!="local-library"||!item.OfflineAvailable{t.Fatalf("local item must remain available offline: %#v",item)}
 }
 
 func TestInfoExposesGlobalBoxSettings(t *testing.T){
@@ -94,4 +96,19 @@ func TestAdminListsDirectoriesRescansAndRestartsUI(t *testing.T){
  rescan:=request(http.MethodPost,"/api/admin/library/rescan");if rescan.Code!=200||!strings.Contains(rescan.Body.String(),`"folders":2`){t.Fatalf("rescan: %d %s",rescan.Code,rescan.Body.String())}
  before:=request(http.MethodGet,"/api/ui-state");restart:=request(http.MethodPost,"/api/admin/ui/restart");after:=request(http.MethodGet,"/api/ui-state")
  if before.Code!=200||restart.Code!=202||after.Code!=200||!strings.Contains(after.Body.String(),`"restart_generation":1`){t.Fatalf("restart state: before=%s restart=%s after=%s",before.Body.String(),restart.Body.String(),after.Body.String())}
+}
+
+func TestResumeListSourceReturnsLatestIncompleteLocalMedia(t *testing.T){
+ dir:=t.TempDir();folderDir:=filepath.Join(dir,"Story");if err:=os.Mkdir(folderDir,0700);err!=nil{t.Fatal(err)}
+ for _,name:=range []string{"01.wav","02.wav"}{if err:=os.WriteFile(filepath.Join(folderDir,name),nil,0600);err!=nil{t.Fatal(err)}}
+ lib,err:=library.Scan(dir);if err!=nil{t.Fatal(err)};player,err:=core.New(lib,&audio.Simulated{},60);if err!=nil{t.Fatal(err)};defer player.Close()
+ db,err:=store.Open(":memory:");if err!=nil{t.Fatal(err)};defer db.Close()
+ folder:=lib.Folders[0];track:=folder.Tracks[1]
+ if err=db.PutProgress("local","",track.ID,120000,3600000,folder.ID,1,false);err!=nil{t.Fatal(err)}
+ if err=db.SaveNavigation(store.Navigation{Categories:[]store.Category{{ID:"continue",Labels:map[string]string{"de":"Zuletzt gehört"},Rows:[]store.Row{{ID:"recent",Labels:map[string]string{"de":"Fortsetzen"},Provider:"resume-list",SourceType:"limit",SourceRef:"10"}}}}});err!=nil{t.Fatal(err)}
+ api:=&API{Player:player,Library:lib,Store:db}
+ home:=api.Home();if len(home.Categories)!=1||len(home.Categories[0].Rows)!=1||len(home.Categories[0].Rows[0].Items)!=1{t.Fatalf("resume item missing: %#v",home)}
+ item:=home.Categories[0].Rows[0].Items[0]
+ if item.Kind!="resume"||item.Command.Action!="resume"||item.Command.FolderID!=folder.ID||item.Command.ItemIndex!=1||!item.OfflineAvailable{t.Fatalf("unexpected resume item: %#v",item)}
+ if err=player.Execute(item.Command);err!=nil||player.Status().Index!=1{t.Fatalf("resume command failed: %#v %v",player.Status(),err)}
 }

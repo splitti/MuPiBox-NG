@@ -13,7 +13,7 @@ import (
  "mupibox/internal/library"
 )
 
-type Command struct { Action string `json:"action"`; FolderID string `json:"folder_id,omitempty"`; Value float64 `json:"value,omitempty"` }
+type Command struct { Action string `json:"action"`; FolderID string `json:"folder_id,omitempty"`; ItemIndex int `json:"item_index,omitempty"`; Value float64 `json:"value,omitempty"` }
 type Status struct {
  State string `json:"state"`
  Backend string `json:"backend"`
@@ -92,11 +92,12 @@ func(c *Controller) Execute(cmd Command)error{
  c.mu.Lock();defer c.mu.Unlock()
  if math.IsNaN(cmd.Value)||math.IsInf(cmd.Value,0){return errors.New("invalid value")}
  switch cmd.Action{
- case "folder":
+ case "folder","resume":
   f,ok:=c.lib.Folder(cmd.FolderID);if !ok||len(f.Tracks)==0{return errors.New("unknown or empty folder")}
+  index:=0;if cmd.Action=="resume"{index=cmd.ItemIndex;if index<0||index>=len(f.Tracks){return errors.New("resume item is outside the folder")}}
   _ = c.saveProgressLocked(false)
   c.st.FolderID=f.ID;c.st.Folder=f.Name;c.st.Cover=f.Cover;c.st.Queue=append([]library.Track{},f.Tracks...)
-  return c.load(0)
+  return c.load(index)
  case "volume","volume_delta":
   v:=cmd.Value;if cmd.Action=="volume_delta"{v+=float64(c.st.Volume)}
   v=math.Max(0,math.Min(float64(c.st.MaxVolume),v))

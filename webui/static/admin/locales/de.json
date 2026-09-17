@@ -78,5 +78,9 @@
   "choose_directory": "Ordner auswählen",
   "no_local_directories": "Noch keine Unterordner im Medienverzeichnis gefunden.",
   "library_rescanned": "Medienordner neu eingelesen.",
-  "ui_restarting": "Touch-Oberfläche wird neu gestartet."
+  "ui_restarting": "Touch-Oberfläche wird neu gestartet.",
+  "source_resume": "Fortsetzen / Resume-Liste",
+  "type_limit": "Anzahl",
+  "resume_limit": "Anzahl der Einträge (1–100)",
+  "resume_hint": "Zeigt die zuletzt begonnenen, noch nicht beendeten Medien. Name und Position der Liste bestimmst du über Kategorie und Reihenfolge."
 }

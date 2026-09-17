@@ -35,3 +35,15 @@ html[data-ui-size="large"] .transport .primary{width:58px;height:58px;font-size:
 .battery-charge{display:none;position:absolute;inset:-3px 0 0;text-align:center;font-size:12px;line-height:15px;color:#fff;text-shadow:0 1px 2px #000}
 .battery-indicator[data-charging="true"] .battery-charge{display:block}
 .battery-indicator[data-available="false"]{opacity:.45}.battery-indicator[data-available="false"] .battery-fill{width:0}
+
+html[data-theme="arcade-8bit"]{color-scheme:dark;--bg:#1a1666;--panel:#40318d;--panel2:#302878;--muted:#c7c2ff;--accent:#8b7ddb;--text:#fff;--line:#b8afff;font-family:Terminus,"DejaVu Sans Mono",monospace}
+html[data-theme="arcade-8bit"] body{background:#1a1666}
+html[data-theme="arcade-8bit"] .statusbar{background:#25207a;border-color:#b8afff}
+html[data-theme="arcade-8bit"] .playerbar{background:#25207a;border-color:#b8afff}
+html[data-theme="arcade-8bit"] button,html[data-theme="arcade-8bit"] .media-item,html[data-theme="arcade-8bit"] .mini-art{border-radius:0;box-shadow:4px 4px 0 #17124f}
+html[data-theme="arcade-8bit"] .media-item{border:2px solid #b8afff;background:#302878}
+html[data-theme="arcade-8bit"] .media-item[aria-pressed=true]{border-color:#fff;box-shadow:4px 4px 0 #8b7ddb}
+html[data-theme="arcade-8bit"] .logo{border-radius:0;background:#8b7ddb}
+html[data-theme="arcade-8bit"] .cover{background:#40318d}
+html[data-theme="arcade-8bit"] .transport .primary{background:#8b7ddb;color:#17124f}
+html[data-theme="arcade-8bit"] input[type=range]{accent-color:#fff}

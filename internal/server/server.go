@@ -7,6 +7,7 @@ import (
  "net/http"
  "net/url"
  pathpkg "path"
+ "strconv"
  "strings"
  "sync"
  "sync/atomic"
@@ -66,6 +67,8 @@ type HomeItem struct {
  Subtitle string `json:"subtitle,omitempty"`
  Cover string `json:"cover,omitempty"`
  ResumePolicy string `json:"resume_policy,omitempty"`
+ Provider string `json:"provider,omitempty"`
+ OfflineAvailable bool `json:"offline_available"`
  Command core.Command `json:"command"`
 }
 
@@ -105,10 +108,33 @@ func(a *API) localLibraryItems(row HomeRowConfig)[]HomeItem{
  items:=make([]HomeItem,0,len(lib.Folders))
  for _,f:=range lib.Folders{
   if selected!=""&&f.Relative!=selected&&!strings.HasPrefix(f.Relative,selected+"/"){continue}
-  items=append(items,HomeItem{ID:f.ID,Kind:"local-folder",Title:f.Name,Subtitle:fmt.Sprintf("%d Titel",len(f.Tracks)),Cover:f.Cover,ResumePolicy:"position",Command:core.Command{Action:"folder",FolderID:f.ID}})
+  items=append(items,HomeItem{ID:f.ID,Kind:"local-folder",Title:f.Name,Subtitle:fmt.Sprintf("%d Titel",len(f.Tracks)),Cover:f.Cover,ResumePolicy:"position",Provider:"local-library",OfflineAvailable:true,Command:core.Command{Action:"folder",FolderID:f.ID}})
  }
  return items
 }
+func(a *API)resumeItems(row HomeRowConfig)[]HomeItem{
+ if a.Store==nil{return []HomeItem{}}
+ limit,err:=strconv.Atoi(strings.TrimSpace(row.SourceRef));if err!=nil||limit<1{limit=10};if limit>100{limit=100}
+ recent,err:=a.Store.ListRecentProgress(min(1000,limit*10));if err!=nil{return []HomeItem{}}
+ lib:=a.librarySnapshot();if lib==nil{return []HomeItem{}}
+ items:=make([]HomeItem,0,limit);seen:=map[string]bool{}
+ for _,progress:=range recent{
+  if progress.Provider!="local"||progress.ContextID==""||seen[progress.ContextID]{continue}
+  folder,ok:=lib.Folder(progress.ContextID);if !ok||len(folder.Tracks)==0{continue}
+  index:=progress.ItemIndex
+  if index<0||index>=len(folder.Tracks)||folder.Tracks[index].ID!=progress.MediaID{
+   index=-1;for i,track:=range folder.Tracks{if track.ID==progress.MediaID{index=i;break}}
+  }
+  if index<0{continue}
+  track:=folder.Tracks[index];subtitle:=track.Title
+  if progress.DurationMS>0{percent:=int(progress.PositionMS*100/progress.DurationMS);if percent>99{percent=99};subtitle=fmt.Sprintf("%s · %d%%",track.Title,percent)}
+  seen[progress.ContextID]=true
+  items=append(items,HomeItem{ID:"resume-"+progress.Provider+"-"+progress.MediaID,Kind:"resume",Title:folder.Name,Subtitle:subtitle,Cover:folder.Cover,ResumePolicy:"position",Provider:progress.Provider,OfflineAvailable:true,Command:core.Command{Action:"resume",FolderID:folder.ID,ItemIndex:index}})
+  if len(items)>=limit{break}
+ }
+ return items
+}
+
 func homeConfigFromNavigation(nav store.Navigation)HomeConfig{
  out:=HomeConfig{Categories:make([]HomeCategoryConfig,0,len(nav.Categories))}
  for _,c:=range nav.Categories{
@@ -132,7 +158,7 @@ func(a *API) Home()Home{
   out:=HomeCategory{ID:category.ID,Labels:category.Labels,Rows:[]HomeRow{}}
   for _,row:=range category.Rows{
    items:=[]HomeItem{}
-   switch row.Provider{case "local-library":items=a.localLibraryItems(row)}
+   switch row.Provider{case "local-library":items=a.localLibraryItems(row);case "resume-list":items=a.resumeItems(row)}
    out.Rows=append(out.Rows,HomeRow{ID:row.ID,Labels:row.Labels,Items:items})
   }
   categories=append(categories,out)

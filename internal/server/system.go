@@ -4,6 +4,7 @@ import (
  "bufio"
  "io"
  "math"
+ "net"
  "os"
  "path/filepath"
  "strconv"
@@ -24,6 +25,7 @@ type BatteryStatus struct {
 }
 
 type SystemStatus struct {
+ Online bool `json:"online"`
  WiFi WiFiStatus `json:"wifi"`
  Battery BatteryStatus `json:"battery"`
 }
@@ -34,12 +36,21 @@ func (a *API) currentSystemStatus() SystemStatus {
 }
 
 func readSystemStatus() SystemStatus {
- status:=SystemStatus{Battery:readBatteryStatus("/sys/class/power_supply")}
+ status:=SystemStatus{Online:networkAvailable(),Battery:readBatteryStatus("/sys/class/power_supply")}
  file,err:=os.Open("/proc/net/wireless")
  if err!=nil{return status}
  defer file.Close()
  status.WiFi=parseWiFiStatus(file)
  return status
+}
+
+func networkAvailable()bool{
+ interfaces,err:=net.Interfaces();if err!=nil{return false}
+ for _,iface:=range interfaces{
+  if iface.Flags&net.FlagUp==0||iface.Flags&net.FlagRunning==0||iface.Flags&net.FlagLoopback!=0{continue}
+  addresses,err:=iface.Addrs();if err==nil&&len(addresses)>0{return true}
+ }
+ return false
 }
 
 func parseWiFiStatus(reader io.Reader) WiFiStatus {

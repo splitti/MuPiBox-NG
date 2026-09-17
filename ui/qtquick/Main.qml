@@ -5,7 +5,7 @@ Window {
     id: root
     visible: true
     visibility: Window.FullScreen
-    color: "#0b0d11"
+    color: root.backgroundColor
     title: "MuPiBox"
 
     property real uiScale: Math.min(width / 800, height / 480)
@@ -20,7 +20,22 @@ Window {
     property var categories: []
     property string homeSignature: ""
     property string uiSize: "normal"
+    property string themeName: "modern-dark"
     property bool largeUI: uiSize === "large"
+    property bool retroTheme: themeName === "arcade-8bit"
+    property bool networkOnline: true
+    property bool playerView: false
+    property color backgroundColor: retroTheme ? "#1A1666" : "#0B0D11"
+    property color statusColor: retroTheme ? "#25207A" : "#0A0C10"
+    property color panelColor: retroTheme ? "#40318D" : "#202632"
+    property color cardColor: retroTheme ? "#302878" : "#141820"
+    property color textColor: retroTheme ? "#FFFFFF" : "#F7F7FA"
+    property color mutedColor: retroTheme ? "#C7C2FF" : "#9AA3B2"
+    property color accentColor: retroTheme ? "#8B7DDB" : "#F59ACA"
+    property color accentPressedColor: retroTheme ? "#B8AFFF" : "#FFB8D8"
+    property color lineColor: retroTheme ? "#B8AFFF" : "#2A313D"
+    property color accentTextColor: retroTheme ? "#17124F" : "#2C1F2E"
+    property string uiFont: retroTheme ? "Terminus" : "DejaVu Sans"
     property int uiRestartGeneration: -1
     property var wifiStatus: ({"connected": false, "quality_percent": 0, "signal_dbm": 0, "interface": ""})
     property var batteryStatus: ({"available": false, "percent": 0, "charging": false})
@@ -42,6 +57,18 @@ Window {
     function localized(labels, fallback) {
         if (!labels) return fallback || ""
         return labels.de || labels.en || fallback || ""
+    }
+
+    function categoryItems(category) {
+        var result = []
+        var rows = category && category.rows ? category.rows : []
+        for (var rowIndex = 0; rowIndex < rows.length; ++rowIndex) {
+            var items = rows[rowIndex].items || []
+            for (var itemIndex = 0; itemIndex < items.length; ++itemIndex) {
+                if (networkOnline || items[itemIndex].offline_available) result.push(items[itemIndex])
+            }
+        }
+        return result
     }
 
     function signalLevel(percent) {
@@ -139,6 +166,7 @@ Window {
     function refreshInfo() {
         requestJson("GET", "/api/info", null, function(data) {
             uiSize = data && data.display && data.display.ui_size ? data.display.ui_size : "normal"
+            themeName = data && data.theme ? data.theme : "modern-dark"
         }, function() {})
     }
 
@@ -152,9 +180,11 @@ Window {
 
     function refreshSystem() {
         requestJson("GET", "/api/system", null, function(data) {
+            networkOnline = data && data.online !== undefined ? data.online : true
             wifiStatus = data && data.wifi ? data.wifi : {"connected": false, "quality_percent": 0}
             batteryStatus = data && data.battery ? data.battery : {"available": false, "percent": 0, "charging": false}
         }, function() {
+            networkOnline = false
             wifiStatus = {"connected": false, "quality_percent": 0}
             batteryStatus = {"available": false, "percent": 0, "charging": false}
         })
@@ -181,6 +211,7 @@ Window {
         pending = true
         requestJson("POST", "/api/command", payload, function(data) {
             playerState = data || playerState
+            if (payload && payload.action === "folder" && largeUI) playerView = true
             pending = false
         }, function() {
             pending = false
@@ -230,7 +261,7 @@ Window {
 
         Rectangle {
             anchors.fill: parent
-            color: "#0b0d11"
+            color: root.backgroundColor
         }
 
         Rectangle {
@@ -239,8 +270,8 @@ Window {
             anchors.right: parent.right
             anchors.top: parent.top
             height: root.largeUI ? 42 : 34
-            color: "#0a0c10"
-            border.color: "#20242c"
+            color: root.statusColor
+            border.color: root.lineColor
 
             Row {
                 anchors.left: parent.left
@@ -251,13 +282,14 @@ Window {
                 Rectangle {
                     width: root.largeUI ? 28 : 22
                     height: root.largeUI ? 28 : 22
-                    radius: root.largeUI ? 9 : 7
-                    color: "#f59aca"
+                    radius: root.retroTheme ? 0 : (root.largeUI ? 9 : 7)
+                    color: root.accentColor
                     Text {
                         anchors.centerIn: parent
                         text: "m"
-                        color: "#312331"
+                        color: root.accentTextColor
                         font.pixelSize: root.largeUI ? 19 : 15
+                        font.family: root.uiFont
                         font.bold: true
                     }
                 }
@@ -265,8 +297,9 @@ Window {
                 Text {
                     anchors.verticalCenter: parent.verticalCenter
                     text: "MuPiBox"
-                    color: "#f7f7fa"
+                    color: root.textColor
                     font.pixelSize: root.largeUI ? 16 : 13
+                    font.family: root.uiFont
                     font.bold: true
                 }
             }
@@ -279,8 +312,9 @@ Window {
 
                 Text {
                     text: root.backendState
-                    color: root.backendOnline ? "#9aa3b2" : "#f59aca"
+                    color: root.backendOnline ? root.mutedColor : root.accentColor
                     font.pixelSize: 10
+                    font.family: root.uiFont
                 }
                 Item {
                     width: 26
@@ -296,7 +330,7 @@ Window {
                                 width: 4
                                 height: 5 + index * 3
                                 anchors.bottom: parent.bottom
-                                radius: 1
+                                radius: root.retroTheme ? 0 : 1
                                 color: index < root.signalLevel(root.wifiStatus.quality_percent) ? root.signalColor(root.wifiStatus.quality_percent) : "#343b47"
                             }
                         }
@@ -314,7 +348,7 @@ Window {
                         y: 1
                         width: 28
                         height: 16
-                        radius: 3
+                        radius: root.retroTheme ? 0 : 3
                         color: "transparent"
                         border.width: 2
                         border.color: "#7d8795"
@@ -324,7 +358,7 @@ Window {
                             anchors.verticalCenter: parent.verticalCenter
                             width: root.batteryStatus.available ? (parent.width - 4) * Math.max(0, Math.min(100, Number(root.batteryStatus.percent || 0))) / 100 : 0
                             height: parent.height - 4
-                            radius: 1
+                            radius: root.retroTheme ? 0 : 1
                             color: root.batteryColor(root.batteryStatus.percent)
                         }
 
@@ -334,6 +368,7 @@ Window {
                             text: "⚡"
                             color: "#ffffff"
                             font.pixelSize: 12
+                            font.family: root.uiFont
                             style: Text.Outline
                             styleColor: "#222222"
                         }
@@ -344,7 +379,7 @@ Window {
                         y: 6
                         width: 3
                         height: 6
-                        radius: 1
+                        radius: root.retroTheme ? 0 : 1
                         color: "#7d8795"
                     }
                 }
@@ -352,14 +387,15 @@ Window {
                 Rectangle {
                     width: 48
                     height: 28
-                    radius: 7
-                    color: clockTouch.pressed ? "#202632" : "transparent"
+                    radius: root.retroTheme ? 0 : 7
+                    color: clockTouch.pressed ? root.panelColor : "transparent"
 
                     Text {
                         anchors.centerIn: parent
                         text: root.clockText
-                        color: "#d8dce4"
+                        color: root.textColor
                         font.pixelSize: 11
+                        font.family: root.uiFont
                     }
 
                     Rectangle {
@@ -369,8 +405,8 @@ Window {
                         anchors.bottomMargin: 1
                         height: 2
                         width: clockTouch.pressed ? (parent.width - 8) * Math.min(1, clockTouch.heldMs / 5000) : 0
-                        radius: 1
-                        color: "#f59aca"
+                        radius: root.retroTheme ? 0 : 1
+                        color: root.accentColor
                     }
 
                     MouseArea {
@@ -431,8 +467,9 @@ Window {
                     width: parent.width - 28
                     x: 14
                     text: root.backendOnline ? "Noch keine Kategorien eingerichtet." : "MuPiBox verbindet sich …"
-                    color: "#9aa3b2"
+                    color: root.mutedColor
                     font.pixelSize: 13
+                    font.family: root.uiFont
                 }
 
                 Repeater {
@@ -440,8 +477,10 @@ Window {
 
                     delegate: Item {
                         width: categoryColumn.width
-                        height: categoryContent.implicitHeight
+                        height: visibleItems.length ? categoryContent.implicitHeight : 0
+                        visible: visibleItems.length > 0
                         property var categoryData: modelData
+                        property var visibleItems: root.categoryItems(categoryData)
 
                         Column {
                             id: categoryContent
@@ -452,44 +491,49 @@ Window {
                                 x: 14
                                 width: parent.width - 28
                                 text: root.localized(categoryData.labels, categoryData.id)
-                                color: "#f7f7fa"
+                                color: root.textColor
                                 font.pixelSize: root.largeUI ? 28 : 20
+                                font.family: root.uiFont
                                 font.bold: true
                                 elide: Text.ElideRight
                             }
 
                             Repeater {
-                                model: categoryData.rows || []
+                                model: [{"items": visibleItems}]
 
                                 delegate: Item {
                                     width: categoryContent.width
-                                    height: root.largeUI ? 178 : 132
+                                    height: root.largeUI ? 148 : 110
                                     property var rowData: modelData
 
                                     Text {
+                                        visible: false
                                         x: 14
                                         y: 0
                                         width: parent.width - 120
                                         text: root.localized(rowData.labels, rowData.id)
-                                        color: "#d8dce4"
+                                        color: root.textColor
                                         font.pixelSize: root.largeUI ? 17 : 12
+                                        font.family: root.uiFont
                                         font.bold: true
                                         elide: Text.ElideRight
                                     }
 
                                     Text {
+                                        visible: false
                                         anchors.right: parent.right
                                         anchors.rightMargin: 14
                                         y: 2
                                         text: String((rowData.items || []).length) + " Inhalte"
-                                        color: "#9aa3b2"
+                                        color: root.mutedColor
                                         font.pixelSize: root.largeUI ? 12 : 9
+                                        font.family: root.uiFont
                                     }
 
                                     Flickable {
                                         id: mediaFlick
                                         x: 0
-                                        y: root.largeUI ? 30 : 22
+                                        y: 0
                                         width: parent.width
                                         height: root.largeUI ? 148 : 110
                                         contentWidth: Math.max(width, mediaRow.width + 28)
@@ -508,8 +552,9 @@ Window {
                                                 width: 180
                                                 height: 100
                                                 text: "Noch keine Inhalte."
-                                                color: "#9aa3b2"
+                                                color: root.mutedColor
                                                 font.pixelSize: 12
+                                                font.family: root.uiFont
                                             }
 
                                             Repeater {
@@ -518,10 +563,10 @@ Window {
                                                 delegate: Rectangle {
                                                     width: root.largeUI ? 176 : 132
                                                     height: root.largeUI ? 144 : 106
-                                                    radius: root.largeUI ? 14 : 12
-                                                    color: mediaTouch.pressed ? "#202632" : "#141820"
+                                                    radius: root.retroTheme ? 0 : (root.largeUI ? 14 : 12)
+                                                    color: mediaTouch.pressed ? root.panelColor : root.cardColor
                                                     border.width: root.playerState.folder_id === String(mediaData.command && mediaData.command.folder_id || "") ? 2 : 1
-                                                    border.color: root.playerState.folder_id === String(mediaData.command && mediaData.command.folder_id || "") ? "#f59aca" : "transparent"
+                                                    border.color: root.playerState.folder_id === String(mediaData.command && mediaData.command.folder_id || "") ? root.accentColor : "transparent"
                                                     clip: true
                                                     property var mediaData: modelData
 
@@ -549,6 +594,7 @@ Window {
                                                             text: "♫"
                                                             color: "#e8d9ef"
                                                             font.pixelSize: 34
+                                                            font.family: root.uiFont
                                                         }
                                                     }
 
@@ -557,8 +603,9 @@ Window {
                                                         y: root.largeUI ? 110 : 80
                                                         width: parent.width - 18
                                                         text: mediaData.title || "Ohne Titel"
-                                                        color: "#f7f7fa"
+                                                        color: root.textColor
                                                         font.pixelSize: root.largeUI ? 16 : 11
+                                                        font.family: root.uiFont
                                                         font.bold: true
                                                         elide: Text.ElideRight
                                                     }
@@ -568,8 +615,9 @@ Window {
                                                         y: root.largeUI ? 130 : 94
                                                         width: parent.width - 18
                                                         text: mediaData.subtitle || mediaData.kind || ""
-                                                        color: "#9aa3b2"
+                                                        color: root.mutedColor
                                                         font.pixelSize: root.largeUI ? 11 : 8
+                                                        font.family: root.uiFont
                                                         elide: Text.ElideRight
                                                     }
 
@@ -597,8 +645,8 @@ Window {
             anchors.right: parent.right
             anchors.bottom: parent.bottom
             height: root.largeUI ? 104 : 88
-            color: "#11151c"
-            border.color: "#2a313d"
+            color: root.panelColor
+            border.color: root.lineColor
 
             Rectangle {
                 id: miniArt
@@ -606,7 +654,7 @@ Window {
                 anchors.verticalCenter: parent.verticalCenter
                 width: root.largeUI ? 66 : 54
                 height: root.largeUI ? 66 : 54
-                radius: root.largeUI ? 13 : 10
+                radius: root.retroTheme ? 0 : (root.largeUI ? 13 : 10)
                 color: "#594568"
                 clip: true
 
@@ -625,6 +673,7 @@ Window {
                     text: "♫"
                     color: "#e8d9ef"
                     font.pixelSize: 28
+                    font.family: root.uiFont
                 }
             }
 
@@ -640,16 +689,18 @@ Window {
                         var track = root.currentTrack()
                         return track ? track.title : "Such dir etwas aus"
                     }
-                    color: "#f7f7fa"
+                    color: root.textColor
                     font.pixelSize: root.largeUI ? 16 : 13
+                    font.family: root.uiFont
                     font.bold: true
                     elide: Text.ElideRight
                 }
                 Text {
                     width: parent.width
                     text: root.playerState.folder || "Deine Medien warten auf dich."
-                    color: "#9aa3b2"
+                    color: root.mutedColor
                     font.pixelSize: 9
+                    font.family: root.uiFont
                     elide: Text.ElideRight
                 }
                 Text {
@@ -660,8 +711,9 @@ Window {
                         var states = {"playing": "Wiedergabe", "paused": "Pausiert", "stopped": "Gestoppt", "error": "Fehler"}
                         return String(Number(root.playerState.index || 0) + 1) + " / " + String(queue.length) + " · " + (states[root.playerState.state] || "")
                     }
-                    color: "#9aa3b2"
+                    color: root.mutedColor
                     font.pixelSize: 9
+                    font.family: root.uiFont
                     elide: Text.ElideRight
                 }
             }
@@ -673,10 +725,10 @@ Window {
                 spacing: 7
 
                 Rectangle {
-                    width: root.largeUI ? 50 : 42; height: root.largeUI ? 50 : 42; radius: width / 2
-                    color: previousTouch.pressed ? "#303745" : "#202632"
+                    width: root.largeUI ? 50 : 42; height: root.largeUI ? 50 : 42; radius: root.retroTheme ? 0 : width / 2
+                    color: previousTouch.pressed ? root.lineColor : root.panelColor
                     opacity: root.backendOnline && (root.playerState.queue || []).length ? 1 : 0.4
-                    Text { anchors.centerIn: parent; text: "❮❮"; color: "#f7f7fa"; font.pixelSize: 14 }
+                    Text { anchors.centerIn: parent; text: "❮❮"; color: root.textColor; font.pixelSize: 14 }
                     MouseArea {
                         id: previousTouch
                         anchors.fill: parent
@@ -686,14 +738,15 @@ Window {
                 }
 
                 Rectangle {
-                    width: root.largeUI ? 58 : 48; height: root.largeUI ? 58 : 48; radius: width / 2
-                    color: toggleTouch.pressed ? "#ffb8d8" : "#f59aca"
+                    width: root.largeUI ? 58 : 48; height: root.largeUI ? 58 : 48; radius: root.retroTheme ? 0 : width / 2
+                    color: toggleTouch.pressed ? root.accentPressedColor : root.accentColor
                     opacity: root.backendOnline && (root.playerState.queue || []).length ? 1 : 0.4
                     Text {
                         anchors.centerIn: parent
                         text: root.playerState.state === "playing" ? "Ⅱ" : "▶"
-                        color: "#2c1f2e"
+                        color: root.accentTextColor
                         font.pixelSize: 18
+                        font.family: root.uiFont
                     }
                     MouseArea {
                         id: toggleTouch
@@ -704,10 +757,10 @@ Window {
                 }
 
                 Rectangle {
-                    width: root.largeUI ? 50 : 42; height: root.largeUI ? 50 : 42; radius: width / 2
-                    color: nextTouch.pressed ? "#303745" : "#202632"
+                    width: root.largeUI ? 50 : 42; height: root.largeUI ? 50 : 42; radius: root.retroTheme ? 0 : width / 2
+                    color: nextTouch.pressed ? root.lineColor : root.panelColor
                     opacity: root.backendOnline && (root.playerState.queue || []).length ? 1 : 0.4
-                    Text { anchors.centerIn: parent; text: "❯❯"; color: "#f7f7fa"; font.pixelSize: 14 }
+                    Text { anchors.centerIn: parent; text: "❯❯"; color: root.textColor; font.pixelSize: 14 }
                     MouseArea {
                         id: nextTouch
                         anchors.fill: parent
@@ -732,8 +785,9 @@ Window {
                         width: 28
                         anchors.verticalCenter: parent.verticalCenter
                         text: root.formatTime(root.playerState.position)
-                        color: "#9aa3b2"
+                        color: root.mutedColor
                         font.pixelSize: 8
+                        font.family: root.uiFont
                     }
 
                     Rectangle {
@@ -741,13 +795,13 @@ Window {
                         width: 248
                         height: 4
                         anchors.verticalCenter: parent.verticalCenter
-                        radius: 2
-                        color: "#303745"
+                        radius: root.retroTheme ? 0 : 2
+                        color: root.lineColor
 
                         Rectangle {
                             height: parent.height
                             radius: parent.radius
-                            color: "#f59aca"
+                            color: root.accentColor
                             width: parent.width * Math.min(1, Number(root.playerState.position || 0) / Math.max(1, Number(root.playerState.duration || 0)))
                         }
 
@@ -767,8 +821,9 @@ Window {
                         anchors.verticalCenter: parent.verticalCenter
                         horizontalAlignment: Text.AlignRight
                         text: root.formatTime(root.playerState.duration)
-                        color: "#9aa3b2"
+                        color: root.mutedColor
                         font.pixelSize: 8
+                        font.family: root.uiFont
                     }
                 }
 
@@ -782,8 +837,9 @@ Window {
                         width: 18
                         anchors.verticalCenter: parent.verticalCenter
                         text: "🔊"
-                        color: "#9aa3b2"
+                        color: root.mutedColor
                         font.pixelSize: 11
+                        font.family: root.uiFont
                     }
 
                     Rectangle {
@@ -791,13 +847,13 @@ Window {
                         width: 270
                         height: 4
                         anchors.verticalCenter: parent.verticalCenter
-                        radius: 2
-                        color: "#303745"
+                        radius: root.retroTheme ? 0 : 2
+                        color: root.lineColor
 
                         Rectangle {
                             height: parent.height
                             radius: parent.radius
-                            color: "#f59aca"
+                            color: root.accentColor
                             width: parent.width * Math.min(1, Number(root.playerState.volume || 0) / Math.max(1, Number(root.playerState.max_volume || 60)))
                         }
 
@@ -817,13 +873,124 @@ Window {
                         anchors.verticalCenter: parent.verticalCenter
                         horizontalAlignment: Text.AlignRight
                         text: String(root.playerState.volume || 0)
-                        color: "#9aa3b2"
+                        color: root.mutedColor
                         font.pixelSize: 9
+                        font.family: root.uiFont
                     }
                 }
             }
         }
 
+        Rectangle {
+            id: playerViewLayer
+            visible: root.largeUI && root.playerView && (root.playerState.queue || []).length > 0
+            anchors.left: parent.left
+            anchors.right: parent.right
+            anchors.top: statusBar.bottom
+            anchors.bottom: parent.bottom
+            color: root.backgroundColor
+            z: 60
+
+            Rectangle {
+                x: 14; y: 12; width: 60; height: 52; radius: root.retroTheme ? 0 : 13
+                color: playerBackTouch.pressed ? root.lineColor : root.panelColor
+                Text { anchors.centerIn: parent; text: "←"; color: root.textColor; font.pixelSize: 30; font.family: root.uiFont; font.bold: true }
+                MouseArea { id: playerBackTouch; anchors.fill: parent; onClicked: root.playerView = false }
+            }
+
+            Text {
+                x: 90; y: 13; width: 560; height: 32
+                text: { var track = root.currentTrack(); return track ? track.title : root.playerState.folder }
+                color: root.textColor; font.pixelSize: 25; font.family: root.uiFont; font.bold: true; elide: Text.ElideRight
+            }
+            Text {
+                x: 90; y: 43; width: 560; height: 22
+                text: root.playerState.folder || ""
+                color: root.mutedColor; font.pixelSize: 14; font.family: root.uiFont; elide: Text.ElideRight
+            }
+            Text {
+                anchors.right: parent.right; anchors.rightMargin: 18; y: 20
+                text: String(Number(root.playerState.index || 0) + 1) + " / " + String((root.playerState.queue || []).length)
+                color: root.mutedColor; font.pixelSize: 15
+            }
+
+            Rectangle {
+                x: 24; y: 78; width: 300; height: 300; radius: root.retroTheme ? 0 : 18; color: "#594568"; clip: true
+                Image { id: playerCover; anchors.fill: parent; source: root.coverUrl(root.playerState.cover || ""); fillMode: Image.PreserveAspectCrop; asynchronous: true; visible: source !== "" }
+                Text { anchors.centerIn: parent; visible: playerCover.source === ""; text: "♫"; color: "#e8d9ef"; font.pixelSize: 82; font.family: root.uiFont }
+            }
+
+            Item {
+                x: 350; y: 78; width: 426; height: 320
+
+                Text { x: 0; y: 0; text: root.formatTime(root.playerState.position); color: root.textColor; font.pixelSize: 14 }
+                Text { anchors.right: parent.right; y: 0; text: root.formatTime(root.playerState.duration); color: root.textColor; font.pixelSize: 14 }
+                Rectangle {
+                    id: playerSeekTrack
+                    x: 0; y: 28; width: parent.width; height: 10; radius: root.retroTheme ? 0 : 5; color: root.lineColor
+                    Rectangle { height: parent.height; radius: root.retroTheme ? 0 : 5; color: root.accentColor; width: parent.width * Math.min(1, Number(root.playerState.position || 0) / Math.max(1, Number(root.playerState.duration || 0))) }
+                    MouseArea {
+                        anchors.fill: parent; anchors.margins: -12
+                        enabled: Number(root.playerState.duration || 0) > 0
+                        onReleased: function(mouse) {
+                            var localX = Math.max(0, Math.min(playerSeekTrack.width, mouse.x + 12))
+                            root.command({"action": "seek", "value": Math.round(localX / playerSeekTrack.width * Number(root.playerState.duration || 0))})
+                        }
+                    }
+                }
+
+                Row {
+                    x: 0; y: 62; spacing: 12
+                    Rectangle {
+                        width: 126; height: 82; radius: root.retroTheme ? 0 : 17; color: backTenTouch.pressed ? root.lineColor : root.panelColor
+                        Text { anchors.centerIn: parent; text: "−10"; color: root.textColor; font.pixelSize: 28; font.family: root.uiFont; font.bold: true }
+                        MouseArea { id: backTenTouch; anchors.fill: parent; onClicked: root.command({"action":"seek","value":Math.max(0,Number(root.playerState.position||0)-10)}) }
+                    }
+                    Rectangle {
+                        width: 126; height: 82; radius: root.retroTheme ? 0 : 17; color: playLargeTouch.pressed ? root.accentPressedColor : root.accentColor
+                        Text { anchors.centerIn: parent; text: root.playerState.state === "playing" ? "Ⅱ" : "▶"; color: root.accentTextColor; font.pixelSize: 35; font.family: root.uiFont; font.bold: true }
+                        MouseArea { id: playLargeTouch; anchors.fill: parent; onClicked: root.command({"action":"toggle"}) }
+                    }
+                    Rectangle {
+                        width: 126; height: 82; radius: root.retroTheme ? 0 : 17; color: forwardTenTouch.pressed ? root.lineColor : root.panelColor
+                        Text { anchors.centerIn: parent; text: "+10"; color: root.textColor; font.pixelSize: 28; font.family: root.uiFont; font.bold: true }
+                        MouseArea { id: forwardTenTouch; anchors.fill: parent; onClicked: root.command({"action":"seek","value":Math.min(Number(root.playerState.duration||0),Number(root.playerState.position||0)+10)}) }
+                    }
+                }
+
+                Row {
+                    x: 0; y: 162; spacing: 18
+                    Rectangle {
+                        width: 195; height: 64; radius: root.retroTheme ? 0 : 15; color: previousLargeTouch.pressed ? root.lineColor : root.panelColor
+                        Text { anchors.centerIn: parent; text: "❮❮"; color: root.textColor; font.pixelSize: 25 }
+                        MouseArea { id: previousLargeTouch; anchors.fill: parent; onClicked: root.command({"action":"previous"}) }
+                    }
+                    Rectangle {
+                        width: 195; height: 64; radius: root.retroTheme ? 0 : 15; color: nextLargeTouch.pressed ? root.lineColor : root.panelColor
+                        Text { anchors.centerIn: parent; text: "❯❯"; color: root.textColor; font.pixelSize: 25 }
+                        MouseArea { id: nextLargeTouch; anchors.fill: parent; onClicked: root.command({"action":"next"}) }
+                    }
+                }
+
+                Row {
+                    x: 0; y: 250; width: parent.width; height: 52; spacing: 12
+                    Text { width: 28; anchors.verticalCenter: parent.verticalCenter; text: "🔊"; color: root.textColor; font.pixelSize: 20 }
+                    Rectangle {
+                        id: playerVolumeTrack
+                        width: 332; height: 10; anchors.verticalCenter: parent.verticalCenter; radius: root.retroTheme ? 0 : 5; color: root.lineColor
+                        Rectangle { height: parent.height; radius: root.retroTheme ? 0 : 5; color: root.accentColor; width: parent.width * Math.min(1, Number(root.playerState.volume || 0) / Math.max(1, Number(root.playerState.max_volume || 60))) }
+                        MouseArea {
+                            anchors.fill: parent; anchors.margins: -14
+                            onReleased: function(mouse) {
+                                var localX = Math.max(0, Math.min(playerVolumeTrack.width, mouse.x + 14))
+                                root.command({"action":"volume","value":Math.round(localX / playerVolumeTrack.width * Number(root.playerState.max_volume || 60))})
+                            }
+                        }
+                    }
+                    Text { width: 42; anchors.verticalCenter: parent.verticalCenter; text: String(root.playerState.volume || 0); color: root.textColor; font.pixelSize: 16 }
+                }
+            }
+        }
         Rectangle {
             visible: root.transientMessage !== ""
             anchors.left: parent.left
@@ -833,7 +1000,7 @@ Window {
             anchors.bottom: playerBar.top
             anchors.bottomMargin: 10
             height: 42
-            radius: 10
+            radius: root.retroTheme ? 0 : 10
             color: "#682f45"
             border.color: "#ffacc9"
             z: 80
@@ -841,8 +1008,9 @@ Window {
                 anchors.fill: parent
                 anchors.margins: 10
                 text: root.transientMessage
-                color: "#f7f7fa"
+                color: root.textColor
                 font.pixelSize: 12
+                font.family: root.uiFont
                 verticalAlignment: Text.AlignVCenter
                 elide: Text.ElideRight
             }
@@ -858,26 +1026,27 @@ Window {
                 anchors.centerIn: parent
                 width: 500
                 height: 190
-                radius: 18
-                color: "#161a22"
-                border.color: "#2a313d"
+                radius: root.retroTheme ? 0 : 18
+                color: root.panelColor
+                border.color: root.lineColor
 
                 Column {
                     anchors.fill: parent
                     anchors.margins: 22
                     spacing: 14
-                    Text { text: "Administration"; color: "#f7f7fa"; font.pixelSize: 24; font.bold: true }
+                    Text { text: "Administration"; color: root.textColor; font.pixelSize: 24; font.family: root.uiFont; font.bold: true }
                     Text {
                         width: parent.width
                         text: "Öffne auf Handy oder Computer:\nhttp://<Box-IP>:8090/admin/"
-                        color: "#d8dce4"
+                        color: root.textColor
                         font.pixelSize: 17
+                        font.family: root.uiFont
                         wrapMode: Text.WordWrap
                     }
                     Rectangle {
-                        width: 130; height: 42; radius: 12
-                        color: closeAdmin.pressed ? "#ffb8d8" : "#f59aca"
-                        Text { anchors.centerIn: parent; text: "Schließen"; color: "#2c1f2e"; font.pixelSize: 14; font.bold: true }
+                        width: 130; height: 42; radius: root.retroTheme ? 0 : 12
+                        color: closeAdmin.pressed ? root.accentPressedColor : root.accentColor
+                        Text { anchors.centerIn: parent; text: "Schließen"; color: root.accentTextColor; font.pixelSize: 14; font.family: root.uiFont; font.bold: true }
                         MouseArea { id: closeAdmin; anchors.fill: parent; onClicked: root.adminHintVisible = false }
                     }
                 }

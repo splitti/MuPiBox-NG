@@ -1,6 +1,9 @@
 package store
 
-import "testing"
+import (
+ "testing"
+ "time"
+)
 
 func TestMigrationsSettingsNavigationAndProgress(t *testing.T){
  s,err:=Open(":memory:");if err!=nil{t.Fatal(err)};defer s.Close()
@@ -18,6 +21,11 @@ func TestMigrationsSettingsNavigationAndProgress(t *testing.T){
  pg,ok,err:=s.LoadProgress("spotify","box-account","episode-1");if err!=nil||!ok||pg.PositionMS!=21600000{t.Fatalf("progress: %#v %v",pg,err)}
  if err=s.SaveProgress(Progress{Provider:"radio",MediaID:"live",PositionMS:1000});err!=nil{t.Fatal(err)}
  if _,ok,err=s.LoadProgress("radio","","live");err!=nil||ok{t.Fatal("radio progress must not be stored")}
+ older:=time.Now().UTC().Add(-time.Hour);newer:=time.Now().UTC()
+ if err=s.SaveProgress(Progress{Provider:"local",MediaID:"old",ContextID:"folder-old",PositionMS:5000,UpdatedAt:older});err!=nil{t.Fatal(err)}
+ if err=s.SaveProgress(Progress{Provider:"local",MediaID:"new",ContextID:"folder-new",PositionMS:6000,UpdatedAt:newer});err!=nil{t.Fatal(err)}
+ if err=s.SaveProgress(Progress{Provider:"local",MediaID:"done",ContextID:"folder-done",PositionMS:7000,Completed:true});err!=nil{t.Fatal(err)}
+ recent,err:=s.ListRecentProgress(10);if err!=nil||len(recent)!=3||recent[0].MediaID!="new"{t.Fatalf("recent progress: %#v %v",recent,err)}
 }
 
 func TestValidation(t *testing.T){
@@ -26,4 +34,5 @@ func TestValidation(t *testing.T){
  if err=s.SaveBoxSettings(bad);err==nil{t.Fatal("invalid settings accepted")}
  if err=s.SaveNavigation(Navigation{Categories:[]Category{{ID:"bad id",Labels:map[string]string{"de":"Bad"}}}});err==nil{t.Fatal("invalid navigation accepted")}
  if err=s.SaveNavigation(Navigation{Categories:[]Category{{ID:"books",Labels:map[string]string{"de":"Bücher"},Rows:[]Row{{ID:"escape",Labels:map[string]string{"de":"Escape"},Provider:"local-library",SourceType:"path",SourceRef:"../private"}}}}});err==nil{t.Fatal("escaping local path accepted")}
+ if err=s.SaveNavigation(Navigation{Categories:[]Category{{ID:"resume",Labels:map[string]string{"de":"Weiterhören"},Rows:[]Row{{ID:"resume-list",Labels:map[string]string{"de":"Zuletzt gehört"},Provider:"resume-list",SourceType:"limit",SourceRef:"101"}}}}});err==nil{t.Fatal("resume limit above 100 accepted")}
 }

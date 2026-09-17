@@ -29,11 +29,11 @@ func TestReadBatteryStatus(t *testing.T){
 }
 
 func TestSystemStatusEndpoint(t *testing.T){
- api:=&API{System:func()SystemStatus{return SystemStatus{WiFi:WiFiStatus{Connected:true,Interface:"wlan0",SignalDBM:-55,QualityPercent:80},Battery:BatteryStatus{Available:true,Percent:50}}}}
+ api:=&API{System:func()SystemStatus{return SystemStatus{Online:true,WiFi:WiFiStatus{Connected:true,Interface:"wlan0",SignalDBM:-55,QualityPercent:80},Battery:BatteryStatus{Available:true,Percent:50}}}}
  response:=httptest.NewRecorder()
  api.Handler().ServeHTTP(response,httptest.NewRequest("GET","/api/system",nil))
  if response.Code!=200{t.Fatalf("status=%d body=%s",response.Code,response.Body.String())}
  var got SystemStatus
  if err:=json.Unmarshal(response.Body.Bytes(),&got);err!=nil{t.Fatal(err)}
- if !got.WiFi.Connected||got.WiFi.QualityPercent!=80||!got.Battery.Available||got.Battery.Percent!=50{t.Fatalf("unexpected response: %#v",got)}
+ if !got.Online||!got.WiFi.Connected||got.WiFi.QualityPercent!=80||!got.Battery.Available||got.Battery.Percent!=50{t.Fatalf("unexpected response: %#v",got)}
 }

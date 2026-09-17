@@ -52,7 +52,7 @@ apt-get install -y \
     mpv alsa-utils fbi \
     qmlscene-qt6 qml6-module-qtquick qml6-module-qtquick-window qml6-module-qtqml \
     qt6-qpa-plugins libqt6opengl6 libgl1-mesa-dri libegl1 libgbm1 \
-    fonts-dejavu-core
+    fonts-dejavu-core fonts-terminus
 
 version_ge() {
     [[ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n1)" == "$2" ]]

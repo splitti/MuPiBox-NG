@@ -1,6 +1,6 @@
 'use strict';
 const $ = id => document.getElementById(id);
-let state, connected=false, pending=false, homeLoaded=false, boxInfo=null, homeSignature='';
+let state, connected=false, pending=false, homeLoaded=false, boxInfo=null, homeSignature='', latestHome=null, networkOnline=true;
 let messageTimer;
 const uiLocale=(document.documentElement.lang||navigator.language||'de').toLowerCase();
 const baseLocale=uiLocale.split('-')[0];
@@ -45,14 +45,15 @@ function categoryHeading(category){
  if(!boxInfo?.tts?.enabled){const h=document.createElement('h1');h.className='category-title';h.textContent=label;return h}
  const b=document.createElement('button');b.className='category-title category-speak';b.type='button';b.textContent=label;b.setAttribute('aria-label',`${label} vorlesen`);b.addEventListener('click',()=>speakCategory(category));return b
 }
-function renderHome(home){const root=$('content');root.replaceChildren();const categories=home?.categories||[];if(!categories.length){const p=document.createElement('p');p.className='empty-state';p.textContent='Noch keine Kategorien eingerichtet.';root.append(p);return}for(const category of categories){const section=document.createElement('section');section.className='category';section.dataset.categoryId=category.id;section.append(categoryHeading(category));const rows=category.rows||[];if(!rows.length){const p=document.createElement('p');p.className='category-empty';p.textContent='';section.append(p)}for(const row of rows){const rowSection=document.createElement('section');rowSection.className='media-section';rowSection.dataset.rowId=row.id;const title=document.createElement('div');title.className='section-title';const h2=document.createElement('h2');h2.textContent=textFor(row.labels,row.id);const count=document.createElement('span');count.textContent=`${(row.items||[]).length} Inhalte`;title.append(h2,count);const media=document.createElement('div');media.className='media-row';media.setAttribute('aria-label',h2.textContent);const items=row.items||[];if(!items.length){const p=document.createElement('p');p.className='empty';p.textContent='Noch keine Inhalte.';media.append(p)}else items.forEach(item=>media.append(mediaItem(item)));rowSection.append(title,media);section.append(rowSection)}root.append(section)}}
-function applyInfo(info){boxInfo=info;document.documentElement.dataset.uiSize=info?.display?.ui_size||'normal'}
-async function refreshHomeAndInfo(){const [home,info]=await Promise.all([request('/api/home'),request('/api/info')]);applyInfo(info);const signature=JSON.stringify(home);if(signature!==homeSignature){homeSignature=signature;renderHome(home)}homeLoaded=true}
+function renderHome(home){const root=$('content');root.replaceChildren();let shown=0;for(const category of home?.categories||[]){const items=(category.rows||[]).flatMap(row=>row.items||[]).filter(item=>networkOnline||item.offline_available);if(!items.length)continue;shown++;const section=document.createElement('section');section.className='category';section.dataset.categoryId=category.id;section.append(categoryHeading(category));const media=document.createElement('div');media.className='media-row';media.setAttribute('aria-label',textFor(category.labels,category.id));items.forEach(item=>media.append(mediaItem(item)));section.append(media);root.append(section)}if(!shown){const p=document.createElement('p');p.className='empty-state';p.textContent=networkOnline?'Noch keine Inhalte eingerichtet.':'Offline sind keine lokalen Medien verfügbar.';root.append(p)}}
+function applyInfo(info){boxInfo=info;document.documentElement.dataset.uiSize=info?.display?.ui_size||'normal';document.documentElement.dataset.theme=info?.theme||'modern-dark'}
+async function refreshHomeAndInfo(){const [home,info]=await Promise.all([request('/api/home'),request('/api/info')]);applyInfo(info);latestHome=home;const signature=JSON.stringify(home);if(signature!==homeSignature){homeSignature=signature;renderHome(home)}homeLoaded=true}
 function signalLevel(percent){return percent>=75?4:percent>=50?3:percent>=25?2:percent>0?1:0}
 function batteryColor(percent){return percent<=15?'#ef4b5f':percent<=25?'#f2cf4a':percent<=50?'#b7c94b':percent<=75?'#8bd66a':'#43c86a'}
 async function updateSystem(){
  try{
   const system=await request('/api/system');
+  const wasOnline=networkOnline;networkOnline=system.online!==false;if(wasOnline!==networkOnline&&latestHome)renderHome(latestHome);
   const wifi=system.wifi||{};const wifiEl=$('wifi');const quality=Math.max(0,Math.min(100,Number(wifi.quality_percent)||0));
   wifiEl.dataset.level=wifi.connected?String(signalLevel(quality)):'0';
   wifiEl.dataset.tone=quality>=50?'good':quality>=25?'medium':'weak';

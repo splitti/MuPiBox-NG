@@ -41,4 +41,9 @@
 - Added a native Qt Quick test UI using EGLFS/KMS, a dedicated systemd service, DietPi installer, bootstrap script and display diagnostics.
 - Added generic display installation for the official Raspberry Pi DSI display; the Waveshare overlay is only enabled explicitly with `--waveshare-5-dsi`.
 - Reconstructed the complete new MuPiBox logo as a checksum-verified 800×480 startup screen and reused it as the default cover.
-- Still missing: real MuPiHat/RFID/GPIO hardware adapters, Spotify/Amazon Music/radio/podcast integration, complete native player controls, production TTS, actual idle shutdown and rollback.
+- Media from different sources is mixed within each player category; when network connectivity is unavailable, only offline-capable local media remains visible.
+- Added the configurable “Continue / Resume list” source with a custom name, 1–100 items and direct playback from the saved queue item and position.
+- The large 5-inch profile now opens a dedicated child-friendly playback layer with artwork, 10-second skips and large controls after media selection.
+- Added a Commodore-inspired 8-bit theme for the Qt, web and admin UIs; DietPi installs the Terminus font for it.
+- Defined the MuPiHat integration as a local Python hardware agent with Go-owned safety logic and documented the existing battery/input-current profiles in both languages.
+- Still missing: real MuPiHat/RFID/GPIO hardware adapters, Spotify/Amazon Music/radio/podcast integration, production TTS, actual idle shutdown and rollback.
