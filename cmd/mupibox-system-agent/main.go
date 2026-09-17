@@ -155,7 +155,12 @@ func setWiFiState(ctx context.Context, name string, enabled bool) error {
 }
 
 func optionalSystemdUnit(ctx context.Context, action string, unit string) error {
-	err := runCommand(ctx, "systemctl", action, "--now", unit)
+	args := []string{action}
+	if action == "mask" {
+		args = append(args, "--now")
+	}
+	args = append(args, unit)
+	err := runCommand(ctx, "systemctl", args...)
 	if err != nil && (strings.Contains(err.Error(), "does not exist") || strings.Contains(err.Error(), "not found")) {
 		return nil
 	}
@@ -203,18 +208,23 @@ func setPerformanceMode(mode string) error {
 	if len(paths) == 0 {
 		return nil
 	}
-	governor := mode
-	if mode == "balanced" {
-		governor = "schedutil"
-	}
 	for _, path := range paths {
 		available, _ := os.ReadFile(filepath.Join(filepath.Dir(path), "scaling_available_governors"))
-		if !strings.Contains(" "+string(available)+" ", " "+governor+" ") {
-			if mode == "balanced" && strings.Contains(" "+string(available)+" ", " ondemand ") {
-				governor = "ondemand"
-			} else {
-				return fmt.Errorf("CPU governor %s is unavailable", governor)
+		availableSet := map[string]bool{}
+		for _, value := range strings.Fields(string(available)) {
+			availableSet[value] = true
+		}
+		governor := mode
+		if mode == "balanced" {
+			for _, candidate := range []string{"schedutil", "ondemand", "powersave", "performance"} {
+				if availableSet[candidate] {
+					governor = candidate
+					break
+				}
 			}
+		}
+		if !availableSet[governor] {
+			return fmt.Errorf("CPU governor %s is unavailable", governor)
 		}
 		if err = os.WriteFile(path, []byte(governor), 0644); err != nil {
 			return fmt.Errorf("set CPU governor: %w", err)
