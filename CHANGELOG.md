@@ -63,3 +63,7 @@
 - Bluetooth als globale SQLite-Einstellung ergänzt; BlueZ-Geräte können im Adminbereich gesucht, gekoppelt, verbunden, getrennt und entfernt werden.
 - Hotel-WLAN/Captive Portal und Bluetooth-Medientasten sind als nächste hardwareabhängige Stufe dokumentiert.
 - Noch ausstehend: echte MuPiHat-/RFID-/GPIO-Hardwareadapter, Spotify-/Amazon-Music-/Radio-/Podcast-Integration, produktiver TTS-Adapter, echter Idle-Shutdown und Rollback.
+- WLAN-Auswahl auf genau einen aktiven Adapter und stabile MAC-Identität umgestellt; optional kann Onboard-WLAN bei vorhandenem USB-Adapter per Raspberry-Pi-Bootoverlay deaktiviert werden.
+- DietPi-Swap und DHCP/statische IPv4 verwenden nun die offiziellen Werkzeuge `dietpi-set_swapfile` und `dietpi-network`.
+- Samba-Freigabe für `/srv/mupibox` mit Gast- oder Passwortzugriff ergänzt; deaktivierte Samba-Dienste starten nicht mit der Box.
+- Verbindungs-Text aus Playerkopf entfernt und MQTT zugunsten einer nativen Home-Assistant-API-Integration aus dem Zielmodell gestrichen.

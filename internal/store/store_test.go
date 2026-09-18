@@ -129,7 +129,7 @@ func TestValidation(t *testing.T) {
 
 func TestNewAdminSettingsAreNormalizedAndValidated(t *testing.T) {
 	settings := NormalizeBoxSettings(BoxSettings{Language: "de", AdminLanguage: "de", Audio: AudioSettings{StartupVolume: 20, MaxVolume: 60}, Display: DisplaySettings{Brightness: 80}, Theme: "modern-dark"})
-	if settings.WiFi.IPv4.Mode != "dhcp" || settings.MQTT.Port != 1883 || len(settings.MuPiHAT.Profiles) != 4 || settings.System.PerformanceMode != "balanced" {
+	if settings.WiFi.IPv4.Mode != "dhcp" || settings.Samba.Mode != "guest" || settings.Samba.ShareName != "MuPiBox" || len(settings.MuPiHAT.Profiles) != 4 || settings.System.PerformanceMode != "balanced" {
 		t.Fatalf("new settings were not normalized: %#v", settings)
 	}
 	if err := ValidateBoxSettings(settings); err != nil {

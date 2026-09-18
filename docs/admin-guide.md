@@ -6,10 +6,10 @@ Der Adminbereich trennt Einstellungen nach Verantwortung. Jede sicherheits- oder
 
 - **Box:** Sprache, Theme, Audio, Display, TTS und Admin-Passwort. Ein Passwort mit mindestens zehn Zeichen wird empfohlen.
 - **Inhalte:** Kategorien, lokale Verzeichnisse, Resume-Listen und spätere Online-Provider. Änderungen werden vom Player ohne Neustart neu geladen.
-- **Netzwerk:** WLAN-Adapter aktivieren, priorisieren, scannen und verbinden; Bluetooth-Geräte koppeln; DHCP oder feste IPv4-Werte hinterlegen. DHCP ist die sichere Vorgabe. Die statische Konfiguration wird auf DietPi erst automatisch angewendet, wenn das erkannte Netzwerk-Backend ohne Gefahr für SSH geändert werden kann.
+- **Netzwerk:** genau einen WLAN-Adapter anhand seiner stabilen MAC-Adresse auswählen, optional Onboard-WLAN beim Boot deaktivieren, WLAN scannen, Bluetooth koppeln, DietPi-DHCP/feste IPv4 anwenden und Samba für `/srv/mupibox` bedarfsgerecht aktivieren.
 - **Provider:** Zugangskonfiguration für Spotify und Amazon Music. Das Speichern der Daten aktiviert noch keinen Wiedergabeadapter. Amazon Music bietet keine allgemeine öffentliche Wiedergabe-API.
 - **Hardware:** MuPiHAT, Batterieprofile und Eingangsstrom. Die alten Profile sind als Vorgaben enthalten; `Custom` ist editierbar. Die Hardware-Anbindung folgt als eigener Dienst.
-- **Smart Home:** Eine native Home-Assistant-Integration über die MuPiBox-API ist das bevorzugte Ziel. MQTT bleibt als optionale Anbindung für vorhandene Broker bestehen.
+- **Smart Home:** Native Home-Assistant-Integration über die MuPiBox-API; kein zusätzlicher MQTT-Broker.
 - **System:** reale Bootzeit, langsamste systemd-Units, Swap, Network-Wait, CPU-Profil, Initial Turbo sowie sicher bestätigte Neustart-/Shutdown-Aktionen.
 - **Wartung:** Touch-UI-Neustart, Backup/Restore und Release-Wechsel mit automatischer Sicherung und Rollback.
 
@@ -24,5 +24,7 @@ Der Adminbereich trennt Einstellungen nach Verantwortung. Jede sicherheits- oder
 | Performance | Nur bei nachgewiesenen UI-/Audioengpässen | Schnellere Reaktion, aber mehr Wärme und Verbrauch. |
 
 Die Werte `1–60` Sekunden und die Empfehlung `20` entsprechen der [DietPi-Konfiguration für ARM Initial Turbo](https://github.com/MichaIng/DietPi/blob/master/dietpi/dietpi-config).
+
+Swap wird auf DietPi über das offizielle Werkzeug [`dietpi-set_swapfile`](https://github.com/MichaIng/DietPi/blob/master/dietpi/func/dietpi-set_swapfile) geändert. Statische Adressen werden über [`dietpi-network apply`](https://github.com/MichaIng/DietPi/blob/master/dietpi/dietpi-network) gesetzt; damit verschwindet DHCP für genau dieses Interface aus dessen ifupdown-Konfiguration, ohne einen möglicherweise anderweitig benötigten DHCP-Client global zu entfernen.
 
 Privilegierte Änderungen laufen ausschließlich über den lokalen `mupibox-system-agent`. Er besitzt keinen Netzwerk-Port und akzeptiert nur fest definierte Aktionen über einen Unix-Socket.

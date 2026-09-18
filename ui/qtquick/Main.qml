@@ -21,7 +21,6 @@ Window {
     property bool backendOnline: false
     property bool pending: false
     property bool statusRequestRunning: false
-    property string backendState: "Verbinde …"
     property string clockText: "--:--"
     property var categories: []
     property string homeSignature: ""
@@ -176,7 +175,6 @@ Window {
             if (xhr.readyState !== XMLHttpRequest.DONE) return
             if (xhr.status >= 200 && xhr.status < 300) {
                 backendOnline = true
-                backendState = "Verbunden"
                 try {
                     done(JSON.parse(xhr.responseText))
                 } catch (error) {
@@ -216,7 +214,6 @@ Window {
             }
         }, function() {
             backendOnline = false
-            backendState = "Offline"
         })
     }
 
@@ -255,7 +252,6 @@ Window {
             statusRequestRunning = false
         }, function() {
             backendOnline = false
-            backendState = "Offline"
             statusRequestRunning = false
             tryApi(0, function() {
                 refreshHome()
@@ -290,7 +286,6 @@ Window {
             refreshStatus()
         }, function() {
             backendOnline = false
-            backendState = "Offline"
         })
     }
 
@@ -367,12 +362,6 @@ Window {
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 12
 
-                Text {
-                    text: root.backendState
-                    color: root.backendOnline ? root.mutedColor : root.accentColor
-                    font.pixelSize: 10
-                    font.family: root.uiFont
-                }
                 Item {
                     width: 26
                     height: 18

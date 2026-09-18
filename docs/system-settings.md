@@ -15,7 +15,7 @@ Konfigurierbar sind:
 - Startsound ein/aus sowie eine mitgelieferte oder hochgeladene Audiodatei,
 - Shutdownsound ein/aus sowie eine mitgelieferte oder hochgeladene Audiodatei,
 - Einschaltlautstärke,
-- maximale Lautstärke als harte Obergrenze für Touch, Tasten, MQTT und Provider,
+- maximale Lautstärke als harte Obergrenze für Touch, Tasten, Home Assistant und Provider,
 - Audioausgabegerät,
 - optional Mono/Stereo und weitere vom Adapter angebotene Audiooptionen.
 
@@ -51,7 +51,7 @@ Das Admin-Dashboard zeigt, soweit der jeweilige Adapter echte Daten liefert:
 - Displayzustand und Helligkeit,
 - CPU-Temperatur, Lüfterstufe, Laufzeit und Speicherplatz,
 - Version, Backend-/Hardwareprofil und letzte Fehler,
-- MQTT- und Providerstatus.
+- Home-Assistant- und Providerstatus.
 
 Unbekannte Werte werden als unbekannt dargestellt und niemals als `0 %` oder als scheinbar fehlerfreier Zustand ausgegeben.
 
@@ -100,22 +100,11 @@ Diese Werte sind Legacy-Ausgangswerte und dürfen nicht ungeprüft als MuPiHat-P
 
 Die Betriebs-LED kann im aktiven Zustand mit `ledBrightnessMax` und bei ausgeschaltetem Idle-Display mit `ledBrightnessMin` betrieben werden. Beim Shutdown wird sie über die sichere Hardwaresequenz ausgeschaltet. Min/Max sind im Bereich 0–100 zu validieren. In der LXC liefert der Adapter nur simulierten Status.
 
-## Home Assistant und optionales MQTT
+## Native Home-Assistant-Integration
 
 Für Home Assistant ist eine native MuPiBox-Integration das bevorzugte Ziel. Sie fragt die versionierte MuPiBox-API über einen eigenen, eingeschränkten API-Token ab und bildet Player, Lautstärke, Akku, WLAN und Boxstatus als Home-Assistant-Entitäten ab. Ein `DataUpdateCoordinator` kann bei aktiver Wiedergabe häufiger und im Idle-Zustand seltener aktualisieren. Neustart und Shutdown werden nicht ohne zusätzliche Freigabe als Automationsaktion veröffentlicht.
 
-MQTT bleibt für vorhandene Broker und systemübergreifende Automationen optional. Konfigurierbar sind:
-
-- aktiv/inaktiv,
-- Broker, Port und TLS-Optionen,
-- Basistopic, zum Beispiel `MuPiBox/Boxname`,
-- Client-ID,
-- Benutzername und geheim gespeichertes Passwort,
-- Aktualisierungsintervall aktiv/idle,
-- Timeout und Debugmodus,
-- Home-Assistant-Discovery ein/aus und Discovery-Präfix, standardmäßig `homeassistant`.
-
-Für MQTT sollen Statusmeldungen möglichst ereignisgetrieben veröffentlicht werden; die Refresh-Werte dienen als Heartbeat bzw. für langsam veränderliche Werte. Befehle werden validiert und dürfen insbesondere die maximale Lautstärke und sichere Shutdownregeln nicht umgehen. Eine native Home-Assistant-Integration setzt erst ein langlebiges, widerrufbares und auf die API beschränktes Tokenmodell voraus; das Admin-Cookie wird dafür nicht wiederverwendet.
+MQTT ist nicht mehr Teil des Zielmodells. Die Integration benötigt stattdessen ein langlebiges, widerrufbares und auf die API beschränktes Token; das Admin-Cookie wird dafür niemals wiederverwendet. Schreibende Dienste respektieren insbesondere maximale Lautstärke und sichere Shutdownregeln.
 
 ## WLAN-Einrichtung und Captive Portals
 
@@ -162,6 +151,6 @@ Vorgesehene Bereiche:
 - Netzwerk,
 - MuPiHat, Batterie, Lüfter und LED,
 - Energie und Timer,
-- MQTT/Home Assistant,
+- Home Assistant,
 - Sicherheit,
 - Backup, Update und Diagnose.

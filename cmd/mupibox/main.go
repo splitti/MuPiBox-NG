@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
 	"time"
 
@@ -112,20 +113,45 @@ func run() error {
 	defer func() { cancel(); <-workerDone }()
 	connectivityManager := connectivity.New()
 	tuning := connectivity.SystemTuning{PerformanceMode: settings.System.PerformanceMode}
-	if settings.System.SwapPolicy != "keep" {
-		enabled := settings.System.SwapPolicy == "enabled"
-		tuning.SwapEnabled = &enabled
-	}
-	if settings.System.WaitOnlinePolicy != "keep" {
-		enabled := settings.System.WaitOnlinePolicy == "enabled"
-		tuning.WaitOnlineEnabled = &enabled
-	}
 	if _, statErr := os.Stat("/run/mupibox-system-agent/control.sock"); statErr == nil {
 		applyContext, applyCancel := context.WithTimeout(ctx, 35*time.Second)
 		if applyErr := connectivityManager.ApplySystemTuning(applyContext, tuning); applyErr != nil {
 			log.Printf("System tuning could not be applied: %v", applyErr)
 		}
 		applyCancel()
+		if settings.WiFi.PrimaryMAC != "" || settings.WiFi.PrimaryInterface != "" {
+			if adapters, listErr := connectivityManager.ListWiFiAdapters(); listErr == nil {
+				selected := ""
+				for _, adapter := range adapters {
+					if settings.WiFi.PrimaryMAC != "" && strings.EqualFold(adapter.MAC, settings.WiFi.PrimaryMAC) {
+						selected = adapter.Interface
+						break
+					}
+				}
+				if selected == "" {
+					for _, adapter := range adapters {
+						if adapter.Interface == settings.WiFi.PrimaryInterface {
+							selected = adapter.Interface
+							break
+						}
+					}
+				}
+				if selected != "" {
+					wifiContext, wifiCancel := context.WithTimeout(ctx, 35*time.Second)
+					if applyErr := connectivityManager.SelectWiFiAdapter(wifiContext, selected); applyErr != nil {
+						log.Printf("Preferred Wi-Fi adapter could not be selected: %v", applyErr)
+					}
+					wifiCancel()
+				}
+			}
+		}
+		if settings.Samba.Enabled {
+			sambaContext, sambaCancel := context.WithTimeout(ctx, 65*time.Second)
+			if applyErr := connectivityManager.ApplySamba(sambaContext, connectivity.SambaConfig{Enabled: true, Mode: settings.Samba.Mode, ShareName: settings.Samba.ShareName, Workgroup: settings.Samba.Workgroup}); applyErr != nil {
+				log.Printf("Samba configuration could not be applied: %v", applyErr)
+			}
+			sambaCancel()
+		}
 	}
 	if settings.Bluetooth.Enabled {
 		if err = connectivityManager.SetBluetoothPower(ctx, true); err != nil {

@@ -106,8 +106,8 @@ Unterstützte Endungen: MP3, FLAC, OGG, OPUS, WAV, M4A, AAC. Tatsächlich lesbar
 | `GET /api/admin/auth`, `POST /api/admin/login` | Passwortschutz und Admin-Sitzung |
 | `PUT /api/admin/password`, `POST /api/admin/logout` | Passwort setzen/ändern und Sitzung beenden |
 | `GET /api/connectivity/wifi/adapters` | WLAN-Adapter, Zustand und aktive Auswahl |
-| `PUT /api/connectivity/wifi/preferences` | Freigegebene und bevorzugte WLAN-Adapter speichern |
-| `POST /api/connectivity/wifi/adapters/state` | WLAN-Adapter tatsächlich ein-/ausschalten |
+| `PUT /api/connectivity/wifi/preferences` | Genau einen WLAN-Adapter per stabiler MAC auswählen und optional Onboard-WLAN deaktivieren |
+| `GET/PUT /api/admin/samba` | Samba-Freigabe für `/srv/mupibox` verwalten |
 | `GET /api/admin/backup`, `POST /api/admin/restore` | Konfiguration und optional Medien sichern/wiederherstellen |
 | `GET /api/admin/releases`, `POST /api/admin/releases/switch` | Releases anzeigen, installieren oder zurückrollen |
 | `GET /api/admin/system` | Bootzeit, langsame Units, Swap, Netzwerk-Backend und CPU-Profil |
@@ -122,7 +122,7 @@ Die Admin- und extern aufgerufenen Konnektivitäts-APIs werden geschützt, sobal
 
 `go test ./...` prüft Bibliothek/Pfadgrenzen, Queue/EOF, Lautstärke, konkurrierende Bedienung, API, datengetriebene Home-Struktur, globale Box-Infos, RFID-/Tasten-Simulation sowie einen Linux-ARM64-Crossbuild.
 
-Noch offen: produktiver lokaler TTS-Adapter, echter Idle-Shutdown, Webradio, RSS-Podcasts, Spotify-/Amazon-Playback, MQTT-Publisher, Video/YouTube, echte RFID/GPIO-/MuPiHAT-Anbindung und vollständige native Playerbedienung. Die zugehörigen Admin-Konfigurationen sind teilweise bereits persistent vorbereitet.
+Noch offen: produktiver lokaler TTS-Adapter, echter Idle-Shutdown, Webradio, RSS-Podcasts, Spotify-/Amazon-Playback, native Home-Assistant-Integration, Video/YouTube, echte RFID/GPIO-/MuPiHAT-Anbindung und vollständige native Playerbedienung. Die zugehörigen Admin-Konfigurationen sind teilweise bereits persistent vorbereitet.
 
 ## Dokumentation
 

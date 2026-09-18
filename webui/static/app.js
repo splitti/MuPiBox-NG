@@ -66,7 +66,7 @@ async function updateSystem(){
   batteryEl.setAttribute('aria-label',batteryEl.title);
  }catch(e){$('wifi').dataset.level='0';$('battery').dataset.available='false'}
 }
-async function poll(){try{if(!homeLoaded)await refreshHomeAndInfo();const s=await request('/api/status');connected=true;$('connection').textContent=s.backend==='simulated'?'Simulation':'Verbunden';if(!pending)render(s)}catch(e){connected=false;$('connection').textContent='Offline';controls()}finally{setTimeout(poll,750)}}
+async function poll(){try{if(!homeLoaded)await refreshHomeAndInfo();const s=await request('/api/status');connected=true;if(!pending)render(s)}catch(e){connected=false;controls()}finally{setTimeout(poll,750)}}
 document.querySelectorAll('[data-action]').forEach(b=>b.addEventListener('click',()=>command({action:b.dataset.action})));
 $('volume').addEventListener('change',()=>command({action:'volume',value:Number($('volume').value)}));$('volume').addEventListener('input',()=>{$('volume-label').textContent=$('volume').value});$('seek').addEventListener('change',()=>command({action:'seek',value:Number($('seek').value)}));
 updateClock();setInterval(updateClock,30000);setupAdminHold();controls();updateSystem();setInterval(updateSystem,5000);setInterval(()=>refreshHomeAndInfo().catch(()=>{}),2000);poll();

@@ -45,3 +45,17 @@ func TestSetInitialTurbo(t *testing.T) {
 		t.Fatal("accepted invalid initial turbo duration")
 	}
 }
+
+func TestSambaConfig(t *testing.T) {
+	guest, err := sambaConfig("guest", "MuPiBox", "WORKGROUP")
+	if err != nil || !strings.Contains(guest, "path = /srv/mupibox") || !strings.Contains(guest, "guest ok = yes") {
+		t.Fatalf("unexpected guest config: %q %v", guest, err)
+	}
+	protected, err := sambaConfig("password", "Music", "HOME")
+	if err != nil || !strings.Contains(protected, "valid users = mupibox") || strings.Contains(protected, "guest ok = yes") {
+		t.Fatalf("unexpected password config: %q %v", protected, err)
+	}
+	if _, err = sambaConfig("guest", "bad/name", "HOME"); err == nil {
+		t.Fatal("accepted invalid share name")
+	}
+}

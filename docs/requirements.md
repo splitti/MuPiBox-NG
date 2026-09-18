@@ -59,7 +59,7 @@ Das Admin-Interface soll mindestens verwalten können:
 
 Details: [System-, Hardware- und Admin-Einstellungen](system-settings.md)
 
-Dazu gehören Start-/Shutdownsound, Start- und Maximal-Lautstärke, Audioausgabe, Splashscreen, getrenntes Display-Idle, Helligkeit, Adminpasswort, Themes, MuPiHat-/Batterieprofile, Lüfter, Betriebs-LED, MQTT/Home Assistant, Boxstatus und WLAN-Einrichtung einschließlich eines Best-Effort-Ablaufs für Captive Portals.
+Dazu gehören Start-/Shutdownsound, Start- und Maximal-Lautstärke, Audioausgabe, Splashscreen, getrenntes Display-Idle, Helligkeit, Adminpasswort, Themes, MuPiHat-/Batterieprofile, Lüfter, Betriebs-LED, native Home-Assistant-Integration, Boxstatus und WLAN-Einrichtung einschließlich eines Best-Effort-Ablaufs für Captive Portals.
 
 ## Energie- und Timersteuerung
 

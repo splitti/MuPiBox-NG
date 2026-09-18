@@ -203,8 +203,6 @@
   "battery_shutdown": "Abschalten (mV)",
   "mupihat_status_hint": "Die Werte werden bereits persistent gespeichert. Der Hardware-Dienst wird im nächsten MuPiHAT-Schritt angebunden.",
   "smart_home_title": "Smart Home",
-  "mqtt_guide": "Geplant ist eine native Home-Assistant-Integration über die MuPiBox-API. MQTT bleibt optional für bestehende Broker und allgemeine Automationen.",
-  "mqtt_enabled": "MQTT aktivieren",
   "username": "Benutzername",
   "password": "Passwort",
   "refresh_active": "Aktualisierung aktiv (s)",
@@ -212,7 +210,6 @@
   "timeout": "Timeout (s)",
   "ha_discovery": "Home Assistant Discovery",
   "ha_topic": "Discovery-Topic",
-  "mqtt_status_hint": "Die Konfiguration wird gespeichert; der MQTT-Publisher wird separat aktiviert, sobald Status- und Steuertopics finalisiert sind.",
   "system_title": "System und Performance",
   "system_intro": "Ist-Zustand messen, dann gezielt optimieren.",
   "refresh_analysis": "Analyse aktualisieren",
@@ -254,5 +251,10 @@
   "no": "Nein",
   "boot_total": "Gesamte Bootzeit: {duration}",
   "analysis_updated": "Systemanalyse aktualisiert.",
-  "system_change_confirm": "Systemoptionen werden jetzt angewendet. Netzwerk und Dienste können kurz unterbrochen werden. Fortfahren?"
+  "system_change_confirm": "Systemoptionen werden jetzt angewendet. Netzwerk und Dienste können kurz unterbrochen werden. Fortfahren?",
+  "wifi_switch_warning": "Der gewählte Adapter wird aktiviert und alle anderen WLAN-Adapter werden deaktiviert. Die Verbindung kann kurz abbrechen. Fortfahren?", "wifi_switch_restart": "Adapterwechsel gespeichert. Für die Onboard-Einstellung bitte neu starten.", "onboard_wifi_title": "Onboard-WLAN", "disable_onboard_wifi": "Onboard-WLAN dauerhaft deaktivieren (Neustart erforderlich)", "disable_onboard_hint": "Diese Option erscheint nur, wenn zusätzlich ein USB-WLAN-Adapter erkannt wurde. Die Auswahl des USB-Adapters bleibt über seine MAC-Adresse stabil.",
+  "wifi_switch_scheduled": "Adapterwechsel gespeichert. Die Verbindung kann kurz abbrechen; danach die Seite neu laden.",
+  "wifi_choose_adapter": "Bitte einen WLAN-Adapter auswählen.",
+  "samba_title": "Dateifreigabe (Samba)", "samba_guide": "Nur bei Bedarf aktivieren. Im Gastmodus ist /srv/mupibox ohne Passwort im lokalen Netz erreichbar.", "samba_enabled": "Samba-Freigabe aktivieren", "samba_mode": "Zugriff", "samba_guest": "Ohne Passwort (Gast)", "samba_password_mode": "Mit Passwort", "samba_share_name": "Freigabename", "samba_password": "Passwort für Benutzer mupibox", "samba_password_hint": "Leer lassen, um ein bereits gesetztes Passwort beizubehalten.", "save_samba": "Dateifreigabe anwenden", "samba_saved": "Dateifreigabe gespeichert.", "samba_active": "Freigabe ist aktiv.", "samba_inactive": "Freigabe ist deaktiviert und startet nicht mit dem System.", "samba_not_installed": "Samba ist noch nicht installiert. Bitte den DietPi-Installer erneut ausführen.",
+  "ha_native_guide": "MuPiBox erhält eine native Home-Assistant-Integration über eine versionierte lokale API. Ein MQTT-Broker ist dafür nicht nötig.", "ha_native_title": "Home-Assistant-Integration", "ha_native_plan": "Geplant sind Statussensoren für Wiedergabe, Akku, WLAN und System sowie sichere Dienste für Play/Pause, Lautstärke, Quelle, Neustart und Herunterfahren.", "ha_native_security": "Die Integration verwendet später ein eigenes widerrufbares API-Token mit begrenzten Rechten – niemals das Admin-Passwort."
 }

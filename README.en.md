@@ -100,8 +100,8 @@ Supported extensions: MP3, FLAC, OGG, OPUS, WAV, M4A, AAC. Actual codec support 
 | `GET /api/admin/auth`, `POST /api/admin/login` | password protection and admin session |
 | `PUT /api/admin/password`, `POST /api/admin/logout` | set/change password and end the session |
 | `GET /api/connectivity/wifi/adapters` | Wi-Fi adapters, state and active selection |
-| `PUT /api/connectivity/wifi/preferences` | persist enabled and preferred Wi-Fi adapters |
-| `POST /api/connectivity/wifi/adapters/state` | actually enable or disable a Wi-Fi adapter |
+| `PUT /api/connectivity/wifi/preferences` | select exactly one Wi-Fi adapter by stable MAC and optionally disable onboard Wi-Fi |
+| `GET/PUT /api/admin/samba` | manage the `/srv/mupibox` Samba share |
 | `GET /api/admin/backup`, `POST /api/admin/restore` | back up or restore configuration and optional media |
 | `GET /api/admin/releases`, `POST /api/admin/releases/switch` | list, install or roll back releases |
 | `GET /api/admin/system` | boot time, slow units, swap, network backend and CPU profile |
@@ -112,7 +112,7 @@ Admin and remotely accessed connectivity APIs are protected once an admin passwo
 
 `go test ./...` covers library/path boundaries, queue/EOF, volume, concurrent control, API, data-driven home model, global box info, RFID/button simulation and a Linux ARM64 cross-build.
 
-Still open: production local TTS, actual idle shutdown, web radio, RSS podcasts, Spotify/Amazon playback, the MQTT publisher, video/YouTube, real RFID/GPIO/MuPiHAT access and complete native player controls. Parts of their admin configuration are already persisted.
+Still open: production local TTS, actual idle shutdown, web radio, RSS podcasts, Spotify/Amazon playback, the native Home Assistant integration, video/YouTube, real RFID/GPIO/MuPiHAT access and complete native player controls. Parts of their admin configuration are already persisted.
 
 ## Documentation
 

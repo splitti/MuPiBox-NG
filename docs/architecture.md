@@ -19,7 +19,7 @@ Die Schnittstellen orientieren sich an einer einzelnen Box mit einem gemeinsam g
 | künftig `internal/hardware` | MuPiHat, Batterieprofile, GPIO, Lüfter und Betriebs-LED |
 | künftig `internal/display` | Helligkeit, Display-Idle, Splashscreen und Displayadapter |
 | künftig `internal/network` | WLAN-Status, Scan/Verbindung und Captive-Portal-Erkennung |
-| künftig `internal/mqtt` | MQTT-Status/Befehle und Home-Assistant-Discovery |
+| künftig `internal/homeassistant` | versionierte API, Token und native Home-Assistant-Entitäten |
 
 Alle Bedienmodule rufen denselben Controller auf. Er serialisiert Befehle und Audioabfragen mit einem Mutex; Statuskopien enthalten keine gemeinsam veränderbaren Queue-Slices. Der Backendstatus wird derzeit alle 500 ms abgefragt, Browser lesen alle 750 ms. Polling ist die bewusst einfache M1-Lösung.
 
@@ -58,7 +58,7 @@ TTS, Sprache, Idle-Timer und weitere Geräteoptionen sind **boxweite Einstellung
 
 Aktuell exponiert `/api/info` die Entwicklungswerte für TTS und Power bereits getrennt vom Home-/Kategorie-Modell. Das ist bewusst die Richtung für die spätere persistente Architektur.
 
-Audio, Display, Netzwerk, MuPiHat/Batterie, Lüfter, LED, MQTT und Themes werden ebenfalls als boxweite Einstellungen bzw. Adapterfähigkeiten behandelt. Display-Idle und Box-Shutdown bleiben getrennte Zustandsautomaten. Details: [System-, Hardware- und Admin-Einstellungen](system-settings.md).
+Audio, Display, Netzwerk, MuPiHat/Batterie, Lüfter, LED, Home Assistant und Themes werden ebenfalls als boxweite Einstellungen bzw. Adapterfähigkeiten behandelt. Display-Idle und Box-Shutdown bleiben getrennte Zustandsautomaten. Details: [System-, Hardware- und Admin-Einstellungen](system-settings.md).
 
 ## TTS
 

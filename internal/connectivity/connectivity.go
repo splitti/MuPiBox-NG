@@ -81,6 +81,22 @@ type SystemTuning struct {
 	InitialTurboSeconds *int   `json:"initial_turbo_seconds,omitempty"`
 }
 
+type SambaConfig struct {
+	Enabled   bool   `json:"samba_enabled"`
+	Mode      string `json:"samba_mode"`
+	ShareName string `json:"samba_share_name"`
+	Workgroup string `json:"samba_workgroup"`
+	Password  string `json:"samba_password,omitempty"`
+}
+
+type IPv4Config struct {
+	Mode      string   `json:"ipv4_mode"`
+	Interface string   `json:"interface"`
+	Address   string   `json:"ipv4_address,omitempty"`
+	Gateway   string   `json:"ipv4_gateway,omitempty"`
+	DNS       []string `json:"ipv4_dns,omitempty"`
+}
+
 func (m *Manager) runner() Runner {
 	if m != nil && m.Runner != nil {
 		return m.Runner
@@ -211,6 +227,96 @@ func (m *Manager) SetWiFiAdapterState(ctx context.Context, iface string, enabled
 	return nil
 }
 
+func (m *Manager) SelectWiFiAdapter(ctx context.Context, iface string) error {
+	iface = strings.TrimSpace(iface)
+	if !wifiInterfaceName.MatchString(iface) {
+		return errors.New("invalid Wi-Fi interface")
+	}
+	dialer := net.Dialer{}
+	connection, err := dialer.DialContext(ctx, "unix", m.agentSocket())
+	if err != nil {
+		return fmt.Errorf("system agent unavailable: %w", err)
+	}
+	defer connection.Close()
+	_ = connection.SetDeadline(time.Now().Add(35 * time.Second))
+	request := struct {
+		Action    string `json:"action"`
+		Interface string `json:"interface"`
+	}{Action: "wifi-select", Interface: iface}
+	if err = json.NewEncoder(connection).Encode(request); err != nil {
+		return err
+	}
+	var response struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err = json.NewDecoder(connection).Decode(&response); err != nil {
+		return fmt.Errorf("system agent response: %w", err)
+	}
+	if !response.OK {
+		if response.Error == "" {
+			response.Error = "Wi-Fi adapter switch failed"
+		}
+		return errors.New(response.Error)
+	}
+	return nil
+}
+
+func (m *Manager) SetOnboardWiFiDisabled(ctx context.Context, disabled bool) error {
+	dialer := net.Dialer{}
+	connection, err := dialer.DialContext(ctx, "unix", m.agentSocket())
+	if err != nil {
+		return fmt.Errorf("system agent unavailable: %w", err)
+	}
+	defer connection.Close()
+	_ = connection.SetDeadline(time.Now().Add(10 * time.Second))
+	if err = json.NewEncoder(connection).Encode(struct {
+		Action  string `json:"action"`
+		Enabled bool   `json:"enabled"`
+	}{Action: "wifi-onboard", Enabled: !disabled}); err != nil {
+		return err
+	}
+	var response struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err = json.NewDecoder(connection).Decode(&response); err != nil {
+		return fmt.Errorf("system agent response: %w", err)
+	}
+	if !response.OK {
+		return errors.New(response.Error)
+	}
+	return nil
+}
+
+func (m *Manager) ApplyIPv4(ctx context.Context, config IPv4Config) error {
+	dialer := net.Dialer{}
+	connection, err := dialer.DialContext(ctx, "unix", m.agentSocket())
+	if err != nil {
+		return fmt.Errorf("system agent unavailable: %w", err)
+	}
+	defer connection.Close()
+	_ = connection.SetDeadline(time.Now().Add(70 * time.Second))
+	payload := struct {
+		Action string `json:"action"`
+		IPv4Config
+	}{Action: "ipv4-config", IPv4Config: config}
+	if err = json.NewEncoder(connection).Encode(payload); err != nil {
+		return err
+	}
+	var response struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err = json.NewDecoder(connection).Decode(&response); err != nil {
+		return fmt.Errorf("system agent response: %w", err)
+	}
+	if !response.OK {
+		return errors.New(response.Error)
+	}
+	return nil
+}
+
 func (m *Manager) StartReleaseUpdate(ctx context.Context, target string) error {
 	target = strings.TrimSpace(target)
 	if target == "" || len(target) > 64 {
@@ -271,6 +377,40 @@ func (m *Manager) ApplySystemTuning(ctx context.Context, tuning SystemTuning) er
 	if !response.OK {
 		if response.Error == "" {
 			response.Error = "system tuning failed"
+		}
+		return errors.New(response.Error)
+	}
+	return nil
+}
+
+func (m *Manager) ApplySamba(ctx context.Context, config SambaConfig) error {
+	if config.Mode != "guest" && config.Mode != "password" {
+		return errors.New("invalid Samba mode")
+	}
+	dialer := net.Dialer{}
+	connection, err := dialer.DialContext(ctx, "unix", m.agentSocket())
+	if err != nil {
+		return fmt.Errorf("system agent unavailable: %w", err)
+	}
+	defer connection.Close()
+	_ = connection.SetDeadline(time.Now().Add(65 * time.Second))
+	request := struct {
+		Action string `json:"action"`
+		SambaConfig
+	}{Action: "samba-config", SambaConfig: config}
+	if err = json.NewEncoder(connection).Encode(request); err != nil {
+		return err
+	}
+	var response struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err = json.NewDecoder(connection).Decode(&response); err != nil {
+		return fmt.Errorf("system agent response: %w", err)
+	}
+	if !response.OK {
+		if response.Error == "" {
+			response.Error = "Samba configuration failed"
 		}
 		return errors.New(response.Error)
 	}

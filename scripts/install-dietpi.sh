@@ -49,7 +49,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y \
     ca-certificates curl git build-essential pkg-config iproute2 util-linux \
-    mpv alsa-utils fbi wpasupplicant bluez rfkill \
+    mpv alsa-utils fbi wpasupplicant bluez rfkill samba \
     qmlscene-qt6 qml6-module-qtquick qml6-module-qtquick-window qml6-module-qtqml \
     qml6-module-qtquick-virtualkeyboard qt6-virtualkeyboard-plugin \
     qt6-qpa-plugins libqt6opengl6 libgl1-mesa-dri libegl1 libgbm1 \
@@ -172,6 +172,12 @@ install -m 0644 deploy/mupibox-system-agent.service /etc/systemd/system/mupibox-
 install -m 0644 deploy/mupibox-update@.service /etc/systemd/system/mupibox-update@.service
 install -m 0644 deploy/mupibox-splash.service /etc/systemd/system/mupibox-splash.service
 install -m 0644 deploy/mupibox-ui.service /etc/systemd/system/mupibox-ui.service
+
+# Samba is available for the admin-controlled media share, but consumes no
+# boot-time resources until the user explicitly enables the managed share.
+if ! grep -q '^# Managed by MuPiBox-NG' /etc/samba/smb.conf 2>/dev/null; then
+    systemctl disable --now smbd.service nmbd.service 2>/dev/null || true
+fi
 
 if [[ "$QUIET_BOOT" -eq 1 ]]; then
     bash scripts/configure-quiet-boot.sh

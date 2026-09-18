@@ -59,7 +59,7 @@ The admin UI should at minimum manage:
 
 Details: [System, hardware and admin settings](system-settings.en.md)
 
-This includes startup/shutdown sounds, startup and maximum volume, audio output, splash screen, separate display idle, brightness, admin password, themes, MuPiHat/battery profiles, fan, operational LED, MQTT/Home Assistant, box status and Wi-Fi setup including a best-effort captive-portal flow.
+This includes startup/shutdown sounds, startup and maximum volume, audio output, splash screen, separate display idle, brightness, admin password, themes, MuPiHat/battery profiles, fan, operational LED, native Home Assistant integration, box status and Wi-Fi setup including a best-effort captive-portal flow.
 
 ## Power and timers
 

@@ -51,6 +51,8 @@ type BluetoothSettings struct {
 
 type WiFiSettings struct {
 	PrimaryInterface   string       `json:"primary_interface,omitempty"`
+	PrimaryMAC         string       `json:"primary_mac,omitempty"`
+	DisableOnboard     bool         `json:"disable_onboard"`
 	DisabledInterfaces []string     `json:"disabled_interfaces,omitempty"`
 	IPv4               IPv4Settings `json:"ipv4"`
 }
@@ -75,20 +77,11 @@ type ProviderSettings struct {
 	AmazonMusic ProviderAccountSettings `json:"amazon_music"`
 }
 
-type MQTTSettings struct {
-	Enabled     bool   `json:"enabled"`
-	Broker      string `json:"broker,omitempty"`
-	Port        int    `json:"port"`
-	Topic       string `json:"topic,omitempty"`
-	ClientID    string `json:"client_id,omitempty"`
-	Username    string `json:"username,omitempty"`
-	Password    string `json:"password,omitempty"`
-	Refresh     int    `json:"refresh_seconds"`
-	RefreshIdle int    `json:"refresh_idle_seconds"`
-	Timeout     int    `json:"timeout_seconds"`
-	Debug       bool   `json:"debug"`
-	HAEnabled   bool   `json:"home_assistant_enabled"`
-	HATopic     string `json:"home_assistant_topic,omitempty"`
+type SambaSettings struct {
+	Enabled   bool   `json:"enabled"`
+	Mode      string `json:"mode"`
+	ShareName string `json:"share_name"`
+	Workgroup string `json:"workgroup"`
 }
 
 type BatteryProfile struct {
@@ -126,7 +119,7 @@ type BoxSettings struct {
 	WiFi          WiFiSettings      `json:"wifi"`
 	Bluetooth     BluetoothSettings `json:"bluetooth"`
 	Providers     ProviderSettings  `json:"providers"`
-	MQTT          MQTTSettings      `json:"mqtt"`
+	Samba         SambaSettings     `json:"samba"`
 	MuPiHAT       MuPiHATSettings   `json:"mupihat"`
 	System        SystemSettings    `json:"system"`
 	Theme         string            `json:"theme"`
@@ -371,6 +364,11 @@ func ValidateBoxSettings(v BoxSettings) error {
 	if v.WiFi.PrimaryInterface != "" && !interfaceName.MatchString(v.WiFi.PrimaryInterface) {
 		return errors.New("wifi.primary_interface is invalid")
 	}
+	if v.WiFi.PrimaryMAC != "" {
+		if _, err := net.ParseMAC(v.WiFi.PrimaryMAC); err != nil {
+			return errors.New("wifi.primary_mac is invalid")
+		}
+	}
 	disabled := map[string]bool{}
 	for _, name := range v.WiFi.DisabledInterfaces {
 		if !interfaceName.MatchString(name) {
@@ -403,17 +401,14 @@ func ValidateBoxSettings(v BoxSettings) error {
 			}
 		}
 	}
-	if v.MQTT.Port < 1 || v.MQTT.Port > 65535 {
-		return errors.New("mqtt.port must be 1..65535")
+	if v.Samba.Mode != "guest" && v.Samba.Mode != "password" {
+		return errors.New("samba.mode must be guest or password")
 	}
-	if v.MQTT.Refresh < 1 || v.MQTT.RefreshIdle < 1 || v.MQTT.Timeout < 1 {
-		return errors.New("mqtt intervals must be positive")
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9 _-]{1,32}$`, v.Samba.ShareName); !matched {
+		return errors.New("samba.share_name contains unsupported characters")
 	}
-	if v.MQTT.Enabled && strings.TrimSpace(v.MQTT.Broker) == "" {
-		return errors.New("enabled MQTT requires a broker")
-	}
-	if v.MQTT.HAEnabled && !v.MQTT.Enabled {
-		return errors.New("Home Assistant discovery requires MQTT")
+	if matched, _ := regexp.MatchString(`^[A-Za-z0-9_-]{1,15}$`, v.Samba.Workgroup); !matched {
+		return errors.New("samba.workgroup contains unsupported characters")
 	}
 	if v.MuPiHAT.CurrentLimitMA != 1790 && v.MuPiHAT.CurrentLimitMA != 2200 && v.MuPiHAT.CurrentLimitMA != 2700 {
 		return errors.New("mupihat.current_limit_ma must be 1790, 2200 or 2700")
@@ -471,26 +466,14 @@ func normalizeBoxSettings(v *BoxSettings) {
 	if v.WiFi.IPv4.Mode == "" {
 		v.WiFi.IPv4.Mode = "dhcp"
 	}
-	if v.MQTT.Port == 0 {
-		v.MQTT.Port = 1883
+	if v.Samba.Mode == "" {
+		v.Samba.Mode = "guest"
 	}
-	if v.MQTT.Refresh == 0 {
-		v.MQTT.Refresh = 5
+	if v.Samba.ShareName == "" {
+		v.Samba.ShareName = "MuPiBox"
 	}
-	if v.MQTT.RefreshIdle == 0 {
-		v.MQTT.RefreshIdle = 30
-	}
-	if v.MQTT.Timeout == 0 {
-		v.MQTT.Timeout = 60
-	}
-	if v.MQTT.ClientID == "" {
-		v.MQTT.ClientID = "MuPiBox"
-	}
-	if v.MQTT.Topic == "" {
-		v.MQTT.Topic = "MuPiBox/Boxname"
-	}
-	if v.MQTT.HATopic == "" {
-		v.MQTT.HATopic = "homeassistant"
+	if v.Samba.Workgroup == "" {
+		v.Samba.Workgroup = "WORKGROUP"
 	}
 	if len(v.MuPiHAT.Profiles) == 0 {
 		v.MuPiHAT.Profiles = defaultBatteryProfiles()

@@ -13,6 +13,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"mupibox/internal/connectivity"
+	"mupibox/internal/store"
 )
 
 type bootUnit struct {
@@ -196,7 +199,8 @@ func detectNetworkBackend(ctx context.Context) (string, bool, string) {
 		return "systemd-networkd", false, "networkd"
 	}
 	if _, err := os.Stat("/etc/network/interfaces"); err == nil {
-		return "ifupdown/DietPi", false, "ifupdown"
+		_, dietPiErr := os.Stat("/boot/dietpi/dietpi-network")
+		return "ifupdown/DietPi", dietPiErr == nil, "ifupdown"
 	}
 	return "unknown", false, "unknown"
 }
@@ -231,6 +235,13 @@ func collectAdminSystemStatus(ctx context.Context) adminSystemStatus {
 	}
 }
 
+func sambaRuntimeStatus(ctx context.Context) map[string]any {
+	_, installedErr := exec.LookPath("smbd")
+	active := commandText(ctx, "systemctl", "is-active", "smbd.service") == "active"
+	enabled := commandText(ctx, "systemctl", "is-enabled", "smbd.service") == "enabled"
+	return map[string]any{"installed": installedErr == nil, "active": active, "enabled_at_boot": enabled}
+}
+
 func (a *API) registerSystemRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("GET /api/admin/system", func(w http.ResponseWriter, r *http.Request) {
 		ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
@@ -260,5 +271,60 @@ func (a *API) registerSystemRoutes(mux *http.ServeMux) {
 			return
 		}
 		jsonResponse(w, http.StatusAccepted, map[string]any{"scheduled": true, "action": input.Action})
+	})
+	mux.HandleFunc("GET /api/admin/samba", func(w http.ResponseWriter, r *http.Request) {
+		settings, err := a.currentSettings()
+		if err != nil {
+			problem(w, http.StatusInternalServerError, err)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		jsonResponse(w, http.StatusOK, map[string]any{"settings": settings.Samba, "runtime": sambaRuntimeStatus(ctx)})
+	})
+	mux.HandleFunc("PUT /api/admin/samba", func(w http.ResponseWriter, r *http.Request) {
+		if a.Store == nil || a.Connectivity == nil {
+			problem(w, http.StatusServiceUnavailable, errors.New("Samba management unavailable"))
+			return
+		}
+		var input struct {
+			Enabled   bool   `json:"enabled"`
+			Mode      string `json:"mode"`
+			ShareName string `json:"share_name"`
+			Workgroup string `json:"workgroup"`
+			Password  string `json:"password"`
+		}
+		if err := decode(w, r, &input); err != nil {
+			problem(w, http.StatusBadRequest, err)
+			return
+		}
+		settings, ok, err := a.Store.LoadBoxSettings()
+		if err != nil || !ok {
+			if err == nil {
+				err = errors.New("settings not initialized")
+			}
+			problem(w, http.StatusInternalServerError, err)
+			return
+		}
+		settings.Samba = store.SambaSettings{Enabled: input.Enabled, Mode: input.Mode, ShareName: strings.TrimSpace(input.ShareName), Workgroup: strings.ToUpper(strings.TrimSpace(input.Workgroup))}
+		settings = store.NormalizeBoxSettings(settings)
+		if err = store.ValidateBoxSettings(settings); err != nil {
+			problem(w, http.StatusBadRequest, err)
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 65*time.Second)
+		err = a.Connectivity.ApplySamba(ctx, connectivity.SambaConfig{Enabled: settings.Samba.Enabled, Mode: settings.Samba.Mode, ShareName: settings.Samba.ShareName, Workgroup: settings.Samba.Workgroup, Password: input.Password})
+		cancel()
+		if err != nil {
+			problem(w, http.StatusBadGateway, err)
+			return
+		}
+		if err = a.Store.SaveBoxSettings(settings); err != nil {
+			problem(w, http.StatusInternalServerError, err)
+			return
+		}
+		ctx, cancel = context.WithTimeout(r.Context(), 5*time.Second)
+		defer cancel()
+		jsonResponse(w, http.StatusOK, map[string]any{"settings": settings.Samba, "runtime": sambaRuntimeStatus(ctx)})
 	})
 }

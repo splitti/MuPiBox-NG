@@ -97,7 +97,7 @@ func TestConnectivityEndpoints(t *testing.T) {
 	preference.Header.Set("Content-Type", "application/json")
 	response = httptest.NewRecorder()
 	handler.ServeHTTP(response, preference)
-	if response.Code != 200 {
+	if response.Code != http.StatusAccepted {
 		t.Fatalf("wifi preferences status=%d body=%s", response.Code, response.Body.String())
 	}
 	saved, _, err := db.LoadBoxSettings()

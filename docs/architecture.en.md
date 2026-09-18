@@ -19,7 +19,7 @@ The interfaces are designed around one box with one shared player.
 | future `internal/hardware` | MuPiHat, battery profiles, GPIO, fan and operational LED |
 | future `internal/display` | brightness, display idle, splash screen and display adapters |
 | future `internal/network` | Wi-Fi state, scan/connect and captive-portal detection |
-| future `internal/mqtt` | MQTT state/commands and Home Assistant Discovery |
+| future `internal/homeassistant` | versioned API, tokens and native Home Assistant entities |
 
 All control modules call the same controller. It serializes commands and audio access with a mutex; copied status objects do not share mutable queue slices. The backend is currently polled every 500 ms and browsers every 750 ms. Polling is intentionally simple for M1.
 
@@ -58,7 +58,7 @@ TTS, language, idle timers and other device options are **box-wide settings**, n
 
 Today `/api/info` already exposes development TTS and power values separately from the home/category model. This intentionally matches the target architecture.
 
-Audio, display, network, MuPiHat/battery, fan, LED, MQTT and themes are also box-wide settings or adapter capabilities. Display idle and box shutdown remain separate state machines. Details: [System, hardware and admin settings](system-settings.en.md).
+Audio, display, network, MuPiHat/battery, fan, LED, Home Assistant and themes are also box-wide settings or adapter capabilities. Display idle and box shutdown remain separate state machines. Details: [System, hardware and admin settings](system-settings.en.md).
 
 ## TTS
 

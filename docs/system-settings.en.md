@@ -15,7 +15,7 @@ Configurable options include:
 - startup sound on/off and a bundled or uploaded audio file,
 - shutdown sound on/off and a bundled or uploaded audio file,
 - startup volume,
-- maximum volume as a hard limit for touch, buttons, MQTT and providers,
+- maximum volume as a hard limit for touch, buttons, Home Assistant and providers,
 - audio output device,
 - optional mono/stereo and adapter-specific audio options.
 
@@ -51,7 +51,7 @@ Where real adapters provide the data, the dashboard displays:
 - display state and brightness,
 - CPU temperature, fan level, uptime and free storage,
 - version, backend/hardware profile and recent errors,
-- MQTT and provider state.
+- Home Assistant and provider state.
 
 Unknown values are shown as unknown, never as `0%` or a misleading healthy state.
 
@@ -100,22 +100,11 @@ These are legacy defaults and must not be treated as verified MuPiHat pins. A Mu
 
 The operational LED may use `ledBrightnessMax` while active and `ledBrightnessMin` while the idle display is off. It is turned off through the safe hardware shutdown sequence. Min/max validate to 0–100. The LXC adapter reports simulated state only.
 
-## Home Assistant and optional MQTT
+## Native Home Assistant integration
 
 A native MuPiBox integration is the preferred Home Assistant target. It polls the versioned MuPiBox API with a dedicated, scoped API token and exposes player, volume, battery, Wi-Fi and box status as Home Assistant entities. A `DataUpdateCoordinator` can refresh more frequently during playback and less frequently while idle. Reboot and shutdown are not exposed as automation actions without an additional opt-in.
 
-MQTT remains optional for existing brokers and cross-system automations. Configuration includes:
-
-- enabled/disabled,
-- broker, port and TLS options,
-- base topic such as `MuPiBox/Boxname`,
-- client ID,
-- username and secret password,
-- active/idle refresh intervals,
-- timeout and debug mode,
-- Home Assistant discovery on/off and discovery prefix, default `homeassistant`.
-
-For MQTT, status should be event-driven where possible; refresh intervals serve as heartbeat or cover slow-changing values. Commands are validated and cannot bypass maximum volume or safe shutdown rules. A native Home Assistant integration first requires long-lived, revocable, API-scoped tokens; it does not reuse the admin cookie.
+MQTT is no longer part of the target design. The integration instead needs a long-lived, revocable and API-scoped token; it never reuses the admin cookie. Write services must respect maximum volume and safe shutdown rules.
 
 ## Wi-Fi setup and captive portals
 
@@ -162,6 +151,6 @@ Planned sections:
 - Network,
 - MuPiHat, battery, fan and LED,
 - Power and timers,
-- MQTT/Home Assistant,
+- Home Assistant,
 - Security,
 - Backup, update and diagnostics.

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	pathpkg "path"
@@ -302,33 +303,47 @@ func (a *API) wifiAdapters() ([]connectivity.WiFiAdapter, string, string, error)
 	if err != nil {
 		return nil, "", "", err
 	}
-	disabled := map[string]bool{}
-	for _, name := range settings.WiFi.DisabledInterfaces {
-		disabled[name] = true
-	}
-	configured := strings.TrimSpace(settings.WiFi.PrimaryInterface)
-	selected := ""
-	for index := range adapters {
-		adapters[index].Enabled = !disabled[adapters[index].Interface]
-		adapters[index].Usable = adapters[index].Usable && adapters[index].Enabled
-		if configured != "" && adapters[index].Interface == configured {
-			adapters[index].Preferred = true
-			if adapters[index].Usable {
-				selected = configured
-			}
-		}
-	}
-	if selected == "" {
+	configured := ""
+	configuredMAC := strings.TrimSpace(strings.ToLower(settings.WiFi.PrimaryMAC))
+	if configuredMAC != "" {
 		for _, adapter := range adapters {
-			if adapter.Enabled && adapter.Usable && adapter.State == "up" {
-				selected = adapter.Interface
+			if strings.ToLower(adapter.MAC) == configuredMAC {
+				configured = adapter.Interface
 				break
 			}
 		}
 	}
+	if configured == "" {
+		legacyName := strings.TrimSpace(settings.WiFi.PrimaryInterface)
+		for _, adapter := range adapters {
+			if adapter.Interface == legacyName {
+				configured = legacyName
+				break
+			}
+		}
+	}
+	if configured == "" {
+		for _, adapter := range adapters {
+			if adapter.Usable && adapter.State == "up" {
+				configured = adapter.Interface
+				break
+			}
+		}
+	}
+	if configured == "" && len(adapters) > 0 {
+		configured = adapters[0].Interface
+	}
+	selected := ""
+	for index := range adapters {
+		adapters[index].Enabled = adapters[index].Interface == configured
+		adapters[index].Preferred = adapters[index].Enabled
+		if adapters[index].Preferred && adapters[index].Usable {
+			selected = configured
+		}
+	}
 	if selected == "" {
 		for _, adapter := range adapters {
-			if adapter.Enabled && adapter.Usable {
+			if adapter.Usable && adapter.State == "up" {
 				selected = adapter.Interface
 				break
 			}
@@ -336,15 +351,8 @@ func (a *API) wifiAdapters() ([]connectivity.WiFiAdapter, string, string, error)
 	}
 	for index := range adapters {
 		adapters[index].Selected = adapters[index].Interface == selected
-		if configured == "" && adapters[index].Selected {
-			adapters[index].Preferred = true
-		}
 	}
-	primary := configured
-	if primary == "" {
-		primary = selected
-	}
-	return adapters, primary, selected, nil
+	return adapters, configured, selected, nil
 }
 func (a *API) wifiAdapter(name string) (connectivity.WiFiAdapter, error) {
 	adapters, _, _, err := a.wifiAdapters()
@@ -363,6 +371,59 @@ func (a *API) wifiAdapter(name string) (connectivity.WiFiAdapter, error) {
 		}
 	}
 	return connectivity.WiFiAdapter{}, fmt.Errorf("unknown Wi-Fi adapter %s", name)
+}
+func selectWiFiAdapter(w http.ResponseWriter, r *http.Request, a *API, iface string) {
+	_ = r
+	if a.Store == nil || a.Connectivity == nil {
+		problem(w, 503, fmt.Errorf("persistent connectivity settings unavailable"))
+		return
+	}
+	detected, err := a.Connectivity.ListWiFiAdapters()
+	if err != nil {
+		problem(w, 503, err)
+		return
+	}
+	var target *connectivity.WiFiAdapter
+	for _, adapter := range detected {
+		if adapter.Interface == strings.TrimSpace(iface) {
+			copy := adapter
+			target = &copy
+			break
+		}
+	}
+	if target == nil {
+		problem(w, 400, fmt.Errorf("preferred Wi-Fi adapter was not detected"))
+		return
+	}
+	settings, ok, err := a.Store.LoadBoxSettings()
+	if err != nil || !ok {
+		if err == nil {
+			err = fmt.Errorf("settings not initialized")
+		}
+		problem(w, 500, err)
+		return
+	}
+	settings.WiFi.PrimaryInterface = target.Interface
+	settings.WiFi.PrimaryMAC = strings.ToLower(target.MAC)
+	settings.WiFi.DisabledInterfaces = settings.WiFi.DisabledInterfaces[:0]
+	for _, adapter := range detected {
+		if adapter.Interface != target.Interface {
+			settings.WiFi.DisabledInterfaces = append(settings.WiFi.DisabledInterfaces, adapter.Interface)
+		}
+	}
+	if err = a.Store.SaveBoxSettings(settings); err != nil {
+		problem(w, 400, err)
+		return
+	}
+	go func(name string) {
+		time.Sleep(750 * time.Millisecond)
+		ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+		defer cancel()
+		if switchErr := a.Connectivity.SelectWiFiAdapter(ctx, name); switchErr != nil {
+			log.Printf("Wi-Fi adapter switch to %s failed: %v", name, switchErr)
+		}
+	}(target.Interface)
+	jsonResponse(w, http.StatusAccepted, map[string]any{"primary_interface": target.Interface, "primary_mac": settings.WiFi.PrimaryMAC, "switch_scheduled": true})
 }
 func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()
@@ -391,18 +452,11 @@ func (a *API) Handler() http.Handler {
 			problem(w, 400, err)
 			return
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 25*time.Second)
-		defer cancel()
-		if err := a.Connectivity.SetWiFiAdapterState(ctx, request.Interface, request.Enabled); err != nil {
-			problem(w, 502, err)
+		if !request.Enabled {
+			problem(w, 400, fmt.Errorf("select another Wi-Fi adapter instead of disabling the active adapter"))
 			return
 		}
-		adapters, primary, selected, err := a.wifiAdapters()
-		if err != nil {
-			problem(w, 500, err)
-			return
-		}
-		jsonResponse(w, 200, map[string]any{"adapters": adapters, "primary_interface": primary, "selected_interface": selected})
+		selectWiFiAdapter(w, r, a, request.Interface)
 	})
 	mux.HandleFunc("PUT /api/connectivity/wifi/preferences", func(w http.ResponseWriter, r *http.Request) {
 		if a.Store == nil || a.Connectivity == nil {
@@ -419,26 +473,27 @@ func (a *API) Handler() http.Handler {
 			problem(w, 503, err)
 			return
 		}
-		disabled := map[string]bool{}
-		for _, name := range preferences.DisabledInterfaces {
-			disabled[name] = true
-		}
-		ready := 0
-		primaryKnown := preferences.PrimaryInterface == ""
+		var target *connectivity.WiFiAdapter
 		for _, adapter := range detected {
 			if adapter.Interface == preferences.PrimaryInterface {
-				primaryKnown = true
-			}
-			if !disabled[adapter.Interface] && adapter.Usable {
-				ready++
+				copy := adapter
+				target = &copy
+				break
 			}
 		}
-		if !primaryKnown {
+		if target == nil {
 			problem(w, 400, fmt.Errorf("preferred Wi-Fi adapter was not detected"))
 			return
 		}
-		if ready == 0 {
-			problem(w, 400, fmt.Errorf("at least one enabled and ready Wi-Fi adapter is required"))
+		onboardFound := false
+		for _, adapter := range detected {
+			if strings.EqualFold(adapter.Driver, "brcmfmac") {
+				onboardFound = true
+				break
+			}
+		}
+		if preferences.DisableOnboard && (!onboardFound || len(detected) < 2 || strings.EqualFold(target.Driver, "brcmfmac")) {
+			problem(w, 400, fmt.Errorf("onboard Wi-Fi can only be disabled when a second adapter is selected"))
 			return
 		}
 		settings, ok, err := a.Store.LoadBoxSettings()
@@ -449,17 +504,38 @@ func (a *API) Handler() http.Handler {
 			problem(w, 500, err)
 			return
 		}
-		settings.WiFi = preferences
+		onboardChanged := settings.WiFi.DisableOnboard != preferences.DisableOnboard
+		settings.WiFi.PrimaryInterface = target.Interface
+		settings.WiFi.PrimaryMAC = strings.ToLower(target.MAC)
+		settings.WiFi.DisableOnboard = preferences.DisableOnboard
+		settings.WiFi.DisabledInterfaces = settings.WiFi.DisabledInterfaces[:0]
+		for _, adapter := range detected {
+			if adapter.Interface != target.Interface {
+				settings.WiFi.DisabledInterfaces = append(settings.WiFi.DisabledInterfaces, adapter.Interface)
+			}
+		}
 		if err = a.Store.SaveBoxSettings(settings); err != nil {
 			problem(w, 400, err)
 			return
 		}
-		adapters, primary, selected, err := a.wifiAdapters()
-		if err != nil {
-			problem(w, 500, err)
-			return
+		if onboardChanged {
+			ctx, cancel := context.WithTimeout(r.Context(), 10*time.Second)
+			if err = a.Connectivity.SetOnboardWiFiDisabled(ctx, preferences.DisableOnboard); err != nil {
+				cancel()
+				problem(w, 502, err)
+				return
+			}
+			cancel()
 		}
-		jsonResponse(w, 200, map[string]any{"adapters": adapters, "primary_interface": primary, "selected_interface": selected})
+		go func(iface string) {
+			time.Sleep(750 * time.Millisecond)
+			ctx, cancel := context.WithTimeout(context.Background(), 35*time.Second)
+			defer cancel()
+			if err := a.Connectivity.SelectWiFiAdapter(ctx, iface); err != nil {
+				log.Printf("Wi-Fi adapter switch to %s failed: %v", iface, err)
+			}
+		}(target.Interface)
+		jsonResponse(w, 202, map[string]any{"primary_interface": target.Interface, "primary_mac": settings.WiFi.PrimaryMAC, "switch_scheduled": true, "restart_required": onboardChanged})
 	})
 	mux.HandleFunc("GET /api/connectivity/wifi", func(w http.ResponseWriter, r *http.Request) {
 		if a.Connectivity == nil {
@@ -705,6 +781,9 @@ func (a *API) Handler() http.Handler {
 			problem(w, 500, err)
 			return
 		}
+		// Samba is applied through its dedicated endpoint so persisted state never
+		// claims a privileged service change that did not actually succeed.
+		v.Samba = current.Samba
 		if current.Bluetooth.Enabled != v.Bluetooth.Enabled {
 			if a.Connectivity == nil {
 				problem(w, 503, fmt.Errorf("connectivity manager unavailable"))
@@ -747,6 +826,18 @@ func (a *API) Handler() http.Handler {
 		if err = a.Store.SaveBoxSettings(v); err != nil {
 			problem(w, 400, err)
 			return
+		}
+		ipv4Changed := current.WiFi.IPv4.Mode != v.WiFi.IPv4.Mode || current.WiFi.IPv4.Interface != v.WiFi.IPv4.Interface || current.WiFi.IPv4.Address != v.WiFi.IPv4.Address || current.WiFi.IPv4.Gateway != v.WiFi.IPv4.Gateway || strings.Join(current.WiFi.IPv4.DNS, ",") != strings.Join(v.WiFi.IPv4.DNS, ",")
+		if ipv4Changed && a.Connectivity != nil && strings.TrimSpace(v.WiFi.IPv4.Interface) != "" {
+			config := connectivity.IPv4Config{Mode: v.WiFi.IPv4.Mode, Interface: v.WiFi.IPv4.Interface, Address: v.WiFi.IPv4.Address, Gateway: v.WiFi.IPv4.Gateway, DNS: v.WiFi.IPv4.DNS}
+			go func() {
+				time.Sleep(750 * time.Millisecond)
+				ctx, cancel := context.WithTimeout(context.Background(), 70*time.Second)
+				defer cancel()
+				if applyErr := a.Connectivity.ApplyIPv4(ctx, config); applyErr != nil {
+					log.Printf("DietPi IPv4 configuration failed: %v", applyErr)
+				}
+			}()
 		}
 		a.TTS = TTSConfig{Enabled: v.TTS.Enabled, Language: v.TTS.Language, Provider: v.TTS.Provider}
 		a.Power = PowerConfig{IdleShutdownMinutes: v.Power.IdleShutdownMinutes}
