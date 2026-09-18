@@ -74,6 +74,77 @@ func TestSetInitialTurbo(t *testing.T) {
 	}
 }
 
+func TestSetMuPiHATAudioBlockAddsAndRemovesOnlyItsOwnLines(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.txt")
+	original := "# Raspberry Pi\ndtparam=audio=off\ndtoverlay=vc4-kms-v3d,noaudio\n"
+	if err := os.WriteFile(path, []byte(original), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	changed, err := setMuPiHATAudioBlock(path, true)
+	if err != nil || !changed {
+		t.Fatalf("expected the first enable to change the file: changed=%v err=%v", changed, err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	content := string(raw)
+	if !strings.Contains(content, mupihatAudioBeginMarker) || !strings.Contains(content, "dtoverlay=max98357a,sdmode-pin=16") || !strings.Contains(content, "dtoverlay=i2s-mmap") || !strings.Contains(content, mupihatAudioEndMarker) {
+		t.Fatalf("expected the managed block to be present: %s", content)
+	}
+	if !strings.Contains(content, "dtparam=audio=off") || !strings.Contains(content, "dtoverlay=vc4-kms-v3d,noaudio") {
+		t.Fatalf("existing unrelated lines must survive untouched: %s", content)
+	}
+
+	// Re-enabling with the same state must be a no-op (idempotent), never
+	// duplicating the overlay lines.
+	changed, err = setMuPiHATAudioBlock(path, true)
+	if err != nil || changed {
+		t.Fatalf("expected re-enabling to be a no-op: changed=%v err=%v", changed, err)
+	}
+	raw, _ = os.ReadFile(path)
+	if strings.Count(string(raw), "dtoverlay=max98357a,sdmode-pin=16") != 1 {
+		t.Fatalf("overlay line must not be duplicated: %s", raw)
+	}
+
+	// Disabling removes exactly the managed block, nothing else.
+	changed, err = setMuPiHATAudioBlock(path, false)
+	if err != nil || !changed {
+		t.Fatalf("expected disabling to change the file: changed=%v err=%v", changed, err)
+	}
+	raw, err = os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != original {
+		t.Fatalf("disabling must restore the file to its original unrelated content, got: %s", raw)
+	}
+
+	// Disabling again (already absent) must be a no-op.
+	changed, err = setMuPiHATAudioBlock(path, false)
+	if err != nil || changed {
+		t.Fatalf("expected disabling an already-absent block to be a no-op: changed=%v err=%v", changed, err)
+	}
+}
+
+func TestSetMuPiHATAudioBlockPreservesForeignContentAroundIt(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.txt")
+	if err := os.WriteFile(path, []byte("dtparam=i2c_arm=on\n"+mupihatAudioBeginMarker+"\ndtoverlay=max98357a,sdmode-pin=16\ndtoverlay=i2s-mmap\n"+mupihatAudioEndMarker+"\ndtparam=spi=on\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := setMuPiHATAudioBlock(path, false); err != nil {
+		t.Fatal(err)
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(raw) != "dtparam=i2c_arm=on\ndtparam=spi=on\n" {
+		t.Fatalf("expected only the managed block removed, surrounding lines kept in order: %q", raw)
+	}
+}
+
 func TestSambaConfig(t *testing.T) {
 	guest, err := sambaConfig("guest", "MuPiBox", "WORKGROUP")
 	if err != nil || !strings.Contains(guest, "path = /srv/mupibox") || !strings.Contains(guest, "guest ok = yes") {

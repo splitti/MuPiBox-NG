@@ -42,10 +42,11 @@ type PowerSettings struct {
 }
 
 type AudioSettings struct {
-	StartupVolume        int  `json:"startup_volume"`
-	MaxVolume            int  `json:"max_volume"`
-	StartSoundEnabled    bool `json:"start_sound_enabled"`
-	ShutdownSoundEnabled bool `json:"shutdown_sound_enabled"`
+	StartupVolume        int    `json:"startup_volume"`
+	MaxVolume            int    `json:"max_volume"`
+	StartSoundEnabled    bool   `json:"start_sound_enabled"`
+	ShutdownSoundEnabled bool   `json:"shutdown_sound_enabled"`
+	Device               string `json:"device,omitempty"` // mpv --audio-device value; empty = mpv's own default
 }
 
 type DisplaySettings struct {
@@ -105,7 +106,17 @@ type BatteryProfile struct {
 }
 
 type MuPiHATSettings struct {
-	Enabled         bool             `json:"enabled"`
+	Enabled bool `json:"enabled"`
+	// Revision records the MuPiHAT PCB revision for display/diagnostics.
+	// "auto" means unknown/not manually confirmed -- the family (V3.x) is
+	// assumed but no revision-specific behaviour depends on this today.
+	// One of: auto, 3.0, 3.1, 3.2.
+	Revision string `json:"revision,omitempty"`
+	// AudioEnabled tracks whether the MuPiHAT/MAX98357A device-tree overlay
+	// is configured (see internal/connectivity's SetMuPiHATAudio). Separate
+	// from Enabled, which is about the battery/power subsystem: a box can
+	// use MuPiHAT for audio only, before power management is set up.
+	AudioEnabled    bool             `json:"audio_enabled"`
 	SelectedBattery string           `json:"selected_battery"`
 	CurrentLimitMA  int              `json:"current_limit_ma"`
 	Profiles        []BatteryProfile `json:"battery_profiles"`
@@ -511,6 +522,11 @@ func ValidateBoxSettings(v BoxSettings) error {
 	if v.MuPiHAT.CurrentLimitMA != 1790 && v.MuPiHAT.CurrentLimitMA != 2200 && v.MuPiHAT.CurrentLimitMA != 2700 {
 		return errors.New("mupihat.current_limit_ma must be 1790, 2200 or 2700")
 	}
+	switch v.MuPiHAT.Revision {
+	case "auto", "3.0", "3.1", "3.2":
+	default:
+		return errors.New("mupihat.revision must be auto, 3.0, 3.1 or 3.2")
+	}
 	profileNames := map[string]bool{}
 	for _, profile := range v.MuPiHAT.Profiles {
 		if strings.TrimSpace(profile.Name) == "" || profileNames[profile.Name] {
@@ -584,6 +600,9 @@ func normalizeBoxSettings(v *BoxSettings) {
 	}
 	if v.MuPiHAT.CurrentLimitMA == 0 {
 		v.MuPiHAT.CurrentLimitMA = 1790
+	}
+	if v.MuPiHAT.Revision == "" {
+		v.MuPiHAT.Revision = "auto"
 	}
 	if v.System.SwapPolicy == "" {
 		v.System.SwapPolicy = "keep"

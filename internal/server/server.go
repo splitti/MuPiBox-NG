@@ -471,6 +471,7 @@ func (a *API) Handler() http.Handler {
 	a.registerMaintenanceRoutes(mux)
 	a.registerSystemRoutes(mux)
 	a.registerTTSRoutes(mux)
+	a.registerAudioRoutes(mux)
 	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) { jsonResponse(w, 200, a.Player.Status()) })
 	mux.HandleFunc("GET /api/system", func(w http.ResponseWriter, r *http.Request) { jsonResponse(w, 200, a.currentSystemStatus()) })
 	mux.HandleFunc("GET /api/connectivity/wifi/adapters", func(w http.ResponseWriter, r *http.Request) {
@@ -884,7 +885,7 @@ func (a *API) Handler() http.Handler {
 		a.TTS = TTSConfig{Enabled: v.TTS.Enabled, Language: v.TTS.Language, Provider: v.TTS.Provider}
 		a.Power = PowerConfig{IdleShutdownMinutes: v.Power.IdleShutdownMinutes}
 		saved, _, _ := a.Store.LoadBoxSettings()
-		restartRequired := []string{"audio.max_volume", "audio.startup_volume"}
+		restartRequired := []string{"audio.max_volume", "audio.startup_volume", "audio.device"}
 		if current.System.InitialTurboSeconds != v.System.InitialTurboSeconds {
 			restartRequired = append(restartRequired, "system.initial_turbo_seconds")
 		}

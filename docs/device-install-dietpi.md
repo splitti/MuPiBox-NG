@@ -162,6 +162,10 @@ aplay -l
 mpv --audio-device=help
 ```
 
+Dieselbe Erkennung liefert `GET /api/admin/audio/status` (siehe [`docs/mupihat.md`](mupihat.md#audio));
+MuPiHAT-Audio (MAX98357A) selbst wird über `PUT /api/admin/audio/mupihat` aktiviert, nicht durch
+manuelles Editieren von `config.txt`.
+
 Bei schwarzem Display zuerst Kabel, Stromversorgung und Kernel-Erkennung prüfen, bevor Display-Overlays verändert werden.
 
 ## Browserzugriff für Entwicklung/Admin

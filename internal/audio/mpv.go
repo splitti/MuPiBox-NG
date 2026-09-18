@@ -13,7 +13,8 @@ import (
 
 // MPV uses a private Unix socket. No network IPC or shell interpolation.
 // A fresh process per track isolates late events from the preceding track.
-type MPV struct { NullOutput bool; cmd *exec.Cmd; conn net.Conn; decoder *json.Decoder; dir string; seq int }
+// Device is the mpv --audio-device value (e.g. "alsa/hw:CARD=sndrpimax98357a,DEV=0"); empty means mpv picks its own default.
+type MPV struct { NullOutput bool; Device string; cmd *exec.Cmd; conn net.Conn; decoder *json.Decoder; dir string; seq int }
 type reply struct { ID int `json:"request_id"`; Error string `json:"error"`; Event string `json:"event"`; Reason string `json:"reason"`; Data json.RawMessage `json:"data"` }
 func (*MPV) Name()string{return "mpv"}
 func (m *MPV) Load(path string,volume int)(err error){
@@ -23,6 +24,7 @@ func (m *MPV) Load(path string,volume int)(err error){
  socket:=filepath.Join(m.dir,"ipc")
  args:=[]string{"--no-config","--no-video","--no-terminal","--input-default-bindings=no","--input-vo-keyboard=no","--idle=yes","--keep-open=yes","--pause=yes","--volume="+fmt.Sprint(volume),"--input-ipc-server="+socket}
  if m.NullOutput{args=append(args,"--ao=null")}
+ if m.Device!=""{args=append(args,"--audio-device="+m.Device)}
  m.cmd=exec.Command("mpv",args...)
  m.cmd.Stderr=os.Stderr
  if err=m.cmd.Start();err!=nil{m.cmd=nil;return fmt.Errorf("start mpv: %w",err)}

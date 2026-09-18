@@ -384,6 +384,43 @@ func (m *Manager) ApplySystemTuning(ctx context.Context, tuning SystemTuning) er
 	return nil
 }
 
+// SetMuPiHATAudio enables or disables the MuPiHAT/MAX98357A device-tree
+// overlay in the Raspberry Pi boot config via the system agent. The device
+// tree only takes effect after a reboot, so the returned changed flag tells
+// the caller whether one is actually needed -- toggling to an already
+// -applied state is a no-op and never claims a reboot is required.
+func (m *Manager) SetMuPiHATAudio(ctx context.Context, enabled bool) (changed bool, err error) {
+	dialer := net.Dialer{}
+	connection, err := dialer.DialContext(ctx, "unix", m.agentSocket())
+	if err != nil {
+		return false, fmt.Errorf("system agent unavailable: %w", err)
+	}
+	defer connection.Close()
+	_ = connection.SetDeadline(time.Now().Add(10 * time.Second))
+	request := struct {
+		Action  string `json:"action"`
+		Enabled bool   `json:"enabled"`
+	}{Action: "mupihat-audio", Enabled: enabled}
+	if err = json.NewEncoder(connection).Encode(request); err != nil {
+		return false, err
+	}
+	var response struct {
+		OK      bool   `json:"ok"`
+		Error   string `json:"error"`
+		Changed bool   `json:"changed"`
+	}
+	if err = json.NewDecoder(connection).Decode(&response); err != nil {
+		return false, fmt.Errorf("system agent response: %w", err)
+	}
+	if !response.OK {
+		if response.Error == "" {
+			response.Error = "mupihat audio configuration failed"
+		}
+		return false, errors.New(response.Error)
+	}
+	return response.Changed, nil
+}
+
 // CaptureScreenshot asks the system agent for a single PNG frame of the
 // active display output. The image is held in memory only; neither side
 // writes it to disk.

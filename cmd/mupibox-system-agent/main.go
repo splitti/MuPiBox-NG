@@ -83,9 +83,10 @@ func applyIPv4(ctx context.Context, input request) error {
 }
 
 type response struct {
-	OK    bool   `json:"ok"`
-	Error string `json:"error,omitempty"`
-	Data  string `json:"data,omitempty"`
+	OK      bool   `json:"ok"`
+	Error   string `json:"error,omitempty"`
+	Data    string `json:"data,omitempty"`
+	Changed bool   `json:"changed,omitempty"`
 }
 
 func runCommand(ctx context.Context, name string, args ...string) error {
@@ -525,6 +526,89 @@ func setInitialTurbo(path string, seconds int) error {
 	return nil
 }
 
+const mupihatAudioBeginMarker = "# BEGIN MUPIBOX-NG MUPIHAT AUDIO"
+const mupihatAudioEndMarker = "# END MUPIBOX-NG MUPIHAT AUDIO"
+
+// mupihatAudioOverlayLines are the device-tree overlays MuPiHAT V3.x needs
+// for its MAX98357A I2S DAC/amp. They are shared across the V3.x family
+// (see docs/mupihat.md); revision-specific differences, if any turn up on
+// real hardware, would only ever narrow what is written here, not change
+// this mechanism. dtparam=audio=off (disabling the onboard analog/HDMI
+// audio path) is intentionally NOT managed here: DietPi already sets it by
+// default when no sound card is selected, and it does not conflict with
+// this I2S overlay, so touching it risks duplicating a line DietPi itself
+// owns.
+var mupihatAudioOverlayLines = []string{
+	"dtoverlay=max98357a,sdmode-pin=16",
+	"dtoverlay=i2s-mmap",
+}
+
+// setMuPiHATAudioBlock idempotently adds or removes exactly the lines
+// between the MuPiBox-NG markers in a Raspberry Pi boot config.txt, never
+// touching anything outside that block. Returns whether the file actually
+// changed, so the caller knows whether a reboot is required for the
+// device-tree change to take effect.
+func setMuPiHATAudioBlock(path string, enabled bool) (changed bool, err error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return false, fmt.Errorf("read Raspberry Pi boot config: %w", err)
+	}
+	original := strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n")
+	beginIdx, endIdx := -1, -1
+	for i, line := range original {
+		switch strings.TrimSpace(line) {
+		case mupihatAudioBeginMarker:
+			beginIdx = i
+		case mupihatAudioEndMarker:
+			endIdx = i
+		}
+	}
+	lines := original
+	if beginIdx >= 0 && endIdx > beginIdx {
+		lines = append(append([]string{}, original[:beginIdx]...), original[endIdx+1:]...)
+	}
+	if enabled {
+		block := append([]string{mupihatAudioBeginMarker}, mupihatAudioOverlayLines...)
+		block = append(block, mupihatAudioEndMarker)
+		lines = append(lines, block...)
+	}
+	if strings.Join(lines, "\n") == strings.Join(original, "\n") {
+		return false, nil
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return false, err
+	}
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".mupibox-config-*")
+	if err != nil {
+		return false, fmt.Errorf("prepare Raspberry Pi boot config: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if _, err = temporary.WriteString(strings.Join(lines, "\n") + "\n"); err == nil {
+		err = temporary.Chmod(info.Mode().Perm())
+	}
+	if closeErr := temporary.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return false, err
+	}
+	if err = os.Rename(temporaryPath, path); err != nil {
+		return false, fmt.Errorf("replace Raspberry Pi boot config: %w", err)
+	}
+	return true, nil
+}
+
+func setMuPiHATAudioOnHost(enabled bool) (bool, error) {
+	for _, path := range []string{"/boot/firmware/config.txt", "/boot/config.txt"} {
+		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
+			return setMuPiHATAudioBlock(path, enabled)
+		}
+	}
+	return false, errors.New("Raspberry Pi boot config was not found")
+}
+
 func setInitialTurboOnHost(seconds int) error {
 	for _, path := range []string{"/boot/firmware/config.txt", "/boot/config.txt"} {
 		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
@@ -635,7 +719,10 @@ func handle(connection net.Conn) {
 	}
 	var err error
 	var screenshot []byte
+	var changed bool
 	switch input.Action {
+	case "mupihat-audio":
+		changed, err = setMuPiHATAudioOnHost(input.Enabled)
 	case "screenshot":
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 		screenshot, err = captureScreenshot(ctx)
@@ -671,7 +758,7 @@ func handle(connection net.Conn) {
 	default:
 		err = errors.New("unsupported action")
 	}
-	result := response{OK: err == nil}
+	result := response{OK: err == nil, Changed: changed}
 	if err != nil {
 		result.Error = err.Error()
 	} else if screenshot != nil {

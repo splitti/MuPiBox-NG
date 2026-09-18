@@ -68,6 +68,32 @@ All voltages are stored in SQLite as integer millivolts.
 
 `Custom` remains fully editable. The USB-C profile disables battery warnings and battery-triggered shutdown. Profile changes are validated and must satisfy `v_100 >= v_75 >= v_50 >= v_25 >= v_0`.
 
+## Audio
+
+MuPiHAT V3.x uses a MAX98357A (I2S Class-D amplifier, 2x3 W). Its device-tree overlay
+(`dtoverlay=max98357a,sdmode-pin=16` + `dtoverlay=i2s-mmap`) is no longer hand-maintained in
+`/boot/firmware/config.txt`; it is managed by `mupibox-system-agent` inside a clearly marked
+block (`# BEGIN/END MUPIBOX-NG MUPIHAT AUDIO`, `PUT /api/admin/audio/mupihat`), idempotently and
+without touching unrelated lines. Enabling it requires a reboot; the admin UI states this clearly
+and never reboots automatically.
+
+`GET /api/admin/audio/status` detects, read-only (no root needed), `aplay -l`,
+`mpv --audio-device=help`, whether the overlay block is configured, and whether a MAX98357A card
+is actually visible. The concrete mpv playback device (`PUT /api/admin/audio/device`) is stored
+in SQLite and passed to mpv as `--audio-device` on the next start (`internal/audio/mpv.go`); like
+volume/`max_volume`, a change only takes effect after a player restart.
+
+Stereo/mono is a hardware switch (SW3) on V3.x, not a software option -- the admin UI only
+reflects the detected state, it does not switch it.
+
+Verified on real Pi 4 / MuPiHAT V3.1 hardware: overlay activation, detection, playback device
+selection and audible playback through the real MuPiBox player path (touch/API ->
+`internal/audio` -> mpv -> ALSA -> MuPiHAT speaker). Known gap: if a saved device no longer
+exists at runtime, mpv was observed to silently fall back to its own default device instead of
+surfacing a clearly recognizable error state -- the service stays stable and the admin UI reachable,
+but the clear-error-state requirement from [`docs/system-settings.en.md`](system-settings.en.md)
+is not yet fully met.
+
 ## Input current
 
 | Profile | IINDMP |
@@ -88,11 +114,13 @@ Writes to the charger IC remain disabled at first. They are enabled only after r
 
 ## Rollout
 
-1. Simulated agent and contract tests in the LXC.
-2. Read-only agent on the MuPiHat: watchdog, raw values and diagnostics.
-3. SQLite profiles and admin UI.
-4. Validated write access for the input current limit.
-5. Warning and controlled shutdown.
-6. MuPiHat GPIO for the operational LED, power button and later fan control.
+1. Audio (MAX98357A): overlay management via `mupibox-system-agent`, device detection, device
+   selection, verified audible on real Pi 4 / MuPiHAT V3.1 hardware.
+2. Simulated agent and contract tests in the LXC.
+3. Read-only agent on the MuPiHat: watchdog, raw values and diagnostics.
+4. SQLite profiles and admin UI.
+5. Validated write access for the input current limit.
+6. Warning and controlled shutdown.
+7. MuPiHat GPIO for the operational LED, power button and later fan control.
 
-Steps 4 and 5 require a recorded test on real hardware.
+Steps 5 and 6 require a recorded test on real hardware.

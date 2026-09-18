@@ -4,6 +4,9 @@
 
 ## 0.1.0-dev – 18.09.2026
 
+- Zielplattform auf Raspberry Pi 3/4/5, ARM64 only festgelegt (Pi 2/ARM32 nicht mehr unterstützt); MuPiHAT-Integration auf Go-first umgestellt, Python-BQ25792-Treiber bleibt Registerreferenz/Fallback statt automatischer Zielarchitektur.
+- MuPiHAT-Audio (MAX98357A) real auf Pi 4/MuPiHAT V3.1 in Betrieb genommen: Device-Tree-Overlay wird idempotent über `mupibox-system-agent` verwaltet (`PUT /api/admin/audio/mupihat`), Geräteerkennung (`aplay -l`, `mpv --audio-device=help`) und mpv-Gerätewahl (`PUT /api/admin/audio/device`) im Adminbereich; hörbare Wiedergabe über den echten Playerpfad bestätigt.
+- Offline-TTS-Engine (OHF-Voice/piper1-gpl, vormals rhasspy/piper) mit Cache-Generationen-State-Machine, persistenter Prioritäts-Queue, cgroup-v2-CPU-Limit (Fallback `nice`), manifestbasiertem Voice-Installer (17 Sprachen) und automatischem Content-Pre-Rendering für Kategorien/lokale Medien ergänzt; Admin-UI für Konfiguration, Cache-Status und Stimmentest.
 - Displayvorschau im Adminbereich (System) ergänzt: Momentaufnahme und Live-Ansicht des tatsächlich angezeigten Touchdisplays über `GET /api/admin/screenshot`, erfasst per `ffmpeg -f kmsgrab` direkt vom aktiven DRM/KMS-Ausgang (nicht vom veralteten `/dev/fb0`); Bild bleibt vollständig im Arbeitsspeicher.
 
 - WLAN-Suche wartet nun auf einen aktiven `wpa_cli`-Scan statt sofort nur den alten Cache mit dem verbundenen Netz zurückzugeben.

@@ -45,6 +45,23 @@ type config struct {
 	// package invoked as "<python> -m piper", not a standalone binary, so
 	// this must point at an interpreter, not an executable named "piper".
 	TTSPiperPython string `json:"tts_piper_python"`
+	// TTSPiperBinaryDeprecated is the pre-piper1-gpl field name. Accepted
+	// (not rejected by DisallowUnknownFields) purely so a config.json
+	// written before that migration keeps starting the service; migrate()
+	// copies it into TTSPiperPython and logs a deprecation warning. Real
+	// typos in any *other* field are still caught, since only this one
+	// known-renamed name is special-cased here.
+	TTSPiperBinaryDeprecated string `json:"tts_piper_binary,omitempty"`
+}
+
+// migrate normalizes deprecated config field names into their current
+// equivalent. Called once right after decoding; every other reader of cfg
+// only ever sees the current field.
+func (c *config) migrate() {
+	if c.TTSPiperPython == "" && c.TTSPiperBinaryDeprecated != "" {
+		log.Printf("config: \"tts_piper_binary\" is deprecated, use \"tts_piper_python\" instead (still honoring it for now)")
+		c.TTSPiperPython = c.TTSPiperBinaryDeprecated
+	}
 }
 
 func defaultNavigation() store.Navigation {
@@ -84,6 +101,7 @@ func run() error {
 		if d.Decode(&extra) != io.EOF {
 			return errors.New("expected one config object")
 		}
+		cfg.migrate()
 	}
 	stateStore, err := store.Open(cfg.DatabasePath)
 	if err != nil {
@@ -116,7 +134,7 @@ func run() error {
 	var backend audio.Backend
 	switch cfg.Backend {
 	case "mpv":
-		backend = &audio.MPV{}
+		backend = &audio.MPV{Device: settings.Audio.Device}
 	case "simulated":
 		backend = &audio.Simulated{}
 	default:

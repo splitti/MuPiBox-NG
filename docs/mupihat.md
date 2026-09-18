@@ -69,6 +69,34 @@ Alle Spannungen werden in SQLite als Ganzzahlen in Millivolt gespeichert.
 
 `Custom` bleibt vollständig editierbar. Das USB-C-Profil deaktiviert Akkuwarnung und Akku-Shutdown. Ein Profilwechsel oder eine Änderung der Grenzwerte wird validiert; `v_100 >= v_75 >= v_50 >= v_25 >= v_0` muss gelten.
 
+## Audio
+
+MuPiHAT V3.x nutzt einen MAX98357A (I²S Class-D-Verstärker, 2×3 W). Der zugehörige Device-Tree-
+Overlay (`dtoverlay=max98357a,sdmode-pin=16` + `dtoverlay=i2s-mmap`) wird nicht mehr von Hand in
+`/boot/firmware/config.txt` gepflegt, sondern über einen klar markierten Block
+(`# BEGIN/END MUPIBOX-NG MUPIHAT AUDIO`) durch den `mupibox-system-agent` verwaltet
+(`PUT /api/admin/audio/mupihat`), idempotent und ohne fremde Zeilen zu berühren. Die Aktivierung
+erfordert einen Neustart der Box; das Admininterface zeigt dies deutlich an und startet nie
+automatisch neu.
+
+`GET /api/admin/audio/status` erkennt schreibgeschützt (kein root nötig) `aplay -l`,
+`mpv --audio-device=help`, ob der Overlay-Block konfiguriert ist und ob eine MAX98357A-Karte
+tatsächlich sichtbar ist. Das konkrete mpv-Wiedergabegerät (`PUT /api/admin/audio/device`) wird
+in SQLite gespeichert und beim nächsten Start als `--audio-device` an mpv übergeben
+(`internal/audio/mpv.go`); wie Lautstärke/`max_volume` wirkt eine Änderung erst nach einem
+Neustart des Players.
+
+Stereo/Mono ist bei V3.x ein Hardwareschalter (SW3), keine Softwareoption – das Adminportal
+bildet den erkannten Zustand nur ab, schaltet ihn nicht.
+
+Auf echter Pi-4/MuPiHAT-V3.1-Hardware verifiziert: Overlay-Aktivierung, Erkennung, Auswahl des
+Wiedergabegeräts und hörbare Wiedergabe über den echten MuPiBox-Playerpfad (Touch/API →
+`internal/audio` → mpv → ALSA → MuPiHAT-Lautsprecher). Bekannte Lücke: Zeigt ein einmal
+gespeichertes Gerät auf zur Laufzeit nicht mehr vorhandene Hardware, fällt mpv beobachtet still
+auf sein eigenes Standardgerät zurück, statt einen klar erkennbaren Fehlerzustand zu melden – der
+Dienst bleibt dabei stabil und das Adminportal erreichbar, nur die in
+[`docs/system-settings.md`](system-settings.md) geforderte klare Fehlerkennzeichnung fehlt noch.
+
 ## Eingangsstrom
 
 | Profil | IINDMP |
@@ -89,11 +117,13 @@ Schreibzugriffe auf das Lade-IC sind zunächst gesperrt. Sie werden erst nach de
 
 ## Einführung
 
-1. Simulierter Agent und Statusvertrag in LXC-Tests.
-2. Read-only Agent auf dem MuPiHat: Watchdog, Rohwerte und Diagnose.
-3. SQLite-Profile und Adminoberfläche.
-4. Validierter Schreibzugriff für Eingangsstromlimit.
-5. Warnung und kontrollierter Shutdown.
-6. MuPiHat-GPIO für Betriebs-LED, Power-Taster und spätere Lüftersteuerung.
+1. ✅ Audio (MAX98357A): Overlay-Verwaltung über `mupibox-system-agent`, Geräteerkennung,
+   Gerätewahl, auf echter Pi-4/MuPiHAT-V3.1-Hardware hörbar verifiziert.
+2. Simulierter Agent und Statusvertrag in LXC-Tests.
+3. Read-only Agent auf dem MuPiHat: Watchdog, Rohwerte und Diagnose.
+4. SQLite-Profile und Adminoberfläche.
+5. Validierter Schreibzugriff für Eingangsstromlimit.
+6. Warnung und kontrollierter Shutdown.
+7. MuPiHat-GPIO für Betriebs-LED, Power-Taster und spätere Lüftersteuerung.
 
-Vor Schritt 4 und 5 ist ein Testprotokoll mit echter Hardware Pflicht.
+Vor Schritt 5 und 6 ist ein Testprotokoll mit echter Hardware Pflicht.

@@ -85,7 +85,7 @@ function readSettings(){const ipv4={mode:field('ipv4_mode').value,interface:fiel
  language:field('language').value.trim(),
  admin_language:field('admin_language').value,
  theme:field('theme').value,
- audio:{startup_volume:Number(field('startup_volume').value),max_volume:Number(field('max_volume').value),start_sound_enabled:field('start_sound_enabled').checked,shutdown_sound_enabled:field('shutdown_sound_enabled').checked},
+ audio:{...(settings?.audio||{}),startup_volume:Number(field('startup_volume').value),max_volume:Number(field('max_volume').value),start_sound_enabled:field('start_sound_enabled').checked,shutdown_sound_enabled:field('shutdown_sound_enabled').checked},
  display:{brightness:Number(field('brightness').value),ui_size:field('ui_size').value,idle_off_minutes:Number(field('display_idle').value)},
  power:{idle_shutdown_minutes:Number(field('shutdown_idle').value)},
  wifi:{...(settings?.wifi||{}),ipv4},
@@ -93,7 +93,7 @@ function readSettings(){const ipv4={mode:field('ipv4_mode').value,interface:fiel
  tts:{...(settings?.tts||{}),enabled:field('tts_enabled').checked,language:field('tts_language').value.trim(),provider:field('tts_provider').value.trim()},
  providers:{spotify:{enabled:field('spotify_enabled').checked,client_id:field('spotify_client_id').value.trim(),client_secret:field('spotify_client_secret').value,country:field('spotify_country').value.trim().toUpperCase()},amazon_music:{enabled:field('amazon_enabled').checked,client_id:field('amazon_client_id').value.trim(),client_secret:field('amazon_client_secret').value,country:field('amazon_country').value.trim().toUpperCase()}},
  samba:{enabled:field('samba_enabled').checked,mode:field('samba_mode').value,share_name:field('samba_share_name').value.trim(),workgroup:field('samba_workgroup').value.trim()},
- mupihat:{enabled:field('mupihat_enabled').checked,selected_battery:field('mupihat_battery').value,current_limit_ma:Number(field('mupihat_current').value),battery_profiles:readBatteryProfiles()},
+ mupihat:{...(settings?.mupihat||{}),enabled:field('mupihat_enabled').checked,selected_battery:field('mupihat_battery').value,current_limit_ma:Number(field('mupihat_current').value),battery_profiles:readBatteryProfiles()},
  system:{swap_policy:field('swap_policy').value,wait_online_policy:field('wait_online_policy').value,performance_mode:field('performance_mode').value,initial_turbo_seconds:Number(field('initial_turbo_seconds').value)}
 }}
 function activeContentLanguage(){return($('content-language').value||settings?.language||'de').trim().toLowerCase()}
@@ -199,7 +199,7 @@ async function load(){
   settings=s;systemStatus=sys;sambaStatus=samba?.runtime||null;localDirectories=d.directories||[];localRoot=d.root||localRoot;wifiAdapters=w.adapters||[];wifiPrimary=w.primary_interface||s.wifi?.primary_interface||'';wifiSelected=w.selected_interface||'';await setLocale(s.admin_language||'de');fillSettings(s);navigation=n;renderNavigation();renderWifiAdapters();renderPasswordState();renderSystemStatus();$('state').textContent=t('sqlite_connected','SQLite verbunden')
  }catch(error){$('state').textContent=t('error','Fehler');message(error.message,true)}
 }
-function showView(name){document.querySelectorAll('#admin-nav button').forEach(button=>button.classList.toggle('active',button.dataset.view===name));document.querySelectorAll('[data-admin-view]').forEach(view=>view.hidden=view.dataset.adminView!==name);if(name==='system'&&!systemStatus)refreshSystem();if(name!=='system')stopScreenshotLive();if(name==='tts')enterTTSView();else leaveTTSView()}
+function showView(name){document.querySelectorAll('#admin-nav button').forEach(button=>button.classList.toggle('active',button.dataset.view===name));document.querySelectorAll('[data-admin-view]').forEach(view=>view.hidden=view.dataset.adminView!==name);if(name==='system'&&!systemStatus)refreshSystem();if(name!=='system')stopScreenshotLive();if(name==='tts')enterTTSView();else leaveTTSView();if(name==='hardware')loadAudioStatus()}
 document.querySelectorAll('#admin-nav button').forEach(button=>button.onclick=()=>showView(button.dataset.view));
 field('admin_language').addEventListener('change',()=>setLocale(field('admin_language').value));
 field('ui_size').addEventListener('change',()=>$('settings-form').requestSubmit());
@@ -405,5 +405,50 @@ $('tts2-test').onclick=testTTSVoice;
 $('tts2-fill-missing').onclick=fillMissingTTS;
 $('tts2-rebuild').onclick=rebuildTTSCache;
 $('tts2-cleanup').onclick=cleanupTTSCache;
+
+let audioStatus=null;
+function renderAudioStatus(){
+ if(!audioStatus)return;
+ $('audio-status').replaceChildren(
+  statusItem(t('audio_aplay','aplay'),audioStatus.aplay_installed?t('installed','installiert'):t('not_installed','nicht installiert')),
+  statusItem(t('audio_mpv','mpv'),audioStatus.mpv_installed?t('installed','installiert'):t('not_installed','nicht installiert')),
+  statusItem(t('audio_mupihat_detected','MuPiHAT erkannt'),audioStatus.mupihat_detected?t('yes','Ja'):t('no','Nein')),
+  statusItem(t('audio_overlay_configured','MuPiHAT-Overlay konfiguriert'),audioStatus.mupihat_overlay_configured?t('yes','Ja'):t('no','Nein'))
+ );
+ $('audio-reboot-notice').hidden=!audioStatus.reboot_required;
+ const select=$('audio-device');const current=audioStatus.configured_device||'';
+ select.replaceChildren(new Option(t('audio_device_auto','Automatisch (mpv-Standard)'),''));
+ (audioStatus.mpv_devices||[]).forEach(device=>select.append(new Option(device.name+' — '+device.id,device.id)));
+ if([...select.options].some(option=>option.value===current))select.value=current;
+ else if(current){select.append(new Option(current,current));select.value=current}
+}
+async function loadAudioStatus(){
+ try{
+  audioStatus=await request('/api/admin/audio/status');
+  $('audio-mupihat-enabled').checked=!!settings?.mupihat?.audio_enabled;
+  $('audio-mupihat-revision').value=settings?.mupihat?.revision||'auto';
+  renderAudioStatus()
+ }catch(error){message(error.message,true)}
+}
+async function saveMuPiHATAudio(){
+ const button=$('audio-save-mupihat');button.disabled=true;
+ try{
+  const result=await request('/api/admin/audio/mupihat',{method:'PUT',body:JSON.stringify({enabled:$('audio-mupihat-enabled').checked})});
+  if(settings)settings.mupihat={...(settings.mupihat||{}),audio_enabled:result.enabled};
+  message(t('audio_mupihat_saved','MuPiHAT-Audio gespeichert.'));
+  await loadAudioStatus()
+ }catch(error){message(error.message,true)}finally{button.disabled=false}
+}
+async function saveAudioDevice(){
+ const button=$('audio-save-device');button.disabled=true;
+ try{
+  await request('/api/admin/audio/device',{method:'PUT',body:JSON.stringify({device:$('audio-device').value})});
+  if(settings)settings.audio={...(settings.audio||{}),device:$('audio-device').value};
+  message(t('audio_device_saved','Wiedergabegerät gespeichert. Neustart erforderlich.'))
+ }catch(error){message(error.message,true)}finally{button.disabled=false}
+}
+$('audio-refresh').onclick=loadAudioStatus;
+$('audio-save-mupihat').onclick=saveMuPiHATAudio;
+$('audio-save-device').onclick=saveAudioDevice;
 
 bootstrap();
