@@ -67,8 +67,13 @@ https://github.com/splitti/MuPiBox
 
 - **OS:** DietPi (Debian-basiert), 64-Bit, ohne Desktop. Gegen DietPi-Verhalten entwickeln und
   prüfen, nicht gegen Desktop-Debian, Raspberry Pi OS oder generisches Ubuntu.
-- **Hardware:** Raspberry Pi ab Pi 2 möglich, Schwerpunkt **Pi 3/Pi 4**; knappe RAM-/CPU-Budgets
-  (besonders Pi 3) ernst nehmen. Testhardware: Pi 3, Pi 4, ein MuPiHAT.
+- **Hardware:** offiziell unterstützt sind Raspberry Pi 3, Pi 4 und Pi 5, jeweils **64-Bit
+  (ARM64) only**. Pi 2, ARM32/armhf sind keine Zielplattform mehr; der Installer muss
+  Nicht-ARM64-Zielhardware verständlich ablehnen statt es stillschweigend zu versuchen. Knappe
+  RAM-/CPU-Budgets (besonders Pi 3) ernst nehmen. Testhardware: Pi 3, Pi 4, ein MuPiHAT V3.x.
+  MuPiHAT V3.x auf Pi 5 gilt wegen bekannter Einschränkungen beim Power-Up/Voltage-Ramp der
+  Hardware als **experimentell** und muss im Installer/Adminbereich so gekennzeichnet werden,
+  nicht als vollständig freigegeben dargestellt werden.
 - **Display:** primäres Testdisplay 800×480 DSI, Querformat, Touch. Andere Auflösungen/Panels
   werden unterstützt – die native UI hat ein logisches 800×480-Layout und skaliert
   seitenverhältnistreu auf die tatsächliche Kernel-Bildschirmgröße. Displaymodus über DietPis

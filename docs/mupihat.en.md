@@ -4,22 +4,41 @@
 
 ## Decision
 
-The first hardware integration keeps the existing Python BQ25792 driver. It already knows the register map and has been exercised with the MuPiHat. The Go service owns configuration, the admin UI, the status API, safety decisions and player coordination.
+MuPiBox-NG is **Go-first**: the BQ25792 is driven directly from Go over I²C, covering only the
+functionality MuPiBox actually needs (see the register list below) -- not a full 1:1 port of the
+existing ~250 KB Python library.
 
-The old wrapper will not be copied unchanged: it exposes Flask on `0.0.0.0:5000` and writes status directly to `/tmp/mupihat.json`. MuPiBox-NG will use a small local-only hardware agent without a public HTTP interface.
+The existing Python driver (GPLv3) is kept as:
 
-The existing driver is GPLv3. Reuse must preserve its licence, attribution and source-code availability.
+- the register reference and a template for the initialisation sequence,
+- a documented comparison for charge-state and fault behaviour,
+- a possible fallback if the native Go path hits a concrete, demonstrated blocker on real
+  hardware.
+
+It is therefore **no longer automatically the target architecture**. If such a blocker occurs it
+will be documented and a Python fallback proposed -- never a silent switch back to Python. Where
+parts of the existing driver are reused (register constants, initialisation logic as a template),
+its licence, attribution and source-code availability are preserved per GPLv3.
+
+The old standalone Python wrapper (Flask on `0.0.0.0:5000`, status written directly to
+`/tmp/mupihat.json`) is not carried over. Privileged hardware access (I²C/GPIO) goes through the
+existing `mupibox-system-agent`, or a clearly justified extension of it -- no separate,
+permanently running hardware service just for the MuPiHat. The exact wiring is decided alongside
+the actual BQ25792 implementation.
 
 ## Responsibilities
 
 | Component | Responsibility |
 | --- | --- |
-| Python hardware agent | I²C access, BQ25792 initialisation, watchdog reset, register reads and approved writes |
-| Go service | SQLite settings, validation, admin API, status, warnings and controlled shutdown |
+| `mupibox-system-agent` (or an extension) | I²C access, BQ25792 initialisation, watchdog reset, register reads and approved writes |
+| Go service (`mupibox-ng`) | SQLite settings, validation, admin API, status, warnings and controlled shutdown |
 | Qt/web player | Child-friendly battery display without technical values in the normal player |
 | Admin UI | Profile selection, custom profile, current limit, raw diagnostics and explicit hardware enablement |
 
-The agent runs as a dedicated systemd service with the minimum I²C/GPIO group access. It communicates locally through a Unix socket below `/run/mupibox-ng/`; no network port is opened. If the agent fails, playback continues and the UI reports an unknown battery instead of keeping stale values.
+The privileged access runs under a restricted user with the minimum I²C/GPIO group membership and
+communicates locally through a Unix socket below `/run/mupibox-ng/` or the existing
+`mupibox-system-agent` socket; no network port is opened. If it fails, playback continues and the
+UI reports an unknown battery instead of keeping stale values.
 
 ## Status contract
 

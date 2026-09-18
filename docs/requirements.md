@@ -8,11 +8,11 @@ Stand 16.09.2026, übernommen aus splittis Übergabe und den laufenden Projekten
 
 MuPiBox-NG wird ein Musikplayer für Kinder/Familien mit Touch, Tasten, RFID und Heimnetz-Browser. Bedienarten müssen einzeln oder frei kombiniert funktionieren; alle steuern denselben Player, denselben Status und dieselbe Warteschlange. Die Anwendung darf ohne optionale Hardware nicht abstürzen.
 
-Ziel: DietPi, ARM64/64 Bit, Raspberry Pi 3 als Mindestplattform. Pi 2 ist kein Ziel mehr. Entwicklung und automatisierte Tests laufen in einer Debian-13-LXC ohne Pi-Hardware. Testhardware: Pi 3, vermutlich Pi 4, ein MuPiHAT. Audio, GPIO, Stromversorgung und Display müssen später am Pi getestet werden.
+Ziel: DietPi, **ARM64/64 Bit only**, offiziell Raspberry Pi 3, Pi 4 und Pi 5. Pi 2, ARM32/armhf sind kein Ziel mehr; der Installer lehnt Nicht-ARM64-Zielhardware verständlich ab statt es stillschweigend zu versuchen. Entwicklung und automatisierte Tests laufen in einer Debian-13-LXC ohne Pi-Hardware. Testhardware: Pi 3, Pi 4, ein MuPiHAT V3.x. Audio, GPIO, Stromversorgung und Display müssen später am Pi getestet werden.
 
 ## Hardware
 
-MuPiHAT bevorzugen, andere Hardware über gekapselte Adapter ermöglichen. Benötigt: Akku und Laden, Ein/Aus und geordneter Shutdown, Audio mono/stereo. Vor Umsetzung prüfen: genaue Revision, Pinbelegung, Treiber, Shutdown-Sequenz und auslesbare Akku-/Ladeinformationen. Keine Akku-Prozentanzeige ohne nachgewiesene Telemetrie.
+MuPiHAT bevorzugen, andere Hardware über gekapselte Adapter ermöglichen. Benötigt: Akku und Laden, Ein/Aus und geordneter Shutdown, Audio mono/stereo. Vor Umsetzung prüfen: genaue Revision, Pinbelegung, Treiber, Shutdown-Sequenz und auslesbare Akku-/Ladeinformationen. Keine Akku-Prozentanzeige ohne nachgewiesene Telemetrie. MuPiHAT V3.x in Kombination mit Pi 5 gilt wegen bekannter Einschränkungen beim Power-Up/Voltage-Ramp der Hardware als experimentell und wird im Installer/Adminbereich entsprechend gekennzeichnet, nicht als vollständig freigegeben dargestellt.
 
 Hauptdisplay: Waveshare Raspberry Pi 5inch Capacitive 5-Points Touch Display, 800 × 480, DSI, Querformat. Andere Auflösungen weiter unterstützen. Das 5-Zoll-Display ist die primäre Designreferenz; Desktop- und Handyansichten sind sekundär.
 

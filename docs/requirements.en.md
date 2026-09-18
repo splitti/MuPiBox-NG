@@ -8,11 +8,11 @@ Status 2026-09-16, based on splitti's handover and ongoing project decisions. Re
 
 MuPiBox-NG is a music player for children/families with touch, buttons, RFID and a home-network browser UI. Input methods must work individually or in any combination; all control the same player, status and queue. Optional hardware must never be required for the application to start.
 
-Target: DietPi, ARM64/64 bit, Raspberry Pi 3 minimum. Pi 2 is no longer a target. Development and automated tests run in a Debian 13 LXC without Pi hardware. Test hardware includes a Pi 3, probably a Pi 4, and a MuPiHAT. Audio, GPIO, power and display integration must later be verified on real hardware.
+Target: DietPi, **ARM64/64-bit only**, officially Raspberry Pi 3, Pi 4 and Pi 5. Pi 2, ARM32/armhf are no longer a target; the installer must clearly reject non-ARM64 target hardware instead of silently attempting it. Development and automated tests run in a Debian 13 LXC without Pi hardware. Test hardware includes a Pi 3, a Pi 4, and a MuPiHAT V3.x. Audio, GPIO, power and display integration must later be verified on real hardware.
 
 ## Hardware
 
-Prefer MuPiHAT, while keeping other hardware behind adapters. Required capabilities include battery/charging, controlled power on/off and shutdown, and mono/stereo audio. Before implementation, verify the exact board revision, pinout, drivers, shutdown sequence and available battery/charging telemetry. Never display a battery percentage unless real telemetry exists.
+Prefer MuPiHAT, while keeping other hardware behind adapters. Required capabilities include battery/charging, controlled power on/off and shutdown, and mono/stereo audio. Before implementation, verify the exact board revision, pinout, drivers, shutdown sequence and available battery/charging telemetry. Never display a battery percentage unless real telemetry exists. MuPiHAT V3.x combined with Pi 5 is considered experimental due to known power-up/voltage-ramp limitations of the hardware, and must be labelled as such in the installer/admin UI rather than presented as fully supported.
 
 Primary display: Waveshare Raspberry Pi 5inch Capacitive 5-Points Touch Display, 800 × 480, DSI, landscape. Other resolutions remain supported. The 5-inch display is the primary design reference; desktop and phone layouts are secondary.
 

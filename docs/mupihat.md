@@ -4,22 +4,42 @@
 
 ## Entscheidung
 
-Für die erste Hardwareintegration bleibt der vorhandene Python-Treiber für den BQ25792 erhalten. Er kennt die Register und hat sich am MuPiHat bereits bewährt. Der Go-Dienst übernimmt dagegen Konfiguration, Adminoberfläche, Status-API, Schutzlogik und die Verbindung zum Player.
+MuPiBox-NG ist **Go-first**: Der BQ25792 wird direkt aus Go per I²C angesprochen, ausschließlich
+der für MuPiBox tatsächlich benötigte Funktionsumfang (siehe Registerliste unten) – keine
+vollständige 1:1-Portierung der bestehenden ca. 250 KB großen Python-Bibliothek.
 
-Der bisherige Wrapper wird nicht unverändert übernommen: Er öffnet einen Flask-Dienst auf `0.0.0.0:5000` und schreibt Status direkt nach `/tmp/mupihat.json`. MuPiBox-NG erhält stattdessen einen kleinen, ausschließlich lokalen Hardware-Agenten ohne öffentliches HTTP-Interface.
+Der vorhandene Python-Treiber (GPLv3) bleibt dabei erhalten als:
 
-Der bestehende Treiber steht unter GPLv3. Bei Wiederverwendung bleiben Lizenz, Urheberhinweise und Quellcodezugang erhalten.
+- Registerreferenz und Vorlage für die Initialisierungssequenz,
+- dokumentiertes Vergleichsverhalten für Ladezustände und Fehlerfälle,
+- möglicher Fallback, falls der native Go-Zugriff auf echter Hardware einen konkreten,
+  nachweisbaren Blocker liefert.
+
+Er ist damit **nicht mehr automatisch die Zielarchitektur**. Tritt ein solcher Blocker auf, wird
+er dokumentiert und ein Python-Fallback vorgeschlagen – es wird nicht stillschweigend auf Python
+zurückgewechselt. Bei Wiederverwendung von Teilen des bestehenden Treibers (Registerkonstanten,
+Initialisierungslogik als Vorlage) bleiben Lizenz, Urheberhinweise und Quellcodezugang gemäß
+GPLv3 erhalten.
+
+Der bisherige eigenständige Python-Wrapper (Flask-Dienst auf `0.0.0.0:5000`, Status direkt nach
+`/tmp/mupihat.json`) wird nicht übernommen. Privilegierter Hardwarezugriff (I²C/GPIO) erfolgt
+über den bestehenden `mupibox-system-agent` bzw. eine sauber begründete Erweiterung davon – kein
+zusätzlicher, dauerhaft laufender Hardware-Dienst nur für das MuPiHat. Die genaue Anbindung wird
+mit der eigentlichen BQ25792-Implementierung festgelegt.
 
 ## Zuständigkeiten
 
 | Bestandteil | Verantwortung |
 | --- | --- |
-| Python-Hardware-Agent | I²C-Zugriff, BQ25792 initialisieren, Watchdog zurücksetzen, Register lesen und freigegebene Werte schreiben |
-| Go-Dienst | SQLite-Einstellungen, Plausibilisierung, Admin-API, Statusanzeige, Warnungen und kontrollierter Shutdown |
+| `mupibox-system-agent` (bzw. Erweiterung) | I²C-Zugriff, BQ25792 initialisieren, Watchdog zurücksetzen, Register lesen und freigegebene Werte schreiben |
+| Go-Dienst (`mupibox-ng`) | SQLite-Einstellungen, Plausibilisierung, Admin-API, Statusanzeige, Warnungen und kontrollierter Shutdown |
 | Qt/Web-Player | Kinderfreundliche Batterieanzeige ohne technische Werte im normalen Player |
 | Adminoberfläche | Profilwahl, Custom-Profil, Stromlimit, Rohwerte, Diagnose und explizite Hardwarefreigabe |
 
-Der Agent läuft als eigener systemd-Dienst unter einem eingeschränkten Benutzer mit den nötigen Gruppen für I²C/GPIO. Die Kommunikation erfolgt lokal über einen Unix-Socket unter `/run/mupibox-ng/`; es wird kein Netzwerkport geöffnet. Fällt der Agent aus, bleibt der Player benutzbar und zeigt „Akku unbekannt“ statt veraltete Werte weiterzuverwenden.
+Der privilegierte Zugriff läuft unter einem eingeschränkten Benutzer mit den nötigen Gruppen für
+I²C/GPIO, kommuniziert lokal über einen Unix-Socket unter `/run/mupibox-ng/` bzw. den bestehenden
+Socket des `mupibox-system-agent`; es wird kein Netzwerkport geöffnet. Fällt der Zugriff aus,
+bleibt der Player benutzbar und zeigt „Akku unbekannt“ statt veraltete Werte weiterzuverwenden.
 
 ## Statusvertrag
 
