@@ -18,6 +18,25 @@ historische Referenz, **kein neuer Code gehört dorthin**. Dokumentation liegt z
 Repository: https://github.com/splitti/MuPiBox-NG · Referenz (alter Stack, keine Pflicht):
 https://github.com/splitti/MuPiBox
 
+## DEV/TEST-Rollenverteilung (seit 2026-09-18)
+
+- **Debian-13-LXC `mupibox-dev`** ist die primäre **DEV**-Umgebung: Claude Code läuft hier,
+  hier wird entwickelt, gebaut, getestet, committet und gepusht. Go- und Node-Toolchain sind
+  installiert; kein `mpv`/Audio/Display nötig.
+- **Raspberry Pi/DietPi** ist die **TEST**-/Hardware-Referenz: echte Laufzeit, DSI-Display,
+  Touch, Audio, MuPiHat, systemd. Kein Dauerbetrieb von Entwicklungs-/AI-Werkzeugen dort.
+- **GitHub (`rebuild/go-foundation`)** ist die maßgebliche Source of Truth. Deployt wird immer
+  der gepushte Commit-Stand, nie ungeprüfter lokaler Code.
+- SSH vom LXC zum Pi läuft über einen dedizierten Schlüssel (`~/.ssh/id_ed25519` auf dem LXC,
+  Alias `mupibox-pi` in `~/.ssh/config`). Keine privaten Schlüssel im Repository.
+- Alte ChatGPT/OpenAI-MCP-Infrastruktur (`/opt/mupibox-mcp`, Tunnel-Dienste) ist entfernt.
+- Workflow: im LXC entwickeln/bauen/testen → committen/pushen → `scripts/deploy-pi.sh`
+  aktualisiert und startet den Dienst auf dem Test-Pi neu → `scripts/status-pi.sh` /
+  `scripts/logs-pi.sh` zur Kontrolle. Ziel-Host ist über `MUPIBOX_PI_HOST` bzw. den
+  SSH-Config-Alias konfigurierbar, keine feste IP im Code.
+- Keine destruktiven Git-Aktionen (Force-Push, History-Rewrite, Branch-Löschung) ohne
+  ausdrückliche Freigabe. Keine Secrets/API-Keys im Repository.
+
 ## Zielplattform
 
 - **OS:** DietPi (Debian-basiert), 64-Bit, ohne Desktop. Gegen DietPi-Verhalten entwickeln und
@@ -133,6 +152,14 @@ cp deploy/config.example.json config.local.json   # backend auf "mpv" setzen
 ```
 
 CI läuft auf Push/PR gegen `rebuild/go-foundation` via GitHub Actions (Go 1.24.x, `ubuntu-latest`).
+
+Deployment vom DEV-LXC auf den Test-Pi (nur gepushter Stand, siehe DEV/TEST-Rollenverteilung):
+
+```sh
+./scripts/deploy-pi.sh          # git pull + install-service.sh + Neustart auf dem Pi
+./scripts/status-pi.sh          # systemctl status + /api/health
+./scripts/logs-pi.sh            # journalctl -u mupibox-ng
+```
 
 ## Coding-Konventionen
 
