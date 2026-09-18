@@ -100,9 +100,11 @@ These are legacy defaults and must not be treated as verified MuPiHat pins. A Mu
 
 The operational LED may use `ledBrightnessMax` while active and `ledBrightnessMin` while the idle display is off. It is turned off through the safe hardware shutdown sequence. Min/max validate to 0–100. The LXC adapter reports simulated state only.
 
-## MQTT and Home Assistant
+## Home Assistant and optional MQTT
 
-MQTT remains optional. Configuration includes:
+A native MuPiBox integration is the preferred Home Assistant target. It polls the versioned MuPiBox API with a dedicated, scoped API token and exposes player, volume, battery, Wi-Fi and box status as Home Assistant entities. A `DataUpdateCoordinator` can refresh more frequently during playback and less frequently while idle. Reboot and shutdown are not exposed as automation actions without an additional opt-in.
+
+MQTT remains optional for existing brokers and cross-system automations. Configuration includes:
 
 - enabled/disabled,
 - broker, port and TLS options,
@@ -113,7 +115,7 @@ MQTT remains optional. Configuration includes:
 - timeout and debug mode,
 - Home Assistant discovery on/off and discovery prefix, default `homeassistant`.
 
-Status should be event-driven where possible; refresh intervals serve as heartbeat or cover slow-changing values. Commands are validated and cannot bypass maximum volume or safe shutdown rules. Home Assistant Discovery uses stable unique IDs.
+For MQTT, status should be event-driven where possible; refresh intervals serve as heartbeat or cover slow-changing values. Commands are validated and cannot bypass maximum volume or safe shutdown rules. A native Home Assistant integration first requires long-lived, revocable, API-scoped tokens; it does not reuse the admin cookie.
 
 ## Wi-Fi setup and captive portals
 

@@ -4,6 +4,10 @@
 
 ## 0.1.0-dev – 16.09.2026
 
+- WLAN-Suche wartet nun auf einen aktiven `wpa_cli`-Scan statt sofort nur den alten Cache mit dem verbundenen Netz zurückzugeben.
+- Systemseite um Raspberry-Pi-/DietPi-Initial-Turbo (0–60 Sekunden), sicheren Neustart und Shutdown ergänzt.
+- Swap-Deaktivierung ist idempotent und behandelt einen bereits swapfreien Zustand nicht mehr als `swapoff`-Fehler.
+- Native Home-Assistant-Integration über eingeschränkte API-Tokens als bevorzugtes Ziel festgelegt; MQTT bleibt optional.
 - Adminbereich in Box, Inhalte, Netzwerk, Provider, Hardware, Smart Home, System und Wartung gegliedert und kontextbezogene Best-Practice-Hinweise ergänzt.
 - Reale Bootanalyse mit langsamsten systemd-Units sowie privilegierte Profile für Swap, Network-Wait und CPU-Governor ergänzt.
 - Persistente IPv4-, Provider-, MQTT/Home-Assistant- und MuPiHAT-/Batterie-Konfiguration ergänzt; risikoreiches statisches DietPi-Netzwerk wird bis zur sicheren Backend-Erkennung nur gespeichert.

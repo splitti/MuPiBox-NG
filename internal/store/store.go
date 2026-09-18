@@ -50,8 +50,8 @@ type BluetoothSettings struct {
 }
 
 type WiFiSettings struct {
-	PrimaryInterface   string   `json:"primary_interface,omitempty"`
-	DisabledInterfaces []string `json:"disabled_interfaces,omitempty"`
+	PrimaryInterface   string       `json:"primary_interface,omitempty"`
+	DisabledInterfaces []string     `json:"disabled_interfaces,omitempty"`
 	IPv4               IPv4Settings `json:"ipv4"`
 }
 
@@ -71,7 +71,7 @@ type ProviderAccountSettings struct {
 }
 
 type ProviderSettings struct {
-	Spotify    ProviderAccountSettings `json:"spotify"`
+	Spotify     ProviderAccountSettings `json:"spotify"`
 	AmazonMusic ProviderAccountSettings `json:"amazon_music"`
 }
 
@@ -92,14 +92,14 @@ type MQTTSettings struct {
 }
 
 type BatteryProfile struct {
-	Name       string `json:"name"`
-	V100       int    `json:"v_100"`
-	V75        int    `json:"v_75"`
-	V50        int    `json:"v_50"`
-	V25        int    `json:"v_25"`
-	V0         int    `json:"v_0"`
-	Warning    int    `json:"warning"`
-	Shutdown   int    `json:"shutdown"`
+	Name     string `json:"name"`
+	V100     int    `json:"v_100"`
+	V75      int    `json:"v_75"`
+	V50      int    `json:"v_50"`
+	V25      int    `json:"v_25"`
+	V0       int    `json:"v_0"`
+	Warning  int    `json:"warning"`
+	Shutdown int    `json:"shutdown"`
 }
 
 type MuPiHATSettings struct {
@@ -110,9 +110,10 @@ type MuPiHATSettings struct {
 }
 
 type SystemSettings struct {
-	SwapPolicy       string `json:"swap_policy"`
-	WaitOnlinePolicy string `json:"wait_online_policy"`
-	PerformanceMode  string `json:"performance_mode"`
+	SwapPolicy          string `json:"swap_policy"`
+	WaitOnlinePolicy    string `json:"wait_online_policy"`
+	PerformanceMode     string `json:"performance_mode"`
+	InitialTurboSeconds int    `json:"initial_turbo_seconds"`
 }
 
 type BoxSettings struct {
@@ -438,6 +439,9 @@ func ValidateBoxSettings(v BoxSettings) error {
 	}
 	if v.System.PerformanceMode != "balanced" && v.System.PerformanceMode != "performance" && v.System.PerformanceMode != "powersave" {
 		return errors.New("system.performance_mode must be balanced, performance or powersave")
+	}
+	if v.System.InitialTurboSeconds < 0 || v.System.InitialTurboSeconds > 60 {
+		return errors.New("system.initial_turbo_seconds must be 0..60")
 	}
 	if strings.TrimSpace(v.Theme) == "" {
 		return errors.New("theme is required")

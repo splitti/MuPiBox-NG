@@ -29,13 +29,15 @@ var interfaceName = regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 var releaseName = regexp.MustCompile(`^(rollback|v?[0-9][A-Za-z0-9._-]{0,63})$`)
 
 type request struct {
-	Action            string `json:"action"`
-	Interface         string `json:"interface"`
-	Enabled           bool   `json:"enabled"`
-	Target            string `json:"target"`
-	SwapEnabled       *bool  `json:"swap_enabled,omitempty"`
-	WaitOnlineEnabled *bool  `json:"wait_online_enabled,omitempty"`
-	PerformanceMode   string `json:"performance_mode,omitempty"`
+	Action              string `json:"action"`
+	Interface           string `json:"interface"`
+	Enabled             bool   `json:"enabled"`
+	Target              string `json:"target"`
+	SwapEnabled         *bool  `json:"swap_enabled,omitempty"`
+	WaitOnlineEnabled   *bool  `json:"wait_online_enabled,omitempty"`
+	PerformanceMode     string `json:"performance_mode,omitempty"`
+	InitialTurboSeconds *int   `json:"initial_turbo_seconds,omitempty"`
+	PowerAction         string `json:"power_action,omitempty"`
 }
 type response struct {
 	OK    bool   `json:"ok"`
@@ -174,10 +176,29 @@ func setSwap(ctx context.Context, enabled bool) error {
 		}
 		return runCommand(ctx, "systemctl", "start", "swap.target")
 	}
-	if err := runCommand(ctx, "swapoff", "-a"); err != nil {
-		return err
+	active, err := activeSwap("/proc/swaps")
+	if err != nil {
+		return fmt.Errorf("read active swap: %w", err)
+	}
+	if active {
+		if err = runCommand(ctx, "swapoff", "-a"); err != nil {
+			// Some swap implementations return a non-zero exit after the last
+			// device has already disappeared. Only fail when swap is still active.
+			if stillActive, readErr := activeSwap("/proc/swaps"); readErr != nil || stillActive {
+				return err
+			}
+		}
 	}
 	return runCommand(ctx, "systemctl", "mask", "--now", "swap.target")
+}
+
+func activeSwap(path string) (bool, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return false, err
+	}
+	lines := strings.Split(strings.TrimSpace(string(raw)), "\n")
+	return len(lines) > 1, nil
 }
 
 func setWaitOnline(ctx context.Context, enabled bool) error {
@@ -233,6 +254,62 @@ func setPerformanceMode(mode string) error {
 	return nil
 }
 
+func setInitialTurbo(path string, seconds int) error {
+	if seconds < 0 || seconds > 60 {
+		return errors.New("initial turbo must be 0..60 seconds")
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read Raspberry Pi boot config: %w", err)
+	}
+	lines := strings.Split(strings.TrimSuffix(string(raw), "\n"), "\n")
+	replacement := fmt.Sprintf("initial_turbo=%d", seconds)
+	replaced := false
+	for index, line := range lines {
+		trimmed := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(line), "#"))
+		if strings.HasPrefix(trimmed, "initial_turbo=") {
+			lines[index] = replacement
+			replaced = true
+			break
+		}
+	}
+	if !replaced {
+		lines = append(lines, replacement)
+	}
+	info, err := os.Stat(path)
+	if err != nil {
+		return err
+	}
+	temporary, err := os.CreateTemp(filepath.Dir(path), ".mupibox-config-*")
+	if err != nil {
+		return fmt.Errorf("prepare Raspberry Pi boot config: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+	if _, err = temporary.WriteString(strings.Join(lines, "\n") + "\n"); err == nil {
+		err = temporary.Chmod(info.Mode().Perm())
+	}
+	if closeErr := temporary.Close(); err == nil {
+		err = closeErr
+	}
+	if err != nil {
+		return err
+	}
+	if err = os.Rename(temporaryPath, path); err != nil {
+		return fmt.Errorf("replace Raspberry Pi boot config: %w", err)
+	}
+	return nil
+}
+
+func setInitialTurboOnHost(seconds int) error {
+	for _, path := range []string{"/boot/firmware/config.txt", "/boot/config.txt"} {
+		if info, err := os.Stat(path); err == nil && info.Mode().IsRegular() {
+			return setInitialTurbo(path, seconds)
+		}
+	}
+	return errors.New("Raspberry Pi boot config was not found")
+}
+
 func applySystemTuning(ctx context.Context, input request) error {
 	if input.SwapEnabled != nil {
 		if err := setSwap(ctx, *input.SwapEnabled); err != nil {
@@ -244,7 +321,30 @@ func applySystemTuning(ctx context.Context, input request) error {
 			return err
 		}
 	}
-	return setPerformanceMode(input.PerformanceMode)
+	if err := setPerformanceMode(input.PerformanceMode); err != nil {
+		return err
+	}
+	if input.InitialTurboSeconds != nil {
+		return setInitialTurboOnHost(*input.InitialTurboSeconds)
+	}
+	return nil
+}
+
+func schedulePower(action string) error {
+	if action != "reboot" && action != "poweroff" {
+		return errors.New("invalid power action")
+	}
+	path, err := exec.LookPath("systemctl")
+	if err != nil {
+		return errors.New("systemctl is not installed")
+	}
+	go func() {
+		time.Sleep(1500 * time.Millisecond)
+		if output, runErr := exec.Command(path, action).CombinedOutput(); runErr != nil {
+			log.Printf("systemctl %s failed: %v: %s", action, runErr, strings.TrimSpace(string(output)))
+		}
+	}()
+	return nil
 }
 
 func handle(connection net.Conn) {
@@ -271,6 +371,8 @@ func handle(connection net.Conn) {
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		err = applySystemTuning(ctx, input)
 		cancel()
+	case "power":
+		err = schedulePower(input.PowerAction)
 	default:
 		err = errors.New("unsupported action")
 	}

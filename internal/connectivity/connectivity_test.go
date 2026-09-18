@@ -13,11 +13,12 @@ import (
 )
 
 type fakeRunner struct {
-	paths   map[string]bool
-	outputs map[string]string
-	errors  map[string]error
-	calls   []string
-	inputs  []string
+	paths           map[string]bool
+	outputs         map[string]string
+	outputSequences map[string][]string
+	errors          map[string]error
+	calls           []string
+	inputs          []string
 }
 
 func TestSetWiFiAdapterStateUsesSystemAgent(t *testing.T) {
@@ -60,6 +61,41 @@ func TestSetWiFiAdapterStateUsesSystemAgent(t *testing.T) {
 	}
 }
 
+func TestSchedulePowerUsesSystemAgent(t *testing.T) {
+	socket := filepath.Join(t.TempDir(), "agent.sock")
+	listener, err := net.Listen("unix", socket)
+	if errors.Is(err, syscall.EPERM) {
+		t.Skip("Unix sockets are unavailable in this test sandbox")
+	}
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	received := make(chan map[string]any, 1)
+	go func() {
+		connection, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			return
+		}
+		defer connection.Close()
+		var request map[string]any
+		_ = json.NewDecoder(connection).Decode(&request)
+		received <- request
+		_ = json.NewEncoder(connection).Encode(map[string]any{"ok": true})
+	}()
+	manager := &Manager{AgentSocket: socket}
+	if err = manager.SchedulePower(context.Background(), "reboot"); err != nil {
+		t.Fatal(err)
+	}
+	request := <-received
+	if request["action"] != "power" || request["power_action"] != "reboot" {
+		t.Fatalf("unexpected agent request: %#v", request)
+	}
+	if err = manager.SchedulePower(context.Background(), "halt"); err == nil {
+		t.Fatal("invalid power action accepted")
+	}
+}
+
 func (f *fakeRunner) LookPath(name string) (string, error) {
 	if f.paths[name] {
 		return "/usr/bin/" + name, nil
@@ -72,6 +108,10 @@ func (f *fakeRunner) Run(_ context.Context, input, name string, args ...string) 
 	f.inputs = append(f.inputs, input)
 	if err, ok := f.errors[key]; ok {
 		return "", err
+	}
+	if outputs := f.outputSequences[key]; len(outputs) > 0 {
+		f.outputSequences[key] = outputs[1:]
+		return outputs[0], nil
 	}
 	if output, ok := f.outputs[key]; ok {
 		return output, nil
@@ -91,20 +131,47 @@ func TestParseWiFiScans(t *testing.T) {
 }
 
 func TestScanWiFiFallsBackFromEmptyNMCLIToWPA(t *testing.T) {
+	resultHeader := "bssid / frequency / signal level / flags / ssid\n"
 	runner := &fakeRunner{paths: map[string]bool{"nmcli": true, "wpa_cli": true}, outputs: map[string]string{
 		"nmcli -t --escape yes -f IN-USE,SIGNAL,SECURITY,SSID device wifi list --rescan yes ifname wlan0": "",
-		"wpa_cli -i wlan0 scan":         "OK\n",
-		"wpa_cli -i wlan0 scan_results": "bssid / frequency / signal level / flags / ssid\naa:bb:cc:dd:ee:ff\t2412\t-55\t[WPA2-PSK-CCMP][ESS]\thocuspocus\n",
+		"wpa_cli -i wlan0 scan": "OK\n",
+	}, outputSequences: map[string][]string{
+		"wpa_cli -i wlan0 scan_results": {
+			resultHeader + "aa:bb:cc:dd:ee:ff\t2412\t-55\t[WPA2-PSK-CCMP][ESS]\thocuspocus\n",
+			resultHeader + "aa:bb:cc:dd:ee:ff\t2412\t-55\t[WPA2-PSK-CCMP][ESS]\thocuspocus\n11:22:33:44:55:66\t2462\t-67\t[WPA2-PSK-CCMP][ESS]\tNachbarn\n",
+		},
 	}}
 	networks, err := (&Manager{Runner: runner, WiFiInterface: "wlan0"}).ScanWiFi(context.Background())
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(networks) != 1 || networks[0].SSID != "hocuspocus" {
+	if len(networks) != 2 || networks[0].SSID != "hocuspocus" || networks[1].SSID != "Nachbarn" {
 		t.Fatalf("unexpected networks: %#v", networks)
 	}
 	if !strings.Contains(strings.Join(runner.calls, "\n"), "wpa_cli -i wlan0 scan_results") {
 		t.Fatalf("wpa_cli fallback was not used: %#v", runner.calls)
+	}
+}
+
+func TestWiFiScanDoesNotReturnStaleCacheBeforeActiveScan(t *testing.T) {
+	resultHeader := "bssid / frequency / signal level / flags / ssid\n"
+	runner := &fakeRunner{paths: map[string]bool{"wpa_cli": true}, outputs: map[string]string{
+		"wpa_cli -i wlan0 scan": "OK\n",
+	}, outputSequences: map[string][]string{
+		"wpa_cli -i wlan0 scan_results": {
+			resultHeader + "aa:bb:cc:dd:ee:ff\t2412\t-55\t[CURRENT][WPA2-PSK-CCMP][ESS]\thocuspocus\n",
+			resultHeader + "aa:bb:cc:dd:ee:ff\t2412\t-55\t[CURRENT][WPA2-PSK-CCMP][ESS]\thocuspocus\n11:22:33:44:55:66\t2462\t-60\t[WPA2-PSK-CCMP][ESS]\tKinderzimmer\n",
+		},
+	}}
+	networks, err := (&Manager{Runner: runner, WiFiInterface: "wlan0"}).ScanWiFiOn(context.Background(), "wlan0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(networks) != 2 {
+		t.Fatalf("active scan was not awaited: %#v", networks)
+	}
+	if len(runner.calls) < 3 || runner.calls[1] != "wpa_cli -i wlan0 scan" {
+		t.Fatalf("active scan was not triggered after cache read: %#v", runner.calls)
 	}
 }
 

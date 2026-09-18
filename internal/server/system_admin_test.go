@@ -23,3 +23,12 @@ func TestDurationMillis(t *testing.T) {
 		}
 	}
 }
+
+func TestParseInitialTurbo(t *testing.T) {
+	if value := parseInitialTurbo("#initial_turbo=10\ninitial_turbo=30\n"); value != 30 {
+		t.Fatalf("got %d, want 30", value)
+	}
+	if value := parseInitialTurbo("initial_turbo=0\n"); value != 0 {
+		t.Fatalf("got %d, want disabled", value)
+	}
+}

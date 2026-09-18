@@ -732,6 +732,10 @@ func (a *API) Handler() http.Handler {
 			if v.System.PerformanceMode != current.System.PerformanceMode {
 				tuning.PerformanceMode = v.System.PerformanceMode
 			}
+			if v.System.InitialTurboSeconds != current.System.InitialTurboSeconds {
+				seconds := v.System.InitialTurboSeconds
+				tuning.InitialTurboSeconds = &seconds
+			}
 			ctx, cancel := context.WithTimeout(r.Context(), 35*time.Second)
 			err = a.Connectivity.ApplySystemTuning(ctx, tuning)
 			cancel()
@@ -747,7 +751,11 @@ func (a *API) Handler() http.Handler {
 		a.TTS = TTSConfig{Enabled: v.TTS.Enabled, Language: v.TTS.Language, Provider: v.TTS.Provider}
 		a.Power = PowerConfig{IdleShutdownMinutes: v.Power.IdleShutdownMinutes}
 		saved, _, _ := a.Store.LoadBoxSettings()
-		jsonResponse(w, 200, map[string]any{"settings": saved, "restart_required": []string{"audio.max_volume", "audio.startup_volume"}})
+		restartRequired := []string{"audio.max_volume", "audio.startup_volume"}
+		if current.System.InitialTurboSeconds != v.System.InitialTurboSeconds {
+			restartRequired = append(restartRequired, "system.initial_turbo_seconds")
+		}
+		jsonResponse(w, 200, map[string]any{"settings": saved, "restart_required": restartRequired})
 	})
 	mux.HandleFunc("GET /api/admin/navigation", func(w http.ResponseWriter, r *http.Request) {
 		if a.Store == nil {

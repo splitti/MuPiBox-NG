@@ -75,9 +75,10 @@ type WiFiConnectRequest struct {
 }
 
 type SystemTuning struct {
-	SwapEnabled       *bool  `json:"swap_enabled,omitempty"`
-	WaitOnlineEnabled *bool  `json:"wait_online_enabled,omitempty"`
-	PerformanceMode   string `json:"performance_mode,omitempty"`
+	SwapEnabled         *bool  `json:"swap_enabled,omitempty"`
+	WaitOnlineEnabled   *bool  `json:"wait_online_enabled,omitempty"`
+	PerformanceMode     string `json:"performance_mode,omitempty"`
+	InitialTurboSeconds *int   `json:"initial_turbo_seconds,omitempty"`
 }
 
 func (m *Manager) runner() Runner {
@@ -276,6 +277,39 @@ func (m *Manager) ApplySystemTuning(ctx context.Context, tuning SystemTuning) er
 	return nil
 }
 
+func (m *Manager) SchedulePower(ctx context.Context, action string) error {
+	if action != "reboot" && action != "poweroff" {
+		return errors.New("invalid power action")
+	}
+	dialer := net.Dialer{}
+	connection, err := dialer.DialContext(ctx, "unix", m.agentSocket())
+	if err != nil {
+		return fmt.Errorf("system agent unavailable: %w", err)
+	}
+	defer connection.Close()
+	_ = connection.SetDeadline(time.Now().Add(10 * time.Second))
+	if err = json.NewEncoder(connection).Encode(struct {
+		Action      string `json:"action"`
+		PowerAction string `json:"power_action"`
+	}{Action: "power", PowerAction: action}); err != nil {
+		return err
+	}
+	var response struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+	}
+	if err = json.NewDecoder(connection).Decode(&response); err != nil {
+		return fmt.Errorf("system agent response: %w", err)
+	}
+	if !response.OK {
+		if response.Error == "" {
+			response.Error = "power action could not be scheduled"
+		}
+		return errors.New(response.Error)
+	}
+	return nil
+}
+
 func (m *Manager) ScanWiFi(ctx context.Context) ([]WiFiNetwork, error) {
 	adapters, _ := m.ListWiFiAdapters()
 	interfaces := []string{}
@@ -355,16 +389,17 @@ func (m *Manager) ScanWiFiOn(ctx context.Context, iface string) ([]WiFiNetwork, 
 	}
 	if _, err := r.LookPath("wpa_cli"); err == nil {
 		available = true
-		cacheCtx, cacheCancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+		cacheCtx, cacheCancel := context.WithTimeout(ctx, 2*time.Second)
 		output, cacheErr := r.Run(cacheCtx, "", "wpa_cli", "-i", iface, "scan_results")
 		cacheCancel()
+		cachedNetworks := []WiFiNetwork{}
 		if cacheErr == nil {
 			successful = true
-			if networks := tagWiFiInterface(parseWPAScan(output), iface); len(networks) > 0 {
-				return networks, nil
-			}
+			cachedNetworks = tagWiFiInterface(parseWPAScan(output), iface)
 		}
-		activeCtx, activeCancel := context.WithTimeout(ctx, 1500*time.Millisecond)
+		// scan_results is a cache. Trigger a real scan before returning it, or
+		// an associated adapter often exposes only the currently connected SSID.
+		activeCtx, activeCancel := context.WithTimeout(ctx, 4*time.Second)
 		output, activeErr := r.Run(activeCtx, "", "wpa_cli", "-i", iface, "scan")
 		activeCancel()
 		if activeErr == nil && !strings.Contains(strings.ToUpper(output), "FAIL") {
@@ -374,15 +409,17 @@ func (m *Manager) ScanWiFiOn(ctx context.Context, iface string) ([]WiFiNetwork, 
 		} else {
 			scanErrors = append(scanErrors, fmt.Errorf("wpa_cli rejected scan: %s", strings.TrimSpace(output)))
 		}
-		deadline := time.Now().Add(7 * time.Second)
+		deadline := time.Now().Add(8 * time.Second)
 		for time.Now().Before(deadline) {
-			resultCtx, resultCancel := context.WithTimeout(ctx, time.Second)
+			resultCtx, resultCancel := context.WithTimeout(ctx, 2*time.Second)
 			output, err = r.Run(resultCtx, "", "wpa_cli", "-i", iface, "scan_results")
 			resultCancel()
 			if err == nil {
 				successful = true
 				if networks := tagWiFiInterface(parseWPAScan(output), iface); len(networks) > 0 {
-					return networks, nil
+					if len(cachedNetworks) == 0 || wifiNetworkSignature(networks) != wifiNetworkSignature(cachedNetworks) {
+						return networks, nil
+					}
 				}
 			}
 			timer := time.NewTimer(500 * time.Millisecond)
@@ -392,6 +429,9 @@ func (m *Manager) ScanWiFiOn(ctx context.Context, iface string) ([]WiFiNetwork, 
 				return nil, ctx.Err()
 			case <-timer.C:
 			}
+		}
+		if len(cachedNetworks) > 0 {
+			return cachedNetworks, nil
 		}
 	}
 	if successful {
@@ -404,6 +444,14 @@ func (m *Manager) ScanWiFiOn(ctx context.Context, iface string) ([]WiFiNetwork, 
 		return nil, errors.New("no supported Wi-Fi manager found (nmcli or wpa_cli)")
 	}
 	return []WiFiNetwork{}, nil
+}
+
+func wifiNetworkSignature(networks []WiFiNetwork) string {
+	parts := make([]string, 0, len(networks))
+	for _, network := range deduplicateWiFi(networks) {
+		parts = append(parts, fmt.Sprintf("%s|%d|%s|%t", network.SSID, network.SignalPercent, network.Security, network.Connected))
+	}
+	return strings.Join(parts, "\n")
 }
 
 func (m *Manager) ConnectWiFi(ctx context.Context, request WiFiConnectRequest) error {

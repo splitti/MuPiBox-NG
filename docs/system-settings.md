@@ -100,9 +100,11 @@ Diese Werte sind Legacy-Ausgangswerte und dürfen nicht ungeprüft als MuPiHat-P
 
 Die Betriebs-LED kann im aktiven Zustand mit `ledBrightnessMax` und bei ausgeschaltetem Idle-Display mit `ledBrightnessMin` betrieben werden. Beim Shutdown wird sie über die sichere Hardwaresequenz ausgeschaltet. Min/Max sind im Bereich 0–100 zu validieren. In der LXC liefert der Adapter nur simulierten Status.
 
-## MQTT und Home Assistant
+## Home Assistant und optionales MQTT
 
-MQTT bleibt optional. Konfigurierbar sind:
+Für Home Assistant ist eine native MuPiBox-Integration das bevorzugte Ziel. Sie fragt die versionierte MuPiBox-API über einen eigenen, eingeschränkten API-Token ab und bildet Player, Lautstärke, Akku, WLAN und Boxstatus als Home-Assistant-Entitäten ab. Ein `DataUpdateCoordinator` kann bei aktiver Wiedergabe häufiger und im Idle-Zustand seltener aktualisieren. Neustart und Shutdown werden nicht ohne zusätzliche Freigabe als Automationsaktion veröffentlicht.
+
+MQTT bleibt für vorhandene Broker und systemübergreifende Automationen optional. Konfigurierbar sind:
 
 - aktiv/inaktiv,
 - Broker, Port und TLS-Optionen,
@@ -113,7 +115,7 @@ MQTT bleibt optional. Konfigurierbar sind:
 - Timeout und Debugmodus,
 - Home-Assistant-Discovery ein/aus und Discovery-Präfix, standardmäßig `homeassistant`.
 
-Statusmeldungen sollen möglichst ereignisgetrieben veröffentlicht werden; die Refresh-Werte dienen als Heartbeat bzw. für langsam veränderliche Werte. Befehle werden validiert und dürfen insbesondere die maximale Lautstärke und sichere Shutdownregeln nicht umgehen. Home Assistant Discovery erhält stabile Unique IDs.
+Für MQTT sollen Statusmeldungen möglichst ereignisgetrieben veröffentlicht werden; die Refresh-Werte dienen als Heartbeat bzw. für langsam veränderliche Werte. Befehle werden validiert und dürfen insbesondere die maximale Lautstärke und sichere Shutdownregeln nicht umgehen. Eine native Home-Assistant-Integration setzt erst ein langlebiges, widerrufbares und auf die API beschränktes Tokenmodell voraus; das Admin-Cookie wird dafür nicht wiederverwendet.
 
 ## WLAN-Einrichtung und Captive Portals
 

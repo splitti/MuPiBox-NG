@@ -2,6 +2,7 @@ package server
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"os"
@@ -37,16 +38,17 @@ type interfaceStatus struct {
 }
 
 type adminSystemStatus struct {
-	Boot                 bootAnalysis     `json:"boot"`
-	SwapActive           bool             `json:"swap_active"`
-	WaitOnline           string           `json:"wait_online"`
-	CPUGovernors         []string         `json:"cpu_governors"`
-	Model                string           `json:"model,omitempty"`
-	NetworkBackend       string           `json:"network_backend"`
+	Boot                 bootAnalysis      `json:"boot"`
+	SwapActive           bool              `json:"swap_active"`
+	WaitOnline           string            `json:"wait_online"`
+	CPUGovernors         []string          `json:"cpu_governors"`
+	InitialTurboSeconds  int               `json:"initial_turbo_seconds"`
+	Model                string            `json:"model,omitempty"`
+	NetworkBackend       string            `json:"network_backend"`
 	Interfaces           []interfaceStatus `json:"interfaces"`
-	StaticApplySupported bool             `json:"static_apply_supported"`
-	StaticApplyNotice    string           `json:"static_apply_notice,omitempty"`
-	CollectedAt          time.Time        `json:"collected_at"`
+	StaticApplySupported bool              `json:"static_apply_supported"`
+	StaticApplyNotice    string            `json:"static_apply_notice,omitempty"`
+	CollectedAt          time.Time         `json:"collected_at"`
 }
 
 var systemdTimePart = regexp.MustCompile(`([0-9]+(?:\.[0-9]+)?(?:ms|s|min)) \((firmware|loader|kernel|initrd|userspace)\)`)
@@ -80,11 +82,16 @@ func parseBootTime(raw string) bootAnalysis {
 	for _, match := range systemdTimePart.FindAllStringSubmatch(raw, -1) {
 		value := durationMillis(match[1])
 		switch match[2] {
-		case "firmware": result.FirmwareMS = value
-		case "loader": result.LoaderMS = value
-		case "kernel": result.KernelMS = value
-		case "initrd": result.InitrdMS = value
-		case "userspace": result.UserspaceMS = value
+		case "firmware":
+			result.FirmwareMS = value
+		case "loader":
+			result.LoaderMS = value
+		case "kernel":
+			result.KernelMS = value
+		case "initrd":
+			result.InitrdMS = value
+		case "userspace":
+			result.UserspaceMS = value
 		}
 	}
 	if match := systemdTotalPart.FindStringSubmatch(raw); len(match) == 2 {
@@ -113,7 +120,9 @@ func parseBootBlame(raw string, limit int) []bootUnit {
 
 func commandText(ctx context.Context, name string, args ...string) string {
 	path, err := exec.LookPath(name)
-	if err != nil { return "" }
+	if err != nil {
+		return ""
+	}
 	output, _ := exec.CommandContext(ctx, path, args...).CombinedOutput()
 	return strings.TrimSpace(string(output))
 }
@@ -131,29 +140,58 @@ func currentGovernors() []string {
 	paths, _ := filepath.Glob("/sys/devices/system/cpu/cpu[0-9]*/cpufreq/scaling_governor")
 	seen := map[string]bool{}
 	for _, path := range paths {
-		if value := readFirst(path); value != "" { seen[value] = true }
+		if value := readFirst(path); value != "" {
+			seen[value] = true
+		}
 	}
 	values := make([]string, 0, len(seen))
-	for value := range seen { values = append(values, value) }
+	for value := range seen {
+		values = append(values, value)
+	}
 	sort.Strings(values)
 	return values
+}
+
+func parseInitialTurbo(raw string) int {
+	value := 0
+	for _, line := range strings.Split(raw, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") || !strings.HasPrefix(line, "initial_turbo=") {
+			continue
+		}
+		parsed, err := strconv.Atoi(strings.TrimSpace(strings.TrimPrefix(line, "initial_turbo=")))
+		if err == nil && parsed >= 1 && parsed <= 60 {
+			value = parsed
+		}
+	}
+	return value
+}
+
+func currentInitialTurbo() int {
+	return parseInitialTurbo(readFirst("/boot/firmware/config.txt", "/boot/config.txt"))
 }
 
 func currentInterfaces() []interfaceStatus {
 	interfaces, _ := net.Interfaces()
 	result := []interfaceStatus{}
 	for _, item := range interfaces {
-		if item.Flags&net.FlagLoopback != 0 { continue }
+		if item.Flags&net.FlagLoopback != 0 {
+			continue
+		}
 		addresses, _ := item.Addrs()
 		values := make([]string, 0, len(addresses))
-		for _, address := range addresses { values = append(values, address.String()) }
+		for _, address := range addresses {
+			values = append(values, address.String())
+		}
 		result = append(result, interfaceStatus{Name: item.Name, Up: item.Flags&net.FlagUp != 0, Addresses: values})
 	}
 	return result
 }
 
 func detectNetworkBackend(ctx context.Context) (string, bool, string) {
-	if _, err := exec.LookPath("nmcli"); err == nil { return "NetworkManager", false, "networkmanager" }
+	if _, err := exec.LookPath("nmcli"); err == nil {
+		return "NetworkManager", false, "networkmanager"
+	}
 	if strings.TrimSpace(commandText(ctx, "systemctl", "is-active", "systemd-networkd.service")) == "active" {
 		return "systemd-networkd", false, "networkd"
 	}
@@ -170,20 +208,26 @@ func collectAdminSystemStatus(ctx context.Context) adminSystemStatus {
 	waitState := "disabled"
 	for _, unit := range []string{"systemd-networkd-wait-online.service", "NetworkManager-wait-online.service"} {
 		state := commandText(ctx, "systemctl", "is-enabled", unit)
-		if state == "enabled" || state == "static" { waitState = "enabled"; break }
-		if state == "masked" && waitState == "disabled" { waitState = "masked" }
+		if state == "enabled" || state == "static" {
+			waitState = "enabled"
+			break
+		}
+		if state == "masked" && waitState == "disabled" {
+			waitState = "masked"
+		}
 	}
 	return adminSystemStatus{
-		Boot: boot,
-		SwapActive: len(strings.Split(strings.TrimSpace(readFirst("/proc/swaps")), "\n")) > 1,
-		WaitOnline: waitState,
-		CPUGovernors: currentGovernors(),
-		Model: readFirst("/proc/device-tree/model", "/sys/firmware/devicetree/base/model"),
-		NetworkBackend: backend,
-		Interfaces: currentInterfaces(),
+		Boot:                 boot,
+		SwapActive:           len(strings.Split(strings.TrimSpace(readFirst("/proc/swaps")), "\n")) > 1,
+		WaitOnline:           waitState,
+		CPUGovernors:         currentGovernors(),
+		InitialTurboSeconds:  currentInitialTurbo(),
+		Model:                readFirst("/proc/device-tree/model", "/sys/firmware/devicetree/base/model"),
+		NetworkBackend:       backend,
+		Interfaces:           currentInterfaces(),
 		StaticApplySupported: staticSupported,
-		StaticApplyNotice: notice,
-		CollectedAt: time.Now().UTC(),
+		StaticApplyNotice:    notice,
+		CollectedAt:          time.Now().UTC(),
 	}
 }
 
@@ -192,5 +236,29 @@ func (a *API) registerSystemRoutes(mux *http.ServeMux) {
 		ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
 		defer cancel()
 		jsonResponse(w, http.StatusOK, collectAdminSystemStatus(ctx))
+	})
+	mux.HandleFunc("POST /api/admin/system/power", func(w http.ResponseWriter, r *http.Request) {
+		if a.Connectivity == nil {
+			problem(w, http.StatusServiceUnavailable, errors.New("system agent unavailable"))
+			return
+		}
+		var input struct {
+			Action string `json:"action"`
+		}
+		if err := decode(w, r, &input); err != nil {
+			problem(w, http.StatusBadRequest, err)
+			return
+		}
+		if input.Action != "reboot" && input.Action != "poweroff" {
+			problem(w, http.StatusBadRequest, errors.New("action must be reboot or poweroff"))
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+		defer cancel()
+		if err := a.Connectivity.SchedulePower(ctx, input.Action); err != nil {
+			problem(w, http.StatusBadGateway, err)
+			return
+		}
+		jsonResponse(w, http.StatusAccepted, map[string]any{"scheduled": true, "action": input.Action})
 	})
 }
