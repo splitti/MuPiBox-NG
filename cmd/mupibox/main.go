@@ -37,9 +37,14 @@ type config struct {
 	// see CLAUDE.md's config.json/SQLite split). Empty means the default
 	// under DatabasePath's directory (cache) or the standard install
 	// location (voices, matching scripts/install-tts-voices.sh).
-	TTSVoicesDir   string `json:"tts_voices_dir"`
-	TTSCacheDir    string `json:"tts_cache_dir"`
-	TTSPiperBinary string `json:"tts_piper_binary"`
+	TTSVoicesDir string `json:"tts_voices_dir"`
+	TTSCacheDir  string `json:"tts_cache_dir"`
+	// TTSPiperPython is the Python interpreter with piper-tts installed
+	// (see scripts/install-piper-engine.sh). piper1-gpl (the maintained
+	// successor to the archived rhasspy/piper) ships only as a PyPI
+	// package invoked as "<python> -m piper", not a standalone binary, so
+	// this must point at an interpreter, not an executable named "piper".
+	TTSPiperPython string `json:"tts_piper_python"`
 }
 
 func defaultNavigation() store.Navigation {
@@ -267,7 +272,11 @@ func newTTSManager(stateStore *store.Store, cfg config) *tts.Manager {
 		cgroupPath = ""
 	}
 	limiter := tts.NewAutoCPULimiter(cgroupPath, nil)
-	engine, err := tts.NewPiperEngine(cfg.TTSPiperBinary, limiter, nil)
+	pythonBin := cfg.TTSPiperPython
+	if pythonBin == "" {
+		pythonBin = "/usr/local/lib/mupibox-ng/piper-venv/bin/python3"
+	}
+	engine, err := tts.NewPiperEngine(pythonBin, limiter, nil)
 	if err != nil {
 		log.Printf("tts: engine unavailable, TTS stays disabled until this is fixed: %v", err)
 		return nil

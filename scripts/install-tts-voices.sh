@@ -78,6 +78,9 @@ while IFS=$'\t' read -r id language family quality tier model_url config_url lic
     fi
 
     if [[ "$ok" -eq 1 && -s "$tmp_model" && -s "$tmp_config" ]]; then
+        # mktemp creates files 0600; the service runs as an unprivileged
+        # user and only needs to read these, never write them.
+        chmod 0644 "$tmp_model" "$tmp_config"
         mv "$tmp_model" "$model_path"
         mv "$tmp_config" "$config_path"
         installed=$((installed + 1))

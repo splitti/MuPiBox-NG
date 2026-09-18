@@ -309,7 +309,10 @@ func TestResolveSpeechReturnsPlayablePathAfterCacheMiss(t *testing.T) {
 	if _, err := m.SwitchLanguage(context.Background(), Config{Enabled: true, Language: "de-DE", VoiceID: "de-voice", BackgroundCPUPercent: 30}); err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	// Generous margin: this only needs to prove ResolveSpeech eventually
+	// resolves a cache miss, not how fast; a tight bound flakes under CPU
+	// contention (e.g. the whole suite running under -race on 2 cores).
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	path, err := m.ResolveSpeech(ctx, "category", "books", "Hörbücher")
 	if err != nil {

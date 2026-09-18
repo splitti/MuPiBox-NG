@@ -4,6 +4,14 @@
 // installer (downloads) and the running service (matches installed files to
 // catalog metadata) read this same embedded voices.json, so there is only
 // one place to add or correct a voice.
+//
+// Voice source and format are unaffected by the rhasspy/piper -> OHF-Voice/
+// piper1-gpl migration (see internal/tts/piper.go): models still come from
+// huggingface.co/rhasspy/piper-voices as .onnx+.onnx.json pairs. Per-voice
+// licenses below were verified against each voice's own MODEL_CARD; the
+// engine project's own general "personal use and research" usage note is
+// about the piper1-gpl *software* (GPL-3.0, invoked as a subprocess) and is
+// independent of a voice's own license.
 package manifest
 
 import (

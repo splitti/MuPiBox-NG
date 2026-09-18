@@ -45,6 +45,16 @@ type CgroupCPULimiter struct {
 // error if cgroup delegation is not set up, so callers can fall back to
 // NewNicePriorityLimiter instead of silently doing nothing.
 func NewCgroupCPULimiter(baseCgroup string) (*CgroupCPULimiter, error) {
+	// The cpu controller must be enabled in *our own* subtree_control before
+	// a child cgroup exposes cpu.max at all -- Delegate=yes hands us write
+	// access to do this, but does not enable it for us, and systemd can
+	// clear it again once no child cgroup exists (observed on a real
+	// DietPi/Pi 4: subtree_control reset to empty after removing the only
+	// child). enableCPUController is therefore called here and again in
+	// Prepare, defensively, before every job.
+	if err := enableCPUController(baseCgroup); err != nil {
+		return nil, err
+	}
 	groupPath := filepath.Join(baseCgroup, "tts")
 	if err := os.MkdirAll(groupPath, 0755); err != nil {
 		return nil, fmt.Errorf("create tts cgroup: %w", err)
@@ -55,10 +65,23 @@ func NewCgroupCPULimiter(baseCgroup string) (*CgroupCPULimiter, error) {
 	return &CgroupCPULimiter{groupPath: groupPath}, nil
 }
 
+// enableCPUController writes "+cpu" to baseCgroup's own cgroup.subtree_control
+// so its children (our "tts" cgroup) get a cpu.max file at all. A no-op error
+// (e.g. already enabled, or not delegated) is surfaced to the caller, who
+// treats any error here as "cgroup limiting unavailable" and falls back.
+func enableCPUController(baseCgroup string) error {
+	path := filepath.Join(baseCgroup, "cgroup.subtree_control")
+	if err := os.WriteFile(path, []byte("+cpu"), 0644); err != nil {
+		return fmt.Errorf("enable cpu controller in %s (missing Delegate=yes?): %w", path, err)
+	}
+	return nil
+}
+
 // Prepare caps the cgroup's CPU quota for the duration of one job and moves
 // the given pid into it. percent<=0 or >=100 means "no limit" (cpu.max=max)
 // -- this is a coarse, per-job cap, not a precise scheduling guarantee.
 func (c *CgroupCPULimiter) Prepare(pid int, percent int) error {
+	_ = enableCPUController(filepath.Dir(c.groupPath)) // defensive re-assert, see NewCgroupCPULimiter
 	quota := "max"
 	if percent > 0 && percent < 100 {
 		quota = fmt.Sprintf("%d 100000", percent*1000)

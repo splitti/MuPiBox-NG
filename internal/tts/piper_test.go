@@ -10,14 +10,21 @@ import (
 	"mupibox/internal/store"
 )
 
-// writeFakePiper installs a tiny shell script standing in for the real
-// Piper CLI, so these tests exercise argument construction, stdin/stdout
-// wiring and error propagation without needing Piper actually installed
-// (not available on the amd64 dev LXC).
-func writeFakePiper(t *testing.T, script string) string {
+// writeFakePython installs a tiny shell script standing in for the Python
+// interpreter piper-tts is installed into, so these tests exercise argument
+// construction, stdin/stdout wiring and error propagation without needing
+// piper-tts actually installed (not available on the amd64 dev LXC). It
+// handles the two invocations PiperEngine makes: `-c ...` (version probe
+// via importlib.metadata) and `-m piper ...` (synthesis).
+func writeFakePython(t *testing.T, versionOutput, synthesizeScript string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "fake-piper")
-	if err := os.WriteFile(path, []byte("#!/bin/sh\n"+script), 0700); err != nil {
+	path := filepath.Join(t.TempDir(), "fake-python3")
+	script := `#!/bin/sh
+if [ "$1" = "-c" ]; then ` + versionOutput + `; exit 0; fi
+if [ "$1" = "-m" ] && [ "$2" = "piper" ]; then shift 2; ` + synthesizeScript + `
+fi
+`
+	if err := os.WriteFile(path, []byte(script), 0700); err != nil {
 		t.Fatal(err)
 	}
 	return path
@@ -35,8 +42,7 @@ func (r *recordingLimiter) Prepare(pid int, percent int) error {
 }
 
 func TestPiperEngineDetectsVersionAndRenders(t *testing.T) {
-	bin := writeFakePiper(t, `
-if [ "$1" = "--version" ]; then echo "piper 1.8.0"; exit 0; fi
+	bin := writeFakePython(t, `echo "1.8.0"`, `
 out=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -75,7 +81,7 @@ cat > "$out"
 }
 
 func TestPiperEngineMissingVoiceModelFailsFast(t *testing.T) {
-	bin := writeFakePiper(t, `exit 0`)
+	bin := writeFakePython(t, `echo "1.8.0"`, `exit 0`)
 	engine, err := NewPiperEngine(bin, &recordingLimiter{}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -87,8 +93,7 @@ func TestPiperEngineMissingVoiceModelFailsFast(t *testing.T) {
 }
 
 func TestPiperEngineSurfacesStderrOnFailure(t *testing.T) {
-	bin := writeFakePiper(t, `
-if [ "$1" = "--version" ]; then echo "piper 1.8.0"; exit 0; fi
+	bin := writeFakePython(t, `echo "1.8.0"`, `
 echo "boom: bad input" >&2
 exit 1
 `)

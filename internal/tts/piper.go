@@ -7,30 +7,46 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
-	"regexp"
 	"strconv"
 	"strings"
 
 	"mupibox/internal/store"
 )
 
-// PiperEngine renders text with the Piper CLI as a subprocess, one process
-// per job (no long-running server, no shell). Flags follow the documented
-// Piper CLI (--model/--config/--output_file, text on stdin); this must be
-// re-verified against the actually installed Piper version on the Pi
-// before relying on it (see docs/tts.md open risks).
+// PiperEngine renders text with Piper as a subprocess, one process per job
+// (no long-running server, no shell). As of the OHF-Voice/piper1-gpl
+// project (rhasspy/piper was archived 2025-10-06 and points here), Piper
+// ships only as the "piper-tts" PyPI package -- there is no standalone
+// binary release anymore -- so it is invoked as a Python module:
+// "<python> -m piper ...". pythonBin should be the interpreter of a
+// dedicated venv with piper-tts installed (see
+// scripts/install-piper-engine.sh), not the system python3.
+//
+// Licensing: piper1-gpl is GPL-3.0. MuPiBox-NG only ever invokes it as an
+// external subprocess (argv + stdin + files, no linking against libpiper),
+// the same arm's-length relationship the project already has with mpv
+// (also GPL) -- this does not extend GPL's copyleft to MuPiBox-NG's own
+// code. Per-voice licenses (CC0, CC BY 4.0, ...) remain tracked separately
+// in internal/tts/manifest and are unrelated to the engine's own license.
+//
+// CLI flags (-m/--model, -c/--config, -f/--output_file, -s/--speaker,
+// stdin text input) are unchanged from the old rhasspy/piper CLI, and the
+// voice model format/source (huggingface.co/rhasspy/piper-voices,
+// .onnx+.onnx.json) is unchanged too -- only the invocation method and
+// --version (removed; see detectPiperVersion) changed.
 type PiperEngine struct {
-	binary  string
-	limiter CPULimiter
-	log     *slog.Logger
-	version string
+	pythonBin string
+	limiter   CPULimiter
+	log       *slog.Logger
+	version   string
 }
 
-// NewPiperEngine locates the Piper binary and probes its version once
-// (used as part of the cache key, see TextHash) instead of on every job.
-func NewPiperEngine(binary string, limiter CPULimiter, log *slog.Logger) (*PiperEngine, error) {
-	if strings.TrimSpace(binary) == "" {
-		binary = "piper"
+// NewPiperEngine locates the Python interpreter that has piper-tts
+// installed and probes its version once (used as part of the cache key,
+// see TextHash) instead of on every job.
+func NewPiperEngine(pythonBin string, limiter CPULimiter, log *slog.Logger) (*PiperEngine, error) {
+	if strings.TrimSpace(pythonBin) == "" {
+		pythonBin = "python3"
 	}
 	if limiter == nil {
 		limiter = NewNicePriorityLimiter(log)
@@ -38,28 +54,28 @@ func NewPiperEngine(binary string, limiter CPULimiter, log *slog.Logger) (*Piper
 	if log == nil {
 		log = slog.Default()
 	}
-	e := &PiperEngine{binary: binary, limiter: limiter, log: log}
-	version, err := detectPiperVersion(binary)
+	e := &PiperEngine{pythonBin: pythonBin, limiter: limiter, log: log}
+	version, err := detectPiperVersion(pythonBin)
 	if err != nil {
-		return nil, fmt.Errorf("detect piper version: %w", err)
+		return nil, fmt.Errorf("detect piper-tts version: %w", err)
 	}
 	e.version = version
 	return e, nil
 }
 
-var versionPattern = regexp.MustCompile(`\d+\.\d+(\.\d+)?`)
-
-func detectPiperVersion(binary string) (string, error) {
-	out, err := exec.Command(binary, "--version").CombinedOutput()
+// detectPiperVersion asks Python's own package metadata for the installed
+// piper-tts version. piper1-gpl's CLI has no --version flag (unlike the
+// old rhasspy/piper binary), so this is the reliable way to identify it.
+func detectPiperVersion(pythonBin string) (string, error) {
+	out, err := exec.Command(pythonBin, "-c", "import importlib.metadata as m,sys; sys.stdout.write(m.version('piper-tts'))").Output()
 	if err != nil {
-		if _, ok := err.(*exec.ExitError); !ok {
-			return "", fmt.Errorf("run %s --version: %w", binary, err)
-		}
+		return "", fmt.Errorf("run %s: %w", pythonBin, err)
 	}
-	if match := versionPattern.FindString(string(out)); match != "" {
-		return match, nil
+	version := strings.TrimSpace(string(out))
+	if version == "" {
+		return "unknown", nil
 	}
-	return "unknown", nil
+	return version, nil
 }
 
 func (p *PiperEngine) Name() string    { return "piper" }
@@ -69,14 +85,14 @@ func (p *PiperEngine) Synthesize(ctx context.Context, voice store.TTSVoice, text
 	if _, err := os.Stat(voice.ModelPath); err != nil {
 		return fmt.Errorf("voice model %s is missing or unreadable: %w", voice.ModelPath, err)
 	}
-	args := []string{"--model", voice.ModelPath, "--output_file", outPath}
+	args := []string{"-m", "piper", "--model", voice.ModelPath, "--output_file", outPath}
 	if strings.TrimSpace(voice.ConfigPath) != "" {
 		args = append(args, "--config", voice.ConfigPath)
 	}
 	if voice.SpeakerID != nil {
 		args = append(args, "--speaker", strconv.Itoa(*voice.SpeakerID))
 	}
-	cmd := exec.CommandContext(ctx, p.binary, args...)
+	cmd := exec.CommandContext(ctx, p.pythonBin, args...)
 	cmd.Stdin = strings.NewReader(text)
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr

@@ -506,6 +506,16 @@ func (m *Manager) processOneJob() (processed bool, err error) {
 		_ = m.store.FailTTSJob(job.ID, "voice unavailable")
 		return true, fmt.Errorf("voice %q unavailable while rendering job %d", gen.VoiceID, job.ID)
 	}
+	// Defensive, not just belt-and-suspenders: SwitchLanguage creates this
+	// directory too, but only after its DB transaction commits, which is
+	// exactly when a job becomes visible to this worker. Under load that
+	// window is enough for a job to be dequeued before the directory
+	// exists (observed as a flaky ENOENT on .wav.tmp); MkdirAll on an
+	// already-existing directory is a cheap no-op, so asserting it here
+	// removes the race instead of merely narrowing it.
+	if err := os.MkdirAll(m.generationDir(gen.ID), 0750); err != nil {
+		return true, fmt.Errorf("create generation directory: %w", err)
+	}
 	out := m.cacheFilePath(gen.ID, job.TextHash)
 	tmp := out + ".tmp"
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)

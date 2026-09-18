@@ -187,6 +187,17 @@ if [[ "$CONFIGURE_WAVESHARE" -eq 1 ]]; then
     sh scripts/configure-waveshare-5-dsi.sh
 fi
 
+# TTS is an optional subsystem (see docs/tts.md): a failure here must never
+# abort the rest of the device install, MuPiBox-NG starts fine without it.
+echo "Installing Piper TTS engine..."
+if ! bash scripts/install-piper-engine.sh; then
+    echo "WARNING: Piper TTS engine installation failed; MuPiBox-NG will start without TTS. Re-run scripts/install-piper-engine.sh later." >&2
+fi
+echo "Installing default TTS voices..."
+if ! bash scripts/install-tts-voices.sh; then
+    echo "WARNING: some TTS voices could not be installed; re-run scripts/install-tts-voices.sh later." >&2
+fi
+
 systemctl daemon-reload
 systemctl enable mupibox-system-agent.service mupibox-ng.service mupibox-splash.service mupibox-ui.service
 
