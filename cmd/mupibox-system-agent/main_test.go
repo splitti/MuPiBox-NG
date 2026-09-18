@@ -26,6 +26,34 @@ func TestActiveSwap(t *testing.T) {
 	}
 }
 
+func TestActiveDRMCard(t *testing.T) {
+	dir := t.TempDir()
+	write := func(rel, content string) {
+		full := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := activeDRMCard(dir); err == nil {
+		t.Fatal("expected error when no connector is present")
+	}
+	write("card0-HDMI-A-1/enabled", "disabled\n")
+	if _, err := activeDRMCard(dir); err == nil {
+		t.Fatal("expected error when no connector is enabled")
+	}
+	write("card1-DSI-1/enabled", "enabled\n")
+	card, err := activeDRMCard(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if card != "/dev/dri/card1" {
+		t.Fatalf("got %s, want /dev/dri/card1", card)
+	}
+}
+
 func TestSetInitialTurbo(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "config.txt")
 	if err := os.WriteFile(path, []byte("# Raspberry Pi\n#initial_turbo=20\ndtoverlay=vc4-kms-v3d\n"), 0644); err != nil {

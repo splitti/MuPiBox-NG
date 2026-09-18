@@ -10,7 +10,7 @@ Der Adminbereich trennt Einstellungen nach Verantwortung. Jede sicherheits- oder
 - **Provider:** Zugangskonfiguration für Spotify und Amazon Music. Das Speichern der Daten aktiviert noch keinen Wiedergabeadapter. Amazon Music bietet keine allgemeine öffentliche Wiedergabe-API.
 - **Hardware:** MuPiHAT, Batterieprofile und Eingangsstrom. Die alten Profile sind als Vorgaben enthalten; `Custom` ist editierbar. Die Hardware-Anbindung folgt als eigener Dienst.
 - **Smart Home:** Native Home-Assistant-Integration über die MuPiBox-API; kein zusätzlicher MQTT-Broker.
-- **System:** reale Bootzeit, langsamste systemd-Units, Swap, Network-Wait, CPU-Profil, Initial Turbo sowie sicher bestätigte Neustart-/Shutdown-Aktionen.
+- **System:** reale Bootzeit, langsamste systemd-Units, Swap, Network-Wait, CPU-Profil, Initial Turbo, eine Displayvorschau (Momentaufnahme oder Live-Ansicht des Touchdisplays) sowie sicher bestätigte Neustart-/Shutdown-Aktionen.
 - **Wartung:** Touch-UI-Neustart, Backup/Restore und Release-Wechsel mit automatischer Sicherung und Rollback.
 
 ## Systemprofile
@@ -28,3 +28,7 @@ Die Werte `1–60` Sekunden und die Empfehlung `20` entsprechen der [DietPi-Konf
 Swap wird auf DietPi über das offizielle Werkzeug [`dietpi-set_swapfile`](https://github.com/MichaIng/DietPi/blob/master/dietpi/func/dietpi-set_swapfile) geändert. Statische Adressen werden über [`dietpi-network apply`](https://github.com/MichaIng/DietPi/blob/master/dietpi/dietpi-network) gesetzt; damit verschwindet DHCP für genau dieses Interface aus dessen ifupdown-Konfiguration, ohne einen möglicherweise anderweitig benötigten DHCP-Client global zu entfernen.
 
 Privilegierte Änderungen laufen ausschließlich über den lokalen `mupibox-system-agent`. Er besitzt keinen Netzwerk-Port und akzeptiert nur fest definierte Aktionen über einen Unix-Socket.
+
+## Displayvorschau
+
+`GET /api/admin/screenshot` liefert ein einzelnes PNG des tatsächlich aktiven DRM/KMS-Ausgangs (`ffmpeg -f kmsgrab`), nicht des veralteten `/dev/fb0`-Kompatibilitätspuffers, der nach dem Start der nativen Qt-Quick-Oberfläche nicht mehr aktualisiert wird. Der `mupibox-system-agent` besitzt dafür bereits `CAP_SYS_ADMIN`; das Bild bleibt vollständig im Arbeitsspeicher (kein Zwischenspeichern auf Datenträger). Die Live-Ansicht im Adminbereich fragt das Bild alle zwei Sekunden neu ab und erzeugt dabei zusätzliche CPU-Last – für den Dauerbetrieb ungeeignet. Voraussetzung ist ein installiertes `ffmpeg` mit `kmsgrab`-Unterstützung (Installer-Standardpaket).

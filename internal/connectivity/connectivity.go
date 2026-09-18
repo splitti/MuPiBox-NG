@@ -3,6 +3,7 @@ package connectivity
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -381,6 +382,43 @@ func (m *Manager) ApplySystemTuning(ctx context.Context, tuning SystemTuning) er
 		return errors.New(response.Error)
 	}
 	return nil
+}
+
+// CaptureScreenshot asks the system agent for a single PNG frame of the
+// active display output. The image is held in memory only; neither side
+// writes it to disk.
+func (m *Manager) CaptureScreenshot(ctx context.Context) ([]byte, error) {
+	dialer := net.Dialer{}
+	connection, err := dialer.DialContext(ctx, "unix", m.agentSocket())
+	if err != nil {
+		return nil, fmt.Errorf("system agent unavailable: %w", err)
+	}
+	defer connection.Close()
+	_ = connection.SetDeadline(time.Now().Add(15 * time.Second))
+	if err = json.NewEncoder(connection).Encode(struct {
+		Action string `json:"action"`
+	}{Action: "screenshot"}); err != nil {
+		return nil, err
+	}
+	var response struct {
+		OK    bool   `json:"ok"`
+		Error string `json:"error"`
+		Data  string `json:"data"`
+	}
+	if err = json.NewDecoder(connection).Decode(&response); err != nil {
+		return nil, fmt.Errorf("system agent response: %w", err)
+	}
+	if !response.OK {
+		if response.Error == "" {
+			response.Error = "screenshot capture failed"
+		}
+		return nil, errors.New(response.Error)
+	}
+	image, err := base64.StdEncoding.DecodeString(response.Data)
+	if err != nil {
+		return nil, fmt.Errorf("decode screenshot: %w", err)
+	}
+	return image, nil
 }
 
 func (m *Manager) ApplySamba(ctx context.Context, config SambaConfig) error {

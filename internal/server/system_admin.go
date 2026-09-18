@@ -272,6 +272,22 @@ func (a *API) registerSystemRoutes(mux *http.ServeMux) {
 		}
 		jsonResponse(w, http.StatusAccepted, map[string]any{"scheduled": true, "action": input.Action})
 	})
+	mux.HandleFunc("GET /api/admin/screenshot", func(w http.ResponseWriter, r *http.Request) {
+		if a.Connectivity == nil {
+			problem(w, http.StatusServiceUnavailable, errors.New("system agent unavailable"))
+			return
+		}
+		ctx, cancel := context.WithTimeout(r.Context(), 12*time.Second)
+		defer cancel()
+		image, err := a.Connectivity.CaptureScreenshot(ctx)
+		if err != nil {
+			problem(w, http.StatusBadGateway, err)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Header().Set("Cache-Control", "no-store")
+		_, _ = w.Write(image)
+	})
 	mux.HandleFunc("GET /api/admin/samba", func(w http.ResponseWriter, r *http.Request) {
 		settings, err := a.currentSettings()
 		if err != nil {

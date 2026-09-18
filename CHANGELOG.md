@@ -2,7 +2,9 @@
 
 > **Deutsch** · [English](CHANGELOG.en.md)
 
-## 0.1.0-dev – 16.09.2026
+## 0.1.0-dev – 18.09.2026
+
+- Displayvorschau im Adminbereich (System) ergänzt: Momentaufnahme und Live-Ansicht des tatsächlich angezeigten Touchdisplays über `GET /api/admin/screenshot`, erfasst per `ffmpeg -f kmsgrab` direkt vom aktiven DRM/KMS-Ausgang (nicht vom veralteten `/dev/fb0`); Bild bleibt vollständig im Arbeitsspeicher.
 
 - WLAN-Suche wartet nun auf einen aktiven `wpa_cli`-Scan statt sofort nur den alten Cache mit dem verbundenen Netz zurückzugeben.
 - Systemseite um Raspberry-Pi-/DietPi-Initial-Turbo (0–60 Sekunden), sicheren Neustart und Shutdown ergänzt.

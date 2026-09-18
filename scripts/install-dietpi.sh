@@ -49,7 +49,7 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y \
     ca-certificates curl git build-essential pkg-config iproute2 util-linux \
-    mpv alsa-utils fbi wpasupplicant bluez rfkill samba \
+    mpv alsa-utils fbi ffmpeg wpasupplicant bluez rfkill samba \
     qmlscene-qt6 qml6-module-qtquick qml6-module-qtquick-window qml6-module-qtqml \
     qml6-module-qtquick-virtualkeyboard qt6-virtualkeyboard-plugin \
     qt6-qpa-plugins libqt6opengl6 libgl1-mesa-dri libegl1 libgbm1 \

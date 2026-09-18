@@ -4,7 +4,9 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -83,6 +85,7 @@ func applyIPv4(ctx context.Context, input request) error {
 type response struct {
 	OK    bool   `json:"ok"`
 	Error string `json:"error,omitempty"`
+	Data  string `json:"data,omitempty"`
 }
 
 func runCommand(ctx context.Context, name string, args ...string) error {
@@ -551,6 +554,58 @@ func applySystemTuning(ctx context.Context, input request) error {
 	return nil
 }
 
+var drmConnectorCard = regexp.MustCompile(`^card(\d+)-`)
+
+// activeDRMCard finds the DRM device backing the currently enabled display
+// output. The legacy /dev/fb0 framebuffer is not scanned out once the native
+// Qt Quick UI takes KMS master, so screenshots must read the real DRM plane.
+func activeDRMCard(drmClassPath string) (string, error) {
+	matches, err := filepath.Glob(filepath.Join(drmClassPath, "card*-*", "enabled"))
+	if err != nil {
+		return "", err
+	}
+	for _, match := range matches {
+		raw, readErr := os.ReadFile(match)
+		if readErr != nil || strings.TrimSpace(string(raw)) != "enabled" {
+			continue
+		}
+		name := filepath.Base(filepath.Dir(match))
+		if sub := drmConnectorCard.FindStringSubmatch(name); sub != nil {
+			return "/dev/dri/card" + sub[1], nil
+		}
+	}
+	return "", errors.New("no active display output found")
+}
+
+func captureScreenshot(ctx context.Context) ([]byte, error) {
+	card, err := activeDRMCard("/sys/class/drm")
+	if err != nil {
+		return nil, err
+	}
+	path, err := exec.LookPath("ffmpeg")
+	if err != nil {
+		return nil, errors.New("ffmpeg is not installed")
+	}
+	command := exec.CommandContext(ctx, path,
+		"-hide_banner", "-loglevel", "error", "-y",
+		"-f", "kmsgrab", "-device", card,
+		"-i", "-",
+		"-vf", "hwmap=derive_device=drm,format=bgr0",
+		"-frames:v", "1", "-update", "1",
+		"-c:v", "png", "-f", "image2", "-",
+	)
+	var stdout, stderr bytes.Buffer
+	command.Stdout = &stdout
+	command.Stderr = &stderr
+	if err = command.Run(); err != nil {
+		return nil, fmt.Errorf("ffmpeg: %w: %s", err, strings.TrimSpace(stderr.String()))
+	}
+	if stdout.Len() == 0 {
+		return nil, errors.New("empty screenshot capture")
+	}
+	return stdout.Bytes(), nil
+}
+
 func schedulePower(action string) error {
 	if action != "reboot" && action != "poweroff" {
 		return errors.New("invalid power action")
@@ -579,7 +634,12 @@ func handle(connection net.Conn) {
 		return
 	}
 	var err error
+	var screenshot []byte
 	switch input.Action {
+	case "screenshot":
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		screenshot, err = captureScreenshot(ctx)
+		cancel()
 	case "wifi-state":
 		err = setWiFiState(context.Background(), input.Interface, input.Enabled)
 	case "wifi-select":
@@ -614,6 +674,8 @@ func handle(connection net.Conn) {
 	result := response{OK: err == nil}
 	if err != nil {
 		result.Error = err.Error()
+	} else if screenshot != nil {
+		result.Data = base64.StdEncoding.EncodeToString(screenshot)
 	}
 	_ = json.NewEncoder(connection).Encode(result)
 }

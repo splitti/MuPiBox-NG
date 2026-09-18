@@ -10,7 +10,7 @@ The admin area groups settings by responsibility. Each security- or system-relev
 - **Providers:** Spotify and Amazon Music account configuration. Storing credentials does not enable a playback adapter. Amazon Music has no general public playback API.
 - **Hardware:** MuPiHAT, battery profiles and input-current limit. Legacy profiles are included and `Custom` is editable. Hardware access follows as a dedicated service.
 - **Smart Home:** native Home Assistant integration through the MuPiBox API, without an additional MQTT broker.
-- **System:** measured boot time, slowest systemd units, swap, network wait, CPU profile, initial turbo and confirmed restart/shutdown actions.
+- **System:** measured boot time, slowest systemd units, swap, network wait, CPU profile, initial turbo, a display preview (snapshot or live view of the touchscreen) and confirmed restart/shutdown actions.
 - **Maintenance:** touchscreen restart, backup/restore and release switching with an automatic safety backup and rollback.
 
 ## System profiles
@@ -28,3 +28,7 @@ The `1–60` second range and `20` second recommendation follow [DietPi's ARM In
 DietPi swap is changed through the official [`dietpi-set_swapfile`](https://github.com/MichaIng/DietPi/blob/master/dietpi/func/dietpi-set_swapfile) helper. Static addresses use [`dietpi-network apply`](https://github.com/MichaIng/DietPi/blob/master/dietpi/dietpi-network), removing DHCP from that interface's ifupdown stanza without globally removing a DHCP client that another interface may need.
 
 Privileged changes run only through the local `mupibox-system-agent`. It exposes no network port and accepts a fixed set of actions over a Unix socket.
+
+## Display preview
+
+`GET /api/admin/screenshot` returns a single PNG of the actually active DRM/KMS output (`ffmpeg -f kmsgrab`), not the stale `/dev/fb0` compatibility buffer, which stops updating once the native Qt Quick UI takes KMS master. The `mupibox-system-agent` already holds `CAP_SYS_ADMIN` for this; the image stays entirely in memory (no disk caching). The admin area's live view polls a new image every two seconds and adds extra CPU load — not meant for continuous use. Requires an installed `ffmpeg` build with `kmsgrab` support (default installer package).

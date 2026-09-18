@@ -36,6 +36,12 @@
  <div class="section-head"><div><h1 data-i18n="system_title">System und Performance</h1><p data-i18n="system_intro">Ist-Zustand messen, dann gezielt optimieren.</p></div><button id="refresh-system" type="button" data-i18n="refresh_analysis">Analyse aktualisieren</button></div>
  <div id="system-summary" class="status-grid"></div>
  <fieldset><legend data-i18n="boot_analysis">Bootanalyse</legend><p id="boot-total" class="metric">—</p><div id="boot-units" class="boot-units"></div></fieldset>
+ <fieldset><legend data-i18n="display_preview">Displayvorschau</legend>
+  <div class="guide"><strong data-i18n="guide_status">Status</strong><span data-i18n="screenshot_guide">Zeigt eine Momentaufnahme des tatsächlich angezeigten Touchdisplays. Live-Ansicht fragt regelmäßig ein neues Bild ab und belastet die Box zusätzlich.</span></div>
+  <div class="toolbar"><button id="screenshot-refresh" type="button" data-i18n="screenshot_capture">Momentaufnahme holen</button><label class="toggle"><input id="screenshot-live" type="checkbox"> <span data-i18n="screenshot_live">Live-Ansicht (alle 2 s)</span></label></div>
+  <img id="screenshot-image" class="screenshot-frame" alt="" hidden>
+  <p id="screenshot-error" class="hint" hidden data-i18n="screenshot_unavailable">Momentaufnahme derzeit nicht verfügbar. Läuft die native Oberfläche, und ist ffmpeg installiert?</p>
+ </fieldset>
  <fieldset><legend data-i18n="system_tuning">Systemoptimierung</legend>
   <div class="guide recommended"><strong data-i18n="guide_recommended">Empfehlung</strong><span data-i18n="system_guide">Für eine reine Audio-Box ist meist kein Swap und kein Warten auf vollständiges Netzwerk nötig. Erst messen, dann ändern.</span></div>
   <label><span data-i18n="swap_policy">Swap</span><select name="swap_policy"><option value="keep" data-i18n="keep_current">Ist-Zustand beibehalten</option><option value="disabled" data-i18n="disable_recommended">Deaktivieren (empfohlen)</option><option value="enabled" data-i18n="enable">Aktivieren</option></select></label><small data-i18n="swap_impact">Weniger SD-Karten-Schreibzugriffe; bei Speichermangel können Prozesse früher beendet werden.</small>

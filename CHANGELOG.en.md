@@ -2,7 +2,9 @@
 
 > [Deutsch](CHANGELOG.md) · **English**
 
-## 0.1.0-dev – 2026-09-16
+## 0.1.0-dev – 2026-09-18
+
+- Added a display preview to the admin area (System): snapshot and live view of the actual touchscreen output via `GET /api/admin/screenshot`, captured with `ffmpeg -f kmsgrab` directly from the active DRM/KMS output (not the stale `/dev/fb0`); the image stays entirely in memory.
 
 - Wi-Fi discovery now waits for an active `wpa_cli` scan instead of immediately returning only the stale cache containing the connected network.
 - Added Raspberry Pi/DietPi initial turbo (0–60 seconds), confirmed restart and safe shutdown controls to the system page.
