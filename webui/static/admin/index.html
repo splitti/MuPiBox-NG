@@ -9,7 +9,7 @@
 <body>
 <header><a href="/" data-i18n="back_player">← Player</a><div><strong data-i18n="admin_title">MuPiBox Admin</strong><small data-i18n="admin_subtitle">Persistente SQLite-Konfiguration</small></div><span id="state" data-i18n="loading">Lade …</span></header>
 <section id="login-view" class="login-card" hidden><form id="login-form"><h1 data-i18n="login_title">Administration anmelden</h1><p class="hint" data-i18n="login_hint">Bitte das Admin-Passwort eingeben.</p><label><span data-i18n="admin_password">Admin-Passwort</span><input id="login-password" type="password" autocomplete="current-password" maxlength="128" required></label><button class="primary" type="submit" data-i18n="login">Anmelden</button></form></section>
-<nav id="admin-nav" hidden><button class="active" data-view="box" data-i18n="nav_box">Box</button><button data-view="navigation" data-i18n="nav_content">Inhalte</button><button data-view="network" data-i18n="nav_network">Netzwerk</button><button data-view="providers" data-i18n="nav_providers">Provider</button><button data-view="hardware" data-i18n="nav_hardware">Hardware</button><button data-view="smart-home" data-i18n="nav_smart_home">Smart Home</button><button data-view="system" data-i18n="nav_system">System</button><button data-view="maintenance" data-i18n="nav_maintenance">Wartung</button></nav>
+<nav id="admin-nav" hidden><button class="active" data-view="box" data-i18n="nav_box">Box</button><button data-view="navigation" data-i18n="nav_content">Inhalte</button><button data-view="tts" data-i18n="nav_tts">Text-to-Speech</button><button data-view="network" data-i18n="nav_network">Netzwerk</button><button data-view="providers" data-i18n="nav_providers">Provider</button><button data-view="hardware" data-i18n="nav_hardware">Hardware</button><button data-view="smart-home" data-i18n="nav_smart_home">Smart Home</button><button data-view="system" data-i18n="nav_system">System</button><button data-view="maintenance" data-i18n="nav_maintenance">Wartung</button></nav>
 <main id="admin-main" hidden>
 <form id="settings-form">
 <section id="box-view" data-admin-view="box">
@@ -55,6 +55,40 @@
 <section id="maintenance-view" data-admin-view="maintenance" hidden><h1 data-i18n="maintenance">Wartung</h1><fieldset><legend data-i18n="touch_ui">Touch-Oberfläche</legend><p class="hint" data-i18n="ui_restart_hint">Die Darstellung wird live übernommen. Falls die Oberfläche einmal nicht reagiert, kann nur die Touch-Oberfläche neu gestartet werden.</p><button id="restart-ui" type="button" data-i18n="restart_ui">Touch-Oberfläche neu starten</button></fieldset><fieldset><legend data-i18n="backup_restore">Backup und Wiederherstellung</legend><p class="hint" data-i18n="backup_hint">Das Konfigurationsbackup enthält SQLite-Einstellungen, Navigation, Passwort-Hash und Wiedergabefortschritt. Medien können optional mitgesichert werden.</p><div class="toolbar"><a class="button-link" href="/api/admin/backup" data-i18n="download_config_backup">Konfigurationsbackup herunterladen</a><a class="button-link" href="/api/admin/backup?include_media=true" data-i18n="download_full_backup">Backup einschließlich Medien herunterladen</a></div><label><span data-i18n="restore_file">MuPiBox-Backup auswählen</span><input id="restore-file" type="file" accept=".zip,application/zip"></label><label class="toggle"><input id="restore-media" type="checkbox"> <span data-i18n="restore_media">Enthaltene Medien ebenfalls wiederherstellen</span></label><p class="warning-inline" data-i18n="restore_warning">Beim Wiederherstellen werden Einstellungen und Fortschritt ersetzt. Vorher wird automatisch ein Sicherheitsbackup angelegt.</p><button id="restore-backup" type="button" class="danger" data-i18n="restore_backup">Backup wiederherstellen</button></fieldset><fieldset><legend data-i18n="updates">Updates und Versionen</legend><p class="hint" id="release-state" data-i18n="release_hint">Verfügbare GitHub-Releases laden, installieren oder zum vorherigen Stand zurückkehren. Vor einem Wechsel wird die Datenbank gesichert.</p><div class="toolbar"><button id="load-releases" type="button" data-i18n="load_releases">Releases laden</button><select id="release-select"><option value="">—</option></select><button id="install-release" type="button" data-i18n="install_release">Release installieren</button><button id="rollback-release" type="button" class="danger" data-i18n="rollback_release">Vorherige Version</button></div><p class="warning-inline" data-i18n="update_warning">Während des Updates werden Player und Oberfläche neu gestartet. Die Box darf dabei nicht ausgeschaltet werden.</p></fieldset></section>
 </form>
 <section id="navigation-view" data-admin-view="navigation" hidden><div class="section-head"><div><h1 data-i18n="categories_media">Kategorien und Medien</h1><p data-i18n="content_hint">Medienquellen werden direkt einer Kategorie zugeordnet.</p></div><div class="toolbar"><button id="rescan-library" data-i18n="rescan_library">Medienordner neu einlesen</button><button id="add-category" data-i18n="add_category">+ Kategorie</button></div></div><div class="language-editor"><label><span data-i18n="edit_names_language">Namen bearbeiten in Sprache</span><input id="content-language" value="de" maxlength="16" list="language-codes"></label><small data-i18n="name_language_hint">Die Box zeigt und spricht den Namen in ihrer eingestellten Sprache.</small></div><div id="categories"></div><button id="save-navigation" class="primary" data-i18n="save_content">Inhalte speichern</button></section>
+<section id="tts-view" data-admin-view="tts" hidden>
+ <div class="section-head"><div><h1 data-i18n="tts_title">Text-to-Speech</h1><p data-i18n="tts_intro">Eine Box = eine Sprache = eine aktive Stimme. Nach einer Änderung erstellt MuPiBox den Sprach-Cache selbstständig im Hintergrund neu.</p></div></div>
+ <p id="tts-unavailable" class="warning-inline" data-i18n="tts_unavailable" hidden>Die TTS-Engine ist auf diesem Gerät nicht verfügbar.</p>
+ <fieldset><legend data-i18n="tts_config_title">Konfiguration</legend>
+  <label class="toggle"><input id="tts2-enabled" type="checkbox"> <span data-i18n="tts_enabled_label">Text-to-Speech aktiviert</span></label>
+  <label><span data-i18n="tts_language_label">Sprache</span><select id="tts2-language"></select></label>
+  <label><span data-i18n="tts_voice_label">Stimme</span><select id="tts2-voice"></select></label>
+  <label><span data-i18n="tts_quality_label">Qualität</span><select id="tts2-quality"></select></label>
+  <p id="tts2-no-voice" class="hint" data-i18n="tts_no_voice_for_language" hidden>Für diese Sprache ist noch keine Stimme installiert.</p>
+  <label><span data-i18n="tts_cpu_label">Hintergrund-CPU</span><input id="tts2-cpu" type="number" min="1" max="100" step="5"></label>
+  <label class="toggle"><input id="tts2-prerender" type="checkbox"> <span data-i18n="tts_prerender_label">Pre-Rendering aktiviert</span></label>
+  <p class="hint" data-i18n="tts_prerender_hint">Bereitet neue oder geänderte Texte automatisch im Hintergrund vor, sobald Kategorien/Medien-Handler dies auslösen.</p>
+  <button id="tts2-save" class="primary" type="button" data-i18n="tts_save_config">TTS-Konfiguration speichern</button>
+ </fieldset>
+ <fieldset><legend data-i18n="tts_test_title">Stimme testen</legend>
+  <label><span data-i18n="tts_test_text_label">Testtext</span><input id="tts2-test-text" maxlength="240" value="Hallo! Ich bin deine MuPiBox."></label>
+  <button id="tts2-test" type="button" data-i18n="tts_test_button">▶ Stimme testen</button>
+ </fieldset>
+ <fieldset><legend data-i18n="tts_status_title">TTS-Cache</legend>
+  <p id="tts2-status-line" class="metric">—</p>
+  <div class="progress-bar"><span id="tts2-progress-bar" style="width:0%"></span></div>
+  <div class="status-grid" id="tts2-counts"></div>
+  <div class="priority-grid" id="tts2-priorities"></div>
+  <div class="status-grid" id="tts2-cache-stats"></div>
+  <p id="tts2-last-error" class="warning-inline" hidden></p>
+  <details><summary data-i18n="tts_diagnostics_title">Diagnose (erweitert)</summary><div class="status-grid" id="tts2-diagnostics"></div></details>
+ </fieldset>
+ <fieldset><legend data-i18n="tts_cache_actions_title">Cache-Aktionen</legend>
+  <div class="toolbar"><button id="tts2-fill-missing" type="button" data-i18n="tts_action_fill_missing">Fehlende TTS-Dateien erzeugen</button><button id="tts2-rebuild" type="button" data-i18n="tts_action_rebuild">Cache neu aufbauen</button><button id="tts2-cleanup" type="button" data-i18n="tts_action_cleanup">Alte Cache-Daten jetzt bereinigen</button></div>
+  <p class="hint" data-i18n="tts_action_fill_missing_hint">Erfasst alle aktuell sichtbaren Inhalte und erzeugt nur fehlende Sprachdateien in der aktuellen Generation. Vorhandene Dateien bleiben unangetastet.</p>
+  <p class="hint" data-i18n="tts_action_rebuild_hint">Erstellt eine neue Cache-Generation für die aktuelle Sprache/Stimme.</p>
+  <p class="hint" data-i18n="tts_action_cleanup_hint">Räumt bereits als veraltet markierte Generationen sofort auf.</p>
+ </fieldset>
+</section>
 </main>
 <datalist id="language-codes"><option value="de"><option value="en"><option value="nl"><option value="fr"><option value="es"><option value="it"></datalist><div id="message" role="status" hidden></div>
 </body></html>

@@ -15,10 +15,12 @@ import (
 	"sync/atomic"
 	"time"
 
+	"mupibox/internal/audio"
 	"mupibox/internal/connectivity"
 	"mupibox/internal/core"
 	"mupibox/internal/library"
 	"mupibox/internal/store"
+	"mupibox/internal/tts"
 	"mupibox/webui"
 )
 
@@ -93,6 +95,8 @@ type API struct {
 	Store               *store.Store
 	Connectivity        *connectivity.Manager
 	System              func() SystemStatus
+	TTSManager          *tts.Manager
+	NewAudioBackend     func() audio.Backend
 	Version             string
 	MusicDir            string
 	BackupDir           string
@@ -100,6 +104,10 @@ type API struct {
 	uiRestartGeneration atomic.Uint64
 	adminSessionInit    sync.Once
 	adminSessions       *adminSessionStore
+	backgroundInit      sync.Once
+	backgroundCtx       context.Context
+	backgroundCancel    context.CancelFunc
+	backgroundWG        sync.WaitGroup
 }
 
 func jsonResponse(w http.ResponseWriter, status int, v any) {
@@ -127,6 +135,33 @@ func decode(w http.ResponseWriter, r *http.Request, v any) error {
 	}
 	return nil
 }
+func (a *API) backgroundContext() context.Context {
+	a.backgroundInit.Do(func() { a.backgroundCtx, a.backgroundCancel = context.WithCancel(context.Background()) })
+	return a.backgroundCtx
+}
+
+// runBackground launches a tracked, cancellable background task (bulk TTS
+// content registration triggered by a library rescan, a language/voice
+// switch, rebuild or fill-missing). Tracked by a WaitGroup and bound to a
+// context cancelled by Shutdown, so stopping the server never leaves a
+// detached goroutine racing a store that is about to close.
+func (a *API) runBackground(fn func(ctx context.Context)) {
+	ctx := a.backgroundContext()
+	a.backgroundWG.Add(1)
+	go func() {
+		defer a.backgroundWG.Done()
+		fn(ctx)
+	}()
+}
+
+// Shutdown cancels and waits for every tracked runBackground task. Call
+// this once during graceful server shutdown, before closing the store.
+func (a *API) Shutdown() {
+	a.backgroundContext()
+	a.backgroundCancel()
+	a.backgroundWG.Wait()
+}
+
 func (a *API) librarySnapshot() *library.Library {
 	a.libraryMu.RLock()
 	defer a.libraryMu.RUnlock()
@@ -146,6 +181,12 @@ func (a *API) rescanLibrary() error {
 	a.libraryMu.Unlock()
 	if a.Player != nil {
 		a.Player.SetLibrary(next)
+	}
+	if a.TTSManager != nil {
+		// Bulk registration: one background goroutine for the whole scan,
+		// never one per item, and never blocking the caller (rescanLibrary
+		// is called synchronously from HTTP handlers) -- see docs/tts.md.
+		a.runBackground(func(ctx context.Context) { a.registerLibrarySpeech(ctx) })
 	}
 	return nil
 }
@@ -429,6 +470,7 @@ func (a *API) Handler() http.Handler {
 	mux := http.NewServeMux()
 	a.registerMaintenanceRoutes(mux)
 	a.registerSystemRoutes(mux)
+	a.registerTTSRoutes(mux)
 	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) { jsonResponse(w, 200, a.Player.Status()) })
 	mux.HandleFunc("GET /api/system", func(w http.ResponseWriter, r *http.Request) { jsonResponse(w, 200, a.currentSystemStatus()) })
 	mux.HandleFunc("GET /api/connectivity/wifi/adapters", func(w http.ResponseWriter, r *http.Request) {
@@ -902,6 +944,14 @@ func (a *API) Handler() http.Handler {
 		if err := a.Store.SaveNavigation(v); err != nil {
 			problem(w, 400, err)
 			return
+		}
+		if a.TTSManager != nil {
+			// A handful of categories/rows at most: safe and desirable to
+			// register synchronously, so TTS starts rendering the instant a
+			// name becomes durable, per docs/tts.md's "content created ->
+			// EnsureText immediately" rule -- unlike the local library scan
+			// above, this never runs into thousands of entries.
+			a.registerNavigationSpeech(r.Context())
 		}
 		jsonResponse(w, 200, v)
 	})

@@ -26,6 +26,15 @@ type TTSSettings struct {
 	Enabled  bool   `json:"enabled"`
 	Language string `json:"language"`
 	Provider string `json:"provider"`
+	// VoiceID/BackgroundCPUPercent/PreRenderingEnabled configure the
+	// internal/tts Piper engine (see internal/server/tts_admin.go), which is
+	// independent of the legacy Provider/browser-speechSynthesis fallback
+	// above. Quality is not stored separately: it is part of the chosen
+	// voice (see internal/tts/manifest), only echoed back for display.
+	VoiceID              string `json:"voice_id,omitempty"`
+	Quality              string `json:"quality,omitempty"`
+	BackgroundCPUPercent int    `json:"background_cpu_percent,omitempty"`
+	PreRenderingEnabled  bool   `json:"pre_rendering_enabled"`
 }
 
 type PowerSettings struct {
@@ -328,6 +337,84 @@ func (s *Store) migrate() error {
 		if err = tx.Commit(); err != nil {
 			return err
 		}
+		version = 2
+	}
+	if version < 3 {
+		tx, err := s.db.Begin()
+		if err != nil {
+			return err
+		}
+		defer tx.Rollback()
+		statements := []string{
+			`CREATE TABLE tts_voices(
+     id TEXT PRIMARY KEY,
+     engine TEXT NOT NULL,
+     language TEXT NOT NULL,
+     voice_family TEXT NOT NULL,
+     quality TEXT NOT NULL,
+     display_name TEXT NOT NULL,
+     model_path TEXT NOT NULL,
+     config_path TEXT NOT NULL,
+     license TEXT NOT NULL,
+     source_url TEXT NOT NULL,
+     speaker_id INTEGER,
+     available INTEGER NOT NULL DEFAULT 1 CHECK(available IN (0,1)),
+     installed_at TEXT NOT NULL
+   )`,
+			`CREATE INDEX tts_voices_language ON tts_voices(language)`,
+			`CREATE TABLE tts_generations(
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     language TEXT NOT NULL,
+     voice_id TEXT NOT NULL,
+     engine TEXT NOT NULL,
+     engine_version TEXT NOT NULL,
+     voice_settings TEXT NOT NULL,
+     background_cpu_percent INTEGER NOT NULL,
+     status TEXT NOT NULL CHECK(status IN ('building','active','stale','purging')),
+     created_at TEXT NOT NULL,
+     activated_at TEXT NOT NULL DEFAULT ''
+   )`,
+			`CREATE INDEX tts_generations_status ON tts_generations(status)`,
+			`CREATE TABLE tts_state(
+     id INTEGER PRIMARY KEY CHECK(id=1),
+     current_generation_id INTEGER REFERENCES tts_generations(id)
+   )`,
+			`CREATE TABLE tts_cache(
+     generation_id INTEGER NOT NULL REFERENCES tts_generations(id) ON DELETE CASCADE,
+     text_hash TEXT NOT NULL,
+     file_path TEXT NOT NULL,
+     duration_ms INTEGER NOT NULL DEFAULT 0,
+     created_at TEXT NOT NULL,
+     PRIMARY KEY(generation_id,text_hash)
+   )`,
+			`CREATE TABLE tts_jobs(
+     id INTEGER PRIMARY KEY AUTOINCREMENT,
+     generation_id INTEGER NOT NULL REFERENCES tts_generations(id) ON DELETE CASCADE,
+     priority TEXT NOT NULL CHECK(priority IN ('high','normal','low')),
+     source_type TEXT NOT NULL,
+     source_ref TEXT NOT NULL DEFAULT '',
+     normalized_text TEXT NOT NULL,
+     text_hash TEXT NOT NULL,
+     status TEXT NOT NULL CHECK(status IN ('pending','running','done','error')) DEFAULT 'pending',
+     attempts INTEGER NOT NULL DEFAULT 0,
+     last_error TEXT NOT NULL DEFAULT '',
+     created_at TEXT NOT NULL,
+     updated_at TEXT NOT NULL,
+     UNIQUE(generation_id,text_hash)
+   )`,
+			`CREATE INDEX tts_jobs_dequeue ON tts_jobs(generation_id,status,priority)`,
+		}
+		for _, q := range statements {
+			if _, err = tx.Exec(q); err != nil {
+				return fmt.Errorf("migration 3: %w", err)
+			}
+		}
+		if _, err = tx.Exec(`INSERT INTO schema_migrations(version,applied_at) VALUES(3,?)`, time.Now().UTC().Format(time.RFC3339Nano)); err != nil {
+			return err
+		}
+		if err = tx.Commit(); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -357,8 +444,19 @@ func ValidateBoxSettings(v BoxSettings) error {
 	if v.Display.UISize != "normal" && v.Display.UISize != "large" {
 		return errors.New("display.ui_size must be normal or large")
 	}
-	if v.TTS.Enabled && (strings.TrimSpace(v.TTS.Language) == "" || strings.TrimSpace(v.TTS.Provider) == "") {
-		return errors.New("enabled TTS requires language and provider")
+	if v.TTS.Enabled && strings.TrimSpace(v.TTS.Language) == "" {
+		return errors.New("enabled TTS requires a language")
+	}
+	// Two mechanisms currently share this one Enabled/Language pair: the
+	// legacy browser-speechSynthesis fallback (Provider, e.g. "browser-dev",
+	// see webui/static/app.js) and the internal/tts Piper engine (VoiceID,
+	// see internal/server/tts_admin.go). Either one on its own is a valid,
+	// complete configuration.
+	if v.TTS.Enabled && strings.TrimSpace(v.TTS.Provider) == "" && strings.TrimSpace(v.TTS.VoiceID) == "" {
+		return errors.New("enabled TTS requires either a provider or a configured voice_id")
+	}
+	if v.TTS.BackgroundCPUPercent != 0 && (v.TTS.BackgroundCPUPercent < 1 || v.TTS.BackgroundCPUPercent > 100) {
+		return errors.New("tts.background_cpu_percent must be 1..100")
 	}
 	interfaceName := regexp.MustCompile(`^[A-Za-z0-9_.-]+$`)
 	if v.WiFi.PrimaryInterface != "" && !interfaceName.MatchString(v.WiFi.PrimaryInterface) {
@@ -454,6 +552,9 @@ func defaultBatteryProfiles() []BatteryProfile {
 }
 
 func normalizeBoxSettings(v *BoxSettings) {
+	if v.TTS.BackgroundCPUPercent == 0 {
+		v.TTS.BackgroundCPUPercent = 30
+	}
 	if strings.TrimSpace(v.AdminLanguage) == "" {
 		v.AdminLanguage = v.Language
 		if strings.TrimSpace(v.AdminLanguage) == "" {

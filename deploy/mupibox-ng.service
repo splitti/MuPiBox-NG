@@ -25,6 +25,16 @@ ProtectSystem=strict
 ReadWritePaths=/tmp /srv/mupibox/music
 ProtectHome=true
 RestrictSUIDSGID=true
+# Hands this unit's own cgroup v2 subtree to the service (no root needed):
+# internal/tts creates a "tts" child cgroup there and caps cpu.max per Piper
+# render job (see internal/tts/cpulimit.go), so one long synthesis job can
+# never starve mpv/the UI for CPU. Orthogonal to the sandboxing above --
+# systemd keeps the delegated subtree writable even under ProtectSystem, and
+# it does not relax NoNewPrivileges/ProtectSystem/RestrictSUIDSGID. Where
+# cgroup v2 delegation is unavailable (older DietPi image, hybrid/cgroup v1
+# host), internal/tts falls back to lowering the Piper process's scheduling
+# priority instead -- no config change is required here for that path.
+Delegate=yes
 
 [Install]
 WantedBy=multi-user.target

@@ -90,7 +90,7 @@ function readSettings(){const ipv4={mode:field('ipv4_mode').value,interface:fiel
  power:{idle_shutdown_minutes:Number(field('shutdown_idle').value)},
  wifi:{...(settings?.wifi||{}),ipv4},
  bluetooth:{enabled:field('bluetooth_enabled').checked},
- tts:{enabled:field('tts_enabled').checked,language:field('tts_language').value.trim(),provider:field('tts_provider').value.trim()},
+ tts:{...(settings?.tts||{}),enabled:field('tts_enabled').checked,language:field('tts_language').value.trim(),provider:field('tts_provider').value.trim()},
  providers:{spotify:{enabled:field('spotify_enabled').checked,client_id:field('spotify_client_id').value.trim(),client_secret:field('spotify_client_secret').value,country:field('spotify_country').value.trim().toUpperCase()},amazon_music:{enabled:field('amazon_enabled').checked,client_id:field('amazon_client_id').value.trim(),client_secret:field('amazon_client_secret').value,country:field('amazon_country').value.trim().toUpperCase()}},
  samba:{enabled:field('samba_enabled').checked,mode:field('samba_mode').value,share_name:field('samba_share_name').value.trim(),workgroup:field('samba_workgroup').value.trim()},
  mupihat:{enabled:field('mupihat_enabled').checked,selected_battery:field('mupihat_battery').value,current_limit_ma:Number(field('mupihat_current').value),battery_profiles:readBatteryProfiles()},
@@ -199,7 +199,7 @@ async function load(){
   settings=s;systemStatus=sys;sambaStatus=samba?.runtime||null;localDirectories=d.directories||[];localRoot=d.root||localRoot;wifiAdapters=w.adapters||[];wifiPrimary=w.primary_interface||s.wifi?.primary_interface||'';wifiSelected=w.selected_interface||'';await setLocale(s.admin_language||'de');fillSettings(s);navigation=n;renderNavigation();renderWifiAdapters();renderPasswordState();renderSystemStatus();$('state').textContent=t('sqlite_connected','SQLite verbunden')
  }catch(error){$('state').textContent=t('error','Fehler');message(error.message,true)}
 }
-function showView(name){document.querySelectorAll('#admin-nav button').forEach(button=>button.classList.toggle('active',button.dataset.view===name));document.querySelectorAll('[data-admin-view]').forEach(view=>view.hidden=view.dataset.adminView!==name);if(name==='system'&&!systemStatus)refreshSystem();if(name!=='system')stopScreenshotLive()}
+function showView(name){document.querySelectorAll('#admin-nav button').forEach(button=>button.classList.toggle('active',button.dataset.view===name));document.querySelectorAll('[data-admin-view]').forEach(view=>view.hidden=view.dataset.adminView!==name);if(name==='system'&&!systemStatus)refreshSystem();if(name!=='system')stopScreenshotLive();if(name==='tts')enterTTSView();else leaveTTSView()}
 document.querySelectorAll('#admin-nav button').forEach(button=>button.onclick=()=>showView(button.dataset.view));
 field('admin_language').addEventListener('change',()=>setLocale(field('admin_language').value));
 field('ui_size').addEventListener('change',()=>$('settings-form').requestSubmit());
@@ -289,4 +289,121 @@ $('shutdown-box').onclick=()=>powerAction('poweroff');
 $('login-form').addEventListener('submit',login);
 $('save-password').onclick=savePassword;
 $('logout').onclick=logout;
+const ttsLanguageNames={'de-DE':'Deutsch','en-GB':'English (UK)','en-US':'English (US)','fr-FR':'Français','es-ES':'Español','it-IT':'Italiano','nl-NL':'Nederlands','sv-SE':'Svenska','da-DK':'Dansk','nb-NO':'Norsk (Bokmål)','fi-FI':'Suomi','pl-PL':'Polski','cs-CZ':'Čeština','pt-PT':'Português','ru-RU':'Русский','uk-UA':'Українська','tr-TR':'Türkçe'};
+let ttsVoices=[],ttsConfig=null,ttsStatus=null,ttsPollTimer=null;
+function ttsLanguageLabel(code){return (ttsLanguageNames[code]||code)+' · '+code}
+function formatBytes(n){if(!n)return '0 B';const units=['B','KB','MB','GB'];let i=0,v=n;while(v>=1024&&i<units.length-1){v/=1024;i++}return v.toFixed(v<10&&i>0?1:0)+' '+units[i]}
+async function loadTTSVoices(){try{const data=await request('/api/admin/tts/voices');ttsVoices=data.voices||[]}catch(error){ttsVoices=[]}}
+function ttsLanguagesAvailable(){return [...new Set(ttsVoices.map(v=>v.language))].sort()}
+function ttsFamiliesFor(language){return [...new Set(ttsVoices.filter(v=>v.language===language).map(v=>v.voice_family))]}
+function ttsVoicesFor(language,family){return ttsVoices.filter(v=>v.language===language&&v.voice_family===family)}
+function ttsFamilyDisplayName(language,family){const v=ttsVoicesFor(language,family)[0];return v?v.display_name.replace(/\s*\([^)]*\)\s*$/,''):family}
+function renderTTSLanguageSelect(selected){const select=$('tts2-language');const codes=ttsLanguagesAvailable();select.replaceChildren(...codes.map(c=>new Option(ttsLanguageLabel(c),c)));if(codes.includes(selected))select.value=selected;else if(codes.length)select.value=codes[0]}
+function renderTTSVoiceSelect(language,selectedFamily){const select=$('tts2-voice');const families=ttsFamiliesFor(language);select.replaceChildren(...families.map(f=>new Option(ttsFamilyDisplayName(language,f),f)));$('tts2-no-voice').hidden=families.length>0;select.disabled=families.length===0;if(families.includes(selectedFamily))select.value=selectedFamily;else if(families.length)select.value=families[0]}
+function renderTTSQualitySelect(language,family,selectedQuality){const select=$('tts2-quality');const qualities=[...new Set(ttsVoicesFor(language,family).map(v=>v.quality))];select.replaceChildren(...qualities.map(q=>new Option(q,q)));select.disabled=qualities.length===0;if(qualities.includes(selectedQuality))select.value=selectedQuality;else if(qualities.length)select.value=qualities[0]}
+function ttsSelectedVoiceID(){const language=$('tts2-language').value,family=$('tts2-voice').value,quality=$('tts2-quality').value;const match=ttsVoices.find(v=>v.language===language&&v.voice_family===family&&v.quality===quality);return match?match.id:''}
+function fillTTSConfig(cfg){
+ ttsConfig=cfg;
+ $('tts2-enabled').checked=!!cfg.enabled;
+ $('tts2-cpu').value=cfg.background_cpu_percent||30;
+ $('tts2-prerender').checked=!!cfg.pre_rendering_enabled;
+ const language=cfg.language||ttsLanguagesAvailable()[0]||'';
+ renderTTSLanguageSelect(language);
+ const currentLanguage=$('tts2-language').value;
+ const selectedVoice=ttsVoices.find(v=>v.id===cfg.voice_id);
+ renderTTSVoiceSelect(currentLanguage,selectedVoice?.voice_family);
+ renderTTSQualitySelect(currentLanguage,$('tts2-voice').value,selectedVoice?.quality||cfg.quality)
+}
+function priorityRow(label,value){const div=document.createElement('div');const l=document.createElement('span');l.textContent=label;const v=document.createElement('strong');v.textContent=value;div.append(l,v);return div}
+function renderTTSStatus(){
+ if(!ttsStatus)return;
+ $('tts-unavailable').hidden=ttsStatus.available!==false;
+ const gen=ttsStatus.building_generation||ttsStatus.active_generation;
+ const bar=$('tts2-progress-bar');
+ if(!ttsStatus.enabled){$('tts2-status-line').textContent=t('tts_status_disabled','Text-to-Speech ist deaktiviert.');bar.style.width='0%'}
+ else if(!gen){$('tts2-status-line').textContent=t('tts_status_idle','Sprach-Cache ist vollständig.');bar.style.width='100%'}
+ else if(ttsStatus.building_generation){$('tts2-status-line').textContent=t('tts_status_building','Neuer TTS-Cache wird vorbereitet')+' — '+ttsLanguageLabel(gen.language);bar.style.width=gen.progress_percent+'%'}
+ else{$('tts2-status-line').textContent=t('tts_status_active','Hintergrundverarbeitung läuft');bar.style.width='100%'}
+ $('tts2-counts').replaceChildren(
+  statusItem(t('tts_created','Erstellt'),String(gen?.completed??0)),
+  statusItem(t('tts_pending','Ausstehend'),String((gen?.pending_high||0)+(gen?.pending_normal||0)+(gen?.pending_low||0))),
+  statusItem(t('tts_failed','Fehler'),String(gen?.failed??0))
+ );
+ $('tts2-priorities').replaceChildren(
+  priorityRow(t('tts_priority_high','HIGH'),String(gen?.pending_high??0)),
+  priorityRow(t('tts_priority_normal','NORMAL'),String(gen?.pending_normal??0)),
+  priorityRow(t('tts_priority_low','LOW'),String(gen?.pending_low??0))
+ );
+ $('tts2-cache-stats').replaceChildren(
+  statusItem(t('tts_cache_files','Dateien'),String(ttsStatus.cache_entries||0)),
+  statusItem(t('tts_cache_size','Cache-Größe'),formatBytes(ttsStatus.cache_size_bytes||0)),
+  statusItem(t('tts_cpu_limit_label','CPU-Limit'),(ttsStatus.cpu_limit_percent||0)+' %'),
+  statusItem(t('tts_worker_running','Worker'),ttsStatus.worker_running?t('tts_worker_running','Hintergrund-Worker aktiv'):t('tts_worker_stopped','Hintergrund-Worker gestoppt'))
+ );
+ $('tts2-last-error').hidden=!ttsStatus.last_error;
+ $('tts2-last-error').textContent=ttsStatus.last_error?(t('tts_last_error','Letzter Fehler')+': '+ttsStatus.last_error):'';
+ $('tts2-diagnostics').replaceChildren(
+  statusItem(t('tts_generation_id','Generation'),gen?String(gen.id):'—'),
+  statusItem(t('tts_generation_status','Status'),gen?gen.status:'—')
+ )
+}
+function ttsPollingInterval(){return ttsStatus&&ttsStatus.building_generation?2000:8000}
+async function loadTTSStatus(){try{ttsStatus=await request('/api/admin/tts/status');renderTTSStatus()}catch(error){}}
+function scheduleTTSPoll(){clearTimeout(ttsPollTimer);ttsPollTimer=setTimeout(async()=>{await loadTTSStatus();scheduleTTSPoll()},ttsPollingInterval())}
+function stopTTSPoll(){clearTimeout(ttsPollTimer);ttsPollTimer=null}
+async function enterTTSView(){
+ try{
+  await loadTTSVoices();
+  if(!ttsConfig)ttsConfig=await request('/api/admin/tts/config');
+  fillTTSConfig(ttsConfig);
+  await loadTTSStatus()
+ }catch(error){message(error.message,true)}
+ scheduleTTSPoll()
+}
+function leaveTTSView(){stopTTSPoll()}
+async function saveTTSConfig(){
+ const enabled=$('tts2-enabled').checked;
+ const language=$('tts2-language').value;
+ const voiceID=ttsSelectedVoiceID();
+ if(enabled&&(!language||!voiceID)){message(t('tts_no_voice_for_language','Für diese Sprache ist noch keine Stimme installiert.'),true);return}
+ const languageOrVoiceChanged=enabled&&ttsConfig&&(ttsConfig.language!==language||ttsConfig.voice_id!==voiceID);
+ const firstTimeEnable=enabled&&(!ttsConfig||!ttsConfig.enabled);
+ if((languageOrVoiceChanged||firstTimeEnable)&&!window.confirm(t('tts_change_confirm_title','TTS-Sprache ändern?')+'\n\n'+t('tts_change_confirm_text','Die vorhandenen Sprachdateien werden im Hintergrund neu erstellt.')))return;
+ const body={enabled,language,voice_id:voiceID,quality:$('tts2-quality').value,background_cpu_percent:Number($('tts2-cpu').value),pre_rendering_enabled:$('tts2-prerender').checked};
+ const button=$('tts2-save');button.disabled=true;
+ try{
+  const result=await request('/api/admin/tts/config',{method:'PUT',body:JSON.stringify(body)});
+  ttsConfig=result.settings;ttsStatus=result.status;renderTTSStatus();
+  message(t('tts_config_saved','TTS-Konfiguration gespeichert.'))
+ }catch(error){message(error.message,true)}finally{button.disabled=false}
+}
+async function testTTSVoice(){
+ const text=$('tts2-test-text').value.trim();if(!text)return;
+ const button=$('tts2-test');button.disabled=true;
+ try{
+  await request('/api/admin/tts/test',{method:'POST',body:JSON.stringify({text,voice_id:ttsSelectedVoiceID(),language:$('tts2-language').value})});
+  message(t('tts_test_playing','Testwiedergabe gestartet.'))
+ }catch(error){message(error.message,true)}finally{button.disabled=false}
+}
+async function fillMissingTTS(){
+ const button=$('tts2-fill-missing');button.disabled=true;
+ try{await request('/api/admin/tts/cache/fill-missing',{method:'POST'});message(t('tts_fill_missing_done','Fehlende Sprachdateien werden im Hintergrund erzeugt.'));await loadTTSStatus()}catch(error){message(error.message,true)}finally{button.disabled=false}
+}
+async function rebuildTTSCache(){
+ if(!window.confirm(t('tts_rebuild_confirm','Der TTS-Cache wird für die aktuelle Sprache/Stimme neu aufgebaut. Fortfahren?')))return;
+ const button=$('tts2-rebuild');button.disabled=true;
+ try{await request('/api/admin/tts/cache/rebuild',{method:'POST'});message(t('tts_rebuild_done','Cache-Neuaufbau gestartet.'));await loadTTSStatus()}catch(error){message(error.message,true)}finally{button.disabled=false}
+}
+async function cleanupTTSCache(){
+ const button=$('tts2-cleanup');button.disabled=true;
+ try{await request('/api/admin/tts/cache/cleanup',{method:'POST'});message(t('tts_cleanup_done','Bereinigung ausgeführt.'))}catch(error){message(error.message,true)}finally{button.disabled=false}
+}
+$('tts2-language').addEventListener('change',()=>{renderTTSVoiceSelect($('tts2-language').value);renderTTSQualitySelect($('tts2-language').value,$('tts2-voice').value)});
+$('tts2-voice').addEventListener('change',()=>renderTTSQualitySelect($('tts2-language').value,$('tts2-voice').value));
+$('tts2-save').onclick=saveTTSConfig;
+$('tts2-test').onclick=testTTSVoice;
+$('tts2-fill-missing').onclick=fillMissingTTS;
+$('tts2-rebuild').onclick=rebuildTTSCache;
+$('tts2-cleanup').onclick=cleanupTTSCache;
+
 bootstrap();
