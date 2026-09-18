@@ -42,6 +42,16 @@ https://github.com/splitti/MuPiBox
   nicht routinemäßig ein zweites Mal vollständig selbst prüfen – nur kritische Punkte
   verifizieren. Niemals Secrets/Zugangsdaten an `local_ai` übergeben; nur gezielten Kontext
   (konkrete Datei/Diff/Log-Ausschnitt), keine Repository-Vollanalyse.
+- **Local-first bei Fleißarbeit:** Vor eigener Analyse längerer Logs (`journalctl`,
+  `systemctl`, `dmesg`, Netzwerk-/Hardwareausgaben, Pi-Inventarisierung), Code-Reviews
+  einzelner Dateien/Diffs, Suche nach Bugs/Dead Code/Inkonsistenzen, Testvorschlägen oder
+  Zusammenfassungen großer Ausgaben prüfen, ob `local_ai` das übernehmen kann (Pi/Log →
+  Qwen → kompakte Findings → Sonnet). Architektur, sicherheitsrelevante/komplexe
+  Implementierungen, Deployment- und Git-Entscheidungen bleiben bei Sonnet. Qwen-Antworten
+  kompakt anfordern (Findings, Datei/Zeile, Schweregrad, Empfehlung); bei „keine Findings“
+  nur kurz bestätigen, keine langen Ausgaben ungefiltert übernehmen. Für kleine, lokal
+  begrenzte Aufgaben weiterhin nur die betroffenen Dateien betrachten, keine
+  Repository-Vollanalyse auslösen, außer explizit gewünscht.
 - Workflow (siehe `scripts/deploy-pi.sh`, `scripts/test-pi.sh`, `scripts/status-pi.sh`,
   `scripts/logs-pi.sh`): lokal bauen/testen → `deploy-pi` synct den Arbeitsbaum (auch
   uncommittet) auf den Pi, baut dort nativ (arm64/CGO) und startet den Dienst neu → `test-pi`

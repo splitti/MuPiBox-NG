@@ -23,7 +23,10 @@ rsync -az --delete \
   --exclude '.env' \
   --exclude '.env.*' \
   --exclude 'credentials*.json' \
-  --exclude '/.claude/tools/' \
+  --exclude '.claude/' \
+  --exclude '.mcp.json' \
+  --exclude '__pycache__/' \
+  --exclude '/dev-access-check.txt' \
   ./ "$host:/opt/mupibox-ng/"
 
 ssh "$host" "set -euo pipefail; cd /opt/mupibox-ng && \
