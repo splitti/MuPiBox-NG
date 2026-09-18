@@ -20,20 +20,36 @@ https://github.com/splitti/MuPiBox
 
 ## DEV/TEST-Rollenverteilung (seit 2026-09-18)
 
-- **Debian-13-LXC `mupibox-dev`** ist die primäre **DEV**-Umgebung: Claude Code läuft hier,
-  hier wird entwickelt, gebaut, getestet, committet und gepusht. Go- und Node-Toolchain sind
-  installiert; kein `mpv`/Audio/Display nötig.
-- **Raspberry Pi/DietPi** ist die **TEST**-/Hardware-Referenz: echte Laufzeit, DSI-Display,
-  Touch, Audio, MuPiHat, systemd. Kein Dauerbetrieb von Entwicklungs-/AI-Werkzeugen dort.
-- **GitHub (`rebuild/go-foundation`)** ist die maßgebliche Source of Truth. Deployt wird immer
-  der gepushte Commit-Stand, nie ungeprüfter lokaler Code.
+- **Diese Debian-13-LXC** ist die einzige **DEV**-Umgebung: Claude Code läuft ausschließlich
+  hier, hier wird entwickelt, gebaut, getestet, committet und gepusht (amd64, kein
+  `mpv`/Audio/Display nötig).
+- **Raspberry Pi/DietPi (`mupibox-test`, 192.168.2.114, arm64)** ist ausschließlich
+  **TEST-/Hardware-Ziel**: echte Laufzeit, DSI-Display, Touch, Audio, MuPiHat, systemd. Kein
+  Dauerbetrieb von Entwicklungs-/AI-Werkzeugen dort (Claude Code/Anthropic-Reste wurden am
+  2026-09-18 vom Pi entfernt).
+- **GitHub (`rebuild/go-foundation`)** ist die maßgebliche Source of Truth für dauerhaften
+  Code. Deployment auf den Test-Pi ist auch mit uncommitteten Änderungen erlaubt (siehe unten);
+  committet/gepusht wird erst nach erfolgreichem Test.
 - SSH vom LXC zum Pi läuft über einen dedizierten Schlüssel (`~/.ssh/id_ed25519` auf dem LXC,
-  Alias `mupibox-pi` in `~/.ssh/config`). Keine privaten Schlüssel im Repository.
-- Alte ChatGPT/OpenAI-MCP-Infrastruktur (`/opt/mupibox-mcp`, Tunnel-Dienste) ist entfernt.
-- Workflow: im LXC entwickeln/bauen/testen → committen/pushen → `scripts/deploy-pi.sh`
-  aktualisiert und startet den Dienst auf dem Test-Pi neu → `scripts/status-pi.sh` /
-  `scripts/logs-pi.sh` zur Kontrolle. Ziel-Host ist über `MUPIBOX_PI_HOST` bzw. den
-  SSH-Config-Alias konfigurierbar, keine feste IP im Code.
+  Alias `mupibox-test` in `~/.ssh/config`, `mupibox-pi` als Alt-Alias). Keine privaten
+  Schlüssel im Repository.
+- **Lokale KI (Ollama/`qwen3:8b`, `http://192.168.3.45:11434`)** ist bevorzugter Worker für
+  Fleißarbeit: Datei-/Diff-/Log-Analyse, Fehler-Voranalyse, Testvorschläge, Codesuche,
+  einfache Implementierungsvorschläge. Eingebunden als Projekt-MCP-Server `local-ai`
+  (`.claude/tools/local-ai-mcp/`, Tool `local_ai`). Claude/Sonnet bleibt Orchestrator,
+  Reviewer und trifft alle Architektur-, Sicherheits- und Deployment-Entscheidungen; Qwen
+  committet/pusht nie und führt keine destruktiven Aktionen aus. Ergebnisse von `local_ai`
+  nicht routinemäßig ein zweites Mal vollständig selbst prüfen – nur kritische Punkte
+  verifizieren. Niemals Secrets/Zugangsdaten an `local_ai` übergeben; nur gezielten Kontext
+  (konkrete Datei/Diff/Log-Ausschnitt), keine Repository-Vollanalyse.
+- Workflow (siehe `scripts/deploy-pi.sh`, `scripts/test-pi.sh`, `scripts/status-pi.sh`,
+  `scripts/logs-pi.sh`): lokal bauen/testen → `deploy-pi` synct den Arbeitsbaum (auch
+  uncommittet) auf den Pi, baut dort nativ (arm64/CGO) und startet den Dienst neu → `test-pi`
+  führt `go vet`/`go test` nativ auf dem Pi aus → `status-pi`/`logs-pi` zur Kontrolle. Bei
+  Fehlern: Qwen für Log-/Fehler-Voranalyse nutzen, Sonnet entscheidet über die Korrektur,
+  danach erneut deployen/testen. Erst bei erfolgreichem Teststand auf dem Pi committen und
+  pushen. Zielhost über `MUPIBOX_PI_HOST` bzw. SSH-Config-Alias konfigurierbar, keine feste
+  IP im Code.
 - Keine destruktiven Git-Aktionen (Force-Push, History-Rewrite, Branch-Löschung) ohne
   ausdrückliche Freigabe. Keine Secrets/API-Keys im Repository.
 
@@ -153,10 +169,12 @@ cp deploy/config.example.json config.local.json   # backend auf "mpv" setzen
 
 CI läuft auf Push/PR gegen `rebuild/go-foundation` via GitHub Actions (Go 1.24.x, `ubuntu-latest`).
 
-Deployment vom DEV-LXC auf den Test-Pi (nur gepushter Stand, siehe DEV/TEST-Rollenverteilung):
+Deployment vom DEV-LXC auf den Test-Pi (auch uncommittete Änderungen, siehe
+DEV/TEST-Rollenverteilung):
 
 ```sh
-./scripts/deploy-pi.sh          # git pull + install-service.sh + Neustart auf dem Pi
+./scripts/deploy-pi.sh          # rsync Arbeitsbaum + install-service.sh + Neustart auf dem Pi
+./scripts/test-pi.sh            # go vet/go test nativ auf dem Pi (arm64)
 ./scripts/status-pi.sh          # systemctl status + /api/health
 ./scripts/logs-pi.sh            # journalctl -u mupibox-ng
 ```

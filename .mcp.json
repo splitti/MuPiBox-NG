@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "local-ai": {
+      "command": ".claude/tools/local-ai-mcp/venv/bin/python",
+      "args": [".claude/tools/local-ai-mcp/server.py"],
+      "env": {}
+    }
+  }
+}

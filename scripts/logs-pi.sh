@@ -3,7 +3,7 @@
 # Usage: scripts/logs-pi.sh [host] [-- journalctl-args...]
 set -euo pipefail
 
-host="${1:-${MUPIBOX_PI_HOST:-mupibox-pi}}"
+host="${1:-${MUPIBOX_PI_HOST:-mupibox-test}}"
 shift || true
 [ "${1:-}" = "--" ] && shift || true
 

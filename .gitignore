@@ -8,3 +8,7 @@
 .env.*
 credentials*.json
 /dev-access-check.txt
+
+# Dev-Tooling: lokale MCP-Worker-Umgebung (Ollama/Qwen), maschinenspezifisch
+.claude/tools/local-ai-mcp/venv/
+__pycache__/
