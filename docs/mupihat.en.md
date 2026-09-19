@@ -88,11 +88,20 @@ reflects the detected state, it does not switch it.
 
 Verified on real Pi 4 / MuPiHAT V3.1 hardware: overlay activation, detection, playback device
 selection and audible playback through the real MuPiBox player path (touch/API ->
-`internal/audio` -> mpv -> ALSA -> MuPiHAT speaker). Known gap: if a saved device no longer
-exists at runtime, mpv was observed to silently fall back to its own default device instead of
-surfacing a clearly recognizable error state -- the service stays stable and the admin UI reachable,
-but the clear-error-state requirement from [`docs/system-settings.en.md`](system-settings.en.md)
-is not yet fully met.
+`internal/audio` -> mpv -> ALSA -> MuPiHAT speaker). If a saved device no longer exists at
+runtime, `internal/audio/mpv.go` has surfaced a clear error since Phase 2
+(`configured audio device "..." is not available`, visible as `state:"error"` in `/api/status`)
+instead of silently falling back to another device; the service stays stable and the admin UI
+reachable.
+
+**dmix instead of plughw for MuPiHAT:** `alsa/plughw:CARD=...` is exclusive -- a second mpv
+process (e.g. a TTS announcement) cannot open the device while the main player still holds it,
+even while merely paused. `GET /api/admin/audio/status` therefore suggests the ALSA
+software-mixed `alsa/dmix:CARD=...` device for MuPiHAT cards via `recommended_device` (admin UI:
+hint with a "Use" button); `plughw` remains selectable as a direct low-level option, it just isn't
+the recommended default anymore. Verified on real hardware: music playback and a TTS announcement
+work concurrently over `dmix` (music paused, announcement audible), with no audible quality loss
+compared to `plughw`.
 
 ## Input current
 

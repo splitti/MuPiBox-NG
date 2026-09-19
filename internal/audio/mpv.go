@@ -15,7 +15,7 @@ import (
 // A fresh process per track isolates late events from the preceding track.
 // Device is the mpv --audio-device value (e.g. "alsa/hw:CARD=sndrpimax98357a,DEV=0"); empty means mpv picks its own default.
 type MPV struct { NullOutput bool; Device string; cmd *exec.Cmd; conn net.Conn; decoder *json.Decoder; dir string; seq int }
-type reply struct { ID int `json:"request_id"`; Error string `json:"error"`; Event string `json:"event"`; Reason string `json:"reason"`; Data json.RawMessage `json:"data"` }
+type reply struct { ID int `json:"request_id"`; Error string `json:"error"`; Event string `json:"event"`; Reason string `json:"reason"`; FileError string `json:"file_error"`; Data json.RawMessage `json:"data"` }
 func (*MPV) Name()string{return "mpv"}
 func (m *MPV) Load(path string,volume int)(err error){
  if err=m.Stop();err!=nil{return err}
@@ -35,18 +35,60 @@ func (m *MPV) Load(path string,volume int)(err error){
  }
  if err!=nil{return fmt.Errorf("mpv IPC: %w",err)}
  m.decoder=json.NewDecoder(m.conn)
+ if m.Device!=""{if err=m.checkDeviceAvailable();err!=nil{return err}}
  // Send load without discarding file-loaded events that can precede its reply.
  m.seq++;request:=m.seq
  _=m.conn.SetDeadline(time.Now().Add(10*time.Second))
  if err=json.NewEncoder(m.conn).Encode(map[string]any{"command":[]any{"loadfile",path,"replace"},"request_id":request});err!=nil{return err}
- loaded,accepted:=false,false
- for !loaded||!accepted{
+ // "file-loaded" only means the demuxer/codec resolved -- mpv still opens
+ // the audio device afterwards (even while --pause=yes) and that can fail
+ // on its own, observed for real with a busy exclusive ALSA device (two
+ // mpv processes racing for the same plughw handle): file-loaded fires,
+ // then later a separate "end-file"/error arrives.
+ endFile:=func(r reply)error{
+  reason:=r.Reason;if reason==""{reason="unknown"}
+  detail:=r.FileError;if detail==""{detail=reason}
+  return fmt.Errorf("mpv could not play audio (%s): %s",reason,detail)
+ }
+ accepted,started:=false,false
+ for !started||!accepted{
   var r reply;if err=m.decoder.Decode(&r);err!=nil{return fmt.Errorf("load audio: %w",err)}
-  if r.Event=="end-file"&&r.Reason=="error"{return fmt.Errorf("mpv could not decode audio: %s",r.Error)}
-  if r.Event=="file-loaded"{loaded=true}
+  if r.Event=="end-file"{return endFile(r)}
+  if r.Event=="playback-restart"{started=true}
   if r.ID==request{if r.Error!="success"{return errors.New(r.Error)};accepted=true}
  }
+ // Even "playback-restart" can fire optimistically just before mpv's own
+ // ALSA open call fails (observed for real on the exclusive-device-busy
+ // case above): give it a short grace window to reveal a trailing
+ // end-file/error before trusting that audio is actually coming out.
+ // json.Decoder caches the first read error it ever sees and keeps
+ // returning it forever after (encoding/json's refill() sets dec.err),
+ // so a deliberately provoked read-deadline timeout permanently poisons
+ // m.decoder for every later call unless replaced -- safe to replace here
+ // because a timeout only fires once the decoder's internal buffer is
+ // fully drained, so no buffered-but-unread bytes are lost.
+ _=m.conn.SetReadDeadline(time.Now().Add(200*time.Millisecond))
+ for{
+  var r reply
+  if err=m.decoder.Decode(&r);err!=nil{
+   if os.IsTimeout(err){break}
+   return fmt.Errorf("load audio: %w",err)
+  }
+  if r.Event=="end-file"{_=m.conn.SetReadDeadline(time.Time{});return endFile(r)}
+ }
+ _=m.conn.SetReadDeadline(time.Time{})
+ m.decoder=json.NewDecoder(m.conn)
  return m.Pause(false)
+}
+// checkDeviceAvailable rejects a configured device that mpv's own live
+// enumeration no longer lists (e.g. the MuPiHAT card vanished after being
+// selected) instead of silently letting mpv fall back to its own default
+// output -- see docs/mupihat.md's "known gap".
+func (m *MPV) checkDeviceAvailable() error {
+ var devices []struct{ Name string `json:"name"` }
+ if err:=m.call(&devices,"get_property","audio-device-list");err!=nil{return fmt.Errorf("mpv audio-device-list: %w",err)}
+ for _,d:=range devices{if d.Name==m.Device{return nil}}
+ return fmt.Errorf("configured audio device %q is not available",m.Device)
 }
 func (m *MPV) call(out any,args ...any)error{
  if m.conn==nil{return errors.New("mpv is not running")}

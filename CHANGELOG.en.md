@@ -2,8 +2,11 @@
 
 > [Deutsch](CHANGELOG.md) · **English**
 
-## 0.1.0-dev – 2026-09-18
+## 0.1.0-dev – 2026-09-19
 
+- Verified local media playback (MP3/FLAC/OGG/M4A) for real over the MuPiHAT amplifier: play/pause/next/previous/seek/volume, natural sorting, folder/audiobook playback with automatic track advance, and resume after a restart, all confirmed on real Pi 4/MuPiHAT V3.1 hardware.
+- Found and fixed two real bugs during hardware testing: (1) `internal/audio/mpv.go` did not reliably detect a failed mpv audio output (e.g. an exclusive ALSA device already in use), since the "file-loaded"/"playback-restart" event arrived before a delayed failure -- playback is now correctly recognized as failed; (2) the TTS test/announcement playback path (`/api/speak`, `/api/admin/tts/test`) was not using the configured audio device.
+- Switched the recommended MuPiHAT playback device to `alsa/dmix:CARD=...` (shared ALSA access) instead of `alsa/plughw:CARD=...` (exclusive), so a TTS announcement stays audible while the main player holds the device paused; `GET /api/admin/audio/status` now suggests this via `recommended_device`, with `plughw` still selectable. Raised `/api/speak`'s synthesis time budget from 8s to 20s (real cache-miss synthesis on Pi hardware can take close to 8s).
 - Set the official target platform to Raspberry Pi 3/4/5, ARM64 only (Pi 2/ARM32 no longer supported); MuPiHAT integration is now Go-first, with the existing Python BQ25792 driver kept as a register reference/fallback rather than the automatic target architecture.
 - Brought MuPiHAT audio (MAX98357A) up on real Pi 4 / MuPiHAT V3.1 hardware: the device-tree overlay is managed idempotently through `mupibox-system-agent` (`PUT /api/admin/audio/mupihat`), with device detection (`aplay -l`, `mpv --audio-device=help`) and mpv device selection (`PUT /api/admin/audio/device`) in the admin UI; audible playback through the real player path confirmed.
 - Added an offline TTS engine (OHF-Voice/piper1-gpl, formerly rhasspy/piper) with a cache-generation state machine, a persistent priority queue, cgroup v2 CPU limiting (with a `nice` fallback), a manifest-driven voice installer (17 languages), and automatic content pre-rendering for categories/local media; admin UI for configuration, cache status and voice testing.

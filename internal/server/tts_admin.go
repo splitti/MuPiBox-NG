@@ -457,7 +457,12 @@ func (a *API) registerTTSRoutes(mux *http.ServeMux) {
 		if a.Player != nil && a.Player.Status().State == "playing" {
 			_ = a.Player.Execute(core.Command{Action: "pause"})
 		}
-		ctx, cancel := context.WithTimeout(r.Context(), 8*time.Second)
+		// Same budget as /api/admin/tts/test (RenderTestClip): a genuine
+		// cache miss means real Piper synthesis on Pi-class hardware, which
+		// was observed to take close to 9s for an ordinary sentence -- 8s
+		// left no margin and produced spurious "context deadline exceeded"
+		// failures on real hardware.
+		ctx, cancel := context.WithTimeout(r.Context(), 20*time.Second)
 		defer cancel()
 		path, err := a.TTSManager.ResolveSpeech(ctx, input.SourceType, input.SourceRef, input.Text)
 		if err != nil {

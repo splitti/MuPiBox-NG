@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"mupibox/internal/audio"
+	"mupibox/internal/core"
 	"mupibox/internal/library"
 	"mupibox/internal/store"
 	"mupibox/internal/tts"
@@ -303,6 +304,48 @@ func TestTTSTestEndpointUnavailableWithoutManager(t *testing.T) {
 	w := ttsRequest(t, a.Handler(), http.MethodPost, "/api/admin/tts/test", `{"text":"Hallo"}`)
 	if w.Code != http.StatusServiceUnavailable {
 		t.Fatalf("expected 503 without a manager, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+// TestSpeakPausesRunningMusicWithoutAutoResume covers Phase 2 item 8: an
+// announcement must pause playback instead of talking over it, and must
+// never auto-resume music on its own -- the user resumes explicitly.
+func TestSpeakPausesRunningMusicWithoutAutoResume(t *testing.T) {
+	api, db := newTTSTestAPI(t, &fakeTTSEngine{})
+	installTestVoice(t, db, "de-voice", "de-DE")
+	if w := ttsRequest(t, api.Handler(), http.MethodPut, "/api/admin/tts/config", `{"enabled":true,"language":"de-DE","voice_id":"de-voice","background_cpu_percent":30}`); w.Code != 200 {
+		t.Fatalf("enable failed: %d %s", w.Code, w.Body.String())
+	}
+	dir := t.TempDir()
+	if err := os.WriteFile(dir+"/track.wav", []byte("fixture"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	lib, err := library.Scan(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	player, err := core.New(lib, &audio.Simulated{}, 60)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = player.Close() })
+	api.Player = player
+	if err := player.Execute(core.Command{Action: "folder", FolderID: lib.Folders[0].ID}); err != nil {
+		t.Fatal(err)
+	}
+	if player.Status().State != "playing" {
+		t.Fatalf("expected music to be playing, got %q", player.Status().State)
+	}
+	w := ttsRequest(t, api.Handler(), http.MethodPost, "/api/speak", `{"text":"Hallo, das ist ein Test mit Umlauten: äöüß."}`)
+	if w.Code != 200 {
+		t.Fatalf("speak status=%d body=%s", w.Code, w.Body.String())
+	}
+	if player.Status().State != "paused" {
+		t.Fatalf("expected music paused for the announcement, got %q", player.Status().State)
+	}
+	time.Sleep(50 * time.Millisecond)
+	if player.Status().State != "paused" {
+		t.Fatalf("music must not auto-resume after the announcement, got %q", player.Status().State)
 	}
 }
 

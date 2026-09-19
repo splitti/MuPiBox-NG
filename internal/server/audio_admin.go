@@ -33,6 +33,7 @@ type audioStatus struct {
 	Cards                    []audioCard   `json:"cards"`
 	MPVDevices               []audioDevice `json:"mpv_devices"`
 	ConfiguredDevice         string        `json:"configured_device"`
+	RecommendedDevice        string        `json:"recommended_device,omitempty"`
 	MuPiHATOverlayConfigured bool          `json:"mupihat_overlay_configured"`
 	MuPiHATDetected          bool          `json:"mupihat_detected"`
 	RebootRequired           bool          `json:"reboot_required"`
@@ -89,6 +90,27 @@ func mupihatCardDetected(cards []audioCard) bool {
 	return false
 }
 
+// recommendedAudioDevice prefers a "dmix" playback device for a detected
+// MuPiHAT (MAX98357A) card over the default "plughw" one: plughw is
+// exclusive, so a second mpv process (TTS/announcements) cannot open it
+// while the main player still holds it, even paused -- observed for real
+// on Pi 4/MuPiHAT V3.1 hardware. dmix allows both to play concurrently.
+// plughw stays selectable directly, it just isn't the suggested default.
+func recommendedAudioDevice(cards []audioCard, devices []audioDevice) string {
+	for _, card := range cards {
+		if !strings.Contains(strings.ToLower(card.ID), "max98357a") {
+			continue
+		}
+		want := "alsa/dmix:CARD=" + card.ID + ",DEV=" + strconv.Itoa(card.Device)
+		for _, device := range devices {
+			if device.ID == want {
+				return want
+			}
+		}
+	}
+	return ""
+}
+
 func collectAudioStatus(ctx context.Context, configuredDevice string) audioStatus {
 	_, aplayErr := exec.LookPath("aplay")
 	_, mpvErr := exec.LookPath("mpv")
@@ -99,6 +121,7 @@ func collectAudioStatus(ctx context.Context, configuredDevice string) audioStatu
 	return audioStatus{
 		AplayInstalled: aplayErr == nil, MPVInstalled: mpvErr == nil,
 		Cards: cards, MPVDevices: devices, ConfiguredDevice: configuredDevice,
+		RecommendedDevice:        recommendedAudioDevice(cards, devices),
 		MuPiHATOverlayConfigured: overlay, MuPiHATDetected: detected,
 		RebootRequired: overlay && !detected,
 		CollectedAt:    time.Now().UTC(),

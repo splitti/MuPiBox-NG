@@ -2,8 +2,11 @@
 
 > **Deutsch** · [English](CHANGELOG.en.md)
 
-## 0.1.0-dev – 18.09.2026
+## 0.1.0-dev – 19.09.2026
 
+- Lokale Medienwiedergabe (MP3/FLAC/OGG/M4A) real über den MuPiHAT-Verstärker verifiziert: Play/Pause/Next/Previous/Seek/Lautstärke, natürliche Sortierung, Ordner-/Hörspielwiedergabe mit automatischem Titelwechsel und Resume nach Neustart auf echter Pi-4/MuPiHAT-V3.1-Hardware bestätigt.
+- Zwei reale Bugs beim Hardwaretest gefunden und behoben: (1) `internal/audio/mpv.go` erkannte eine erfolglose mpv-Audioausgabe (z. B. exklusives, bereits belegtes ALSA-Gerät) bisher nicht zuverlässig, da das `file-loaded`/`playback-restart`-Ereignis vor einem verzögerten Fehler eintraf – Wiedergabe wird jetzt korrekt als Fehler erkannt; (2) TTS-Testwiedergabe (`/api/speak`, `/api/admin/tts/test`) nutzte bisher nicht das konfigurierte Audiogerät.
+- Empfohlenes MuPiHAT-Wiedergabegerät auf `alsa/dmix:CARD=...` (geteilter ALSA-Zugriff) statt `alsa/plughw:CARD=...` (exklusiv) umgestellt, damit eine TTS-Ansage hörbar bleibt, während der Hauptplayer pausiert das Gerät hält; `GET /api/admin/audio/status` schlägt dies über `recommended_device` vor, `plughw` bleibt wählbar. `/api/speak`s Synthese-Zeitbudget von 8 s auf 20 s angehoben (reale Cache-Miss-Synthese auf Pi-Hardware kann nahe 8 s dauern).
 - Zielplattform auf Raspberry Pi 3/4/5, ARM64 only festgelegt (Pi 2/ARM32 nicht mehr unterstützt); MuPiHAT-Integration auf Go-first umgestellt, Python-BQ25792-Treiber bleibt Registerreferenz/Fallback statt automatischer Zielarchitektur.
 - MuPiHAT-Audio (MAX98357A) real auf Pi 4/MuPiHAT V3.1 in Betrieb genommen: Device-Tree-Overlay wird idempotent über `mupibox-system-agent` verwaltet (`PUT /api/admin/audio/mupihat`), Geräteerkennung (`aplay -l`, `mpv --audio-device=help`) und mpv-Gerätewahl (`PUT /api/admin/audio/device`) im Adminbereich; hörbare Wiedergabe über den echten Playerpfad bestätigt.
 - Offline-TTS-Engine (OHF-Voice/piper1-gpl, vormals rhasspy/piper) mit Cache-Generationen-State-Machine, persistenter Prioritäts-Queue, cgroup-v2-CPU-Limit (Fallback `nice`), manifestbasiertem Voice-Installer (17 Sprachen) und automatischem Content-Pre-Rendering für Kategorien/lokale Medien ergänzt; Admin-UI für Konfiguration, Cache-Status und Stimmentest.

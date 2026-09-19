@@ -91,6 +91,33 @@ func TestMupihatCardDetectedIsCaseInsensitive(t *testing.T) {
 	}
 }
 
+// TestRecommendedAudioDeviceSuggestsDmixForMuPiHAT covers a real bug found
+// during Phase 2 hardware testing: a second mpv process (TTS/announcements)
+// cannot open the exclusive "plughw" device while the main player still
+// holds it, even paused. dmix allows concurrent playback, so it should be
+// the suggested default for a detected MuPiHAT card -- plughw stays
+// selectable, it just isn't recommended.
+func TestRecommendedAudioDeviceSuggestsDmixForMuPiHAT(t *testing.T) {
+	cards := parseAplayList("card 0: MAX98357A [Maxim MAX98357A Audio Codec], device 0: HiFi [HiFi]\n")
+	devices := []audioDevice{
+		{ID: "auto", Name: "Autoselect device"},
+		{ID: "alsa/plughw:CARD=MAX98357A,DEV=0", Name: "Hardware device with all software conversions"},
+		{ID: "alsa/dmix:CARD=MAX98357A,DEV=0", Name: "Direct sample mixing device"},
+	}
+	if got := recommendedAudioDevice(cards, devices); got != "alsa/dmix:CARD=MAX98357A,DEV=0" {
+		t.Fatalf("expected the dmix device to be recommended, got %q", got)
+	}
+}
+func TestRecommendedAudioDeviceEmptyWithoutMuPiHATOrDmixEntry(t *testing.T) {
+	if got := recommendedAudioDevice(nil, nil); got != "" {
+		t.Fatalf("expected no recommendation without any cards, got %q", got)
+	}
+	cards := parseAplayList("card 0: MAX98357A [Maxim MAX98357A Audio Codec], device 0: HiFi [HiFi]\n")
+	devices := []audioDevice{{ID: "alsa/plughw:CARD=MAX98357A,DEV=0", Name: "Hardware device"}}
+	if got := recommendedAudioDevice(cards, devices); got != "" {
+		t.Fatalf("expected no recommendation when mpv never listed a matching dmix device, got %q", got)
+	}
+}
 func TestParsersHandleMissingBinaryOutputGracefully(t *testing.T) {
 	if cards := parseAplayList(""); len(cards) != 0 {
 		t.Fatalf("expected no cards from empty aplay output, got %#v", cards)

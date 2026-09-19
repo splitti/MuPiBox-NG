@@ -421,6 +421,11 @@ function renderAudioStatus(){
  (audioStatus.mpv_devices||[]).forEach(device=>select.append(new Option(device.name+' — '+device.id,device.id)));
  if([...select.options].some(option=>option.value===current))select.value=current;
  else if(current){select.append(new Option(current,current));select.value=current}
+ const recommendation=$('audio-device-recommendation');
+ if(audioStatus.recommended_device&&audioStatus.recommended_device!==current){
+  recommendation.hidden=false;recommendation.dataset.device=audioStatus.recommended_device;
+  recommendation.querySelector('span').textContent=t('audio_device_recommended','Empfohlen für gleichzeitige Ansagen/Musik:')+' '+audioStatus.recommended_device
+ }else recommendation.hidden=true
 }
 async function loadAudioStatus(){
  try{
@@ -450,5 +455,6 @@ async function saveAudioDevice(){
 $('audio-refresh').onclick=loadAudioStatus;
 $('audio-save-mupihat').onclick=saveMuPiHATAudio;
 $('audio-save-device').onclick=saveAudioDevice;
+$('audio-device-recommendation').querySelector('button').onclick=()=>{$('audio-device').value=$('audio-device-recommendation').dataset.device;$('audio-device-recommendation').hidden=true};
 
 bootstrap();

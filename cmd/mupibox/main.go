@@ -148,7 +148,7 @@ func run() error {
 	defer p.Close()
 	newAudioBackend := func() audio.Backend {
 		if cfg.Backend == "mpv" {
-			return &audio.MPV{}
+			return &audio.MPV{Device: settings.Audio.Device}
 		}
 		return &audio.Simulated{}
 	}

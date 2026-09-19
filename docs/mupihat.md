@@ -91,11 +91,20 @@ bildet den erkannten Zustand nur ab, schaltet ihn nicht.
 
 Auf echter Pi-4/MuPiHAT-V3.1-Hardware verifiziert: Overlay-Aktivierung, Erkennung, Auswahl des
 Wiedergabegeräts und hörbare Wiedergabe über den echten MuPiBox-Playerpfad (Touch/API →
-`internal/audio` → mpv → ALSA → MuPiHAT-Lautsprecher). Bekannte Lücke: Zeigt ein einmal
-gespeichertes Gerät auf zur Laufzeit nicht mehr vorhandene Hardware, fällt mpv beobachtet still
-auf sein eigenes Standardgerät zurück, statt einen klar erkennbaren Fehlerzustand zu melden – der
-Dienst bleibt dabei stabil und das Adminportal erreichbar, nur die in
-[`docs/system-settings.md`](system-settings.md) geforderte klare Fehlerkennzeichnung fehlt noch.
+`internal/audio` → mpv → ALSA → MuPiHAT-Lautsprecher). Zeigt die Konfiguration auf zur Laufzeit
+nicht mehr vorhandene Hardware, liefert `internal/audio/mpv.go` seit Phase 2 einen klaren
+Fehlerzustand (`configured audio device "..." is not available`, sichtbar über `state:"error"`
+in `/api/status`) statt still auf ein anderes Gerät auszuweichen; der Dienst bleibt dabei stabil
+und das Adminportal erreichbar.
+
+**dmix statt plughw für MuPiHAT:** `alsa/plughw:CARD=...` ist exklusiv – ein zweiter mpv-Prozess
+(z. B. eine TTS-Ansage) kann das Gerät nicht öffnen, solange der Hauptplayer es hält, auch wenn
+dieser nur pausiert ist. Für MuPiHAT-Karten schlägt `GET /api/admin/audio/status` deshalb über
+`recommended_device` das per ALSA-Softwaremischung geteilte `alsa/dmix:CARD=...`-Gerät vor
+(Admin-UI: Hinweis mit „Übernehmen“-Button); `plughw` bleibt als direkte Low-Level-Option wählbar,
+ist aber nicht mehr der empfohlene Standard. Auf echter Hardware verifiziert: Musikwiedergabe und
+eine TTS-Ansage funktionieren über `dmix` gleichzeitig (Musik pausiert, Ansage hörbar), ohne
+hörbare Qualitätseinbuße gegenüber `plughw`.
 
 ## Eingangsstrom
 
