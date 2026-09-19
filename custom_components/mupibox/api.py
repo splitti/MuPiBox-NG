@@ -252,6 +252,42 @@ class MuPiBoxApiClient:
         )
         return result if isinstance(result, dict) else {}
 
+    async def async_admin_get_bytes(self, path: str, timeout: float = 15) -> bytes:
+        """Fetch binary data from a protected Admin endpoint."""
+        await self.async_ensure_admin_session()
+
+        async def _fetch() -> tuple[int, bytes]:
+            headers: dict[str, str] = {}
+            if self._admin_cookie:
+                headers["Cookie"] = f"mupibox_admin_session={self._admin_cookie}"
+            try:
+                async with asyncio.timeout(timeout):
+                    response = await self._session.get(
+                        self.absolute_url(path), headers=headers
+                    )
+                    body = await response.read()
+                    return response.status, body
+            except (TimeoutError, ClientError, OSError) as err:
+                raise MuPiBoxCannotConnect(
+                    f"Cannot connect to MuPiBox-NG: {err}"
+                ) from err
+
+        status, body = await _fetch()
+        if status == HTTPStatus.UNAUTHORIZED:
+            self._admin_cookie = None
+            await self.async_ensure_admin_session()
+            status, body = await _fetch()
+        if status < 200 or status >= 300:
+            message = body.decode("utf-8", errors="replace").strip()
+            if status in (HTTPStatus.UNAUTHORIZED, HTTPStatus.FORBIDDEN):
+                raise MuPiBoxAuthenticationError(
+                    message or f"MuPiBox API returned HTTP {status}", status=status
+                )
+            raise MuPiBoxApiError(
+                message or f"MuPiBox API returned HTTP {status}", status=status
+            )
+        return body
+
     async def async_admin_post(self, path: str, payload: dict[str, Any] | None = None) -> dict[str, Any]:
         result = await self.async_request_json(
             "POST", path, json_data=payload or {}, admin=True, timeout=15
