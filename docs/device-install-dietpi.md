@@ -168,6 +168,17 @@ manuelles Editieren von `config.txt`.
 
 Bei schwarzem Display zuerst Kabel, Stromversorgung und Kernel-Erkennung prüfen, bevor Display-Overlays verändert werden.
 
+## Spotify Connect (optional)
+
+```sh
+sudo bash scripts/install-go-librespot.sh
+```
+
+Installiert [`go-librespot`](https://github.com/devgianlu/go-librespot) (ARM64-Release, GPL-3.0)
+als eigenen `mupibox-spotify.service`. Die Box erscheint danach in der offiziellen Spotify-App
+unter dem Namen „MuPiBox“ (Spotify Connect/Zeroconf) – kein separates Login auf der Box nötig,
+kein OAuth. Details: [`docs/spotify.md`](spotify.md#phase-3a--spotify-connect-umgesetzt-real-getestet).
+
 ## Browserzugriff für Entwicklung/Admin
 
 Die konfigurierte Adresse lässt sich so prüfen:

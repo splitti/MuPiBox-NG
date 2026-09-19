@@ -65,6 +65,15 @@ Window {
         "cover": ""
     })
     property string transientMessage: ""
+    property var spotifyState: ({
+        "connected": false, "playing": false, "paused": false,
+        "volume": 0, "volume_steps": 100, "track": null
+    })
+    // Arbitration (internal/server) already keeps local playback and Spotify
+    // mutually exclusive; this only decides which one the single player bar
+    // displays during the brief moments both could otherwise look inactive.
+    property bool spotifyActive: spotifyState.connected && (spotifyState.playing || spotifyState.paused)
+    property bool showSpotifyBar: spotifyActive && root.playerState.state !== "playing"
 
     function localized(labels, fallback) {
         if (!labels) return fallback || ""
@@ -272,6 +281,103 @@ Window {
         })
     }
 
+    property bool spotifyPending: false
+    function refreshSpotify() {
+        requestJson("GET", "/api/spotify/status", null, function(data) {
+            spotifyState = data || spotifyState
+        }, function() {})
+    }
+    function spotifyCommand(payload) {
+        if (spotifyPending || !backendOnline) return
+        spotifyPending = true
+        requestJson("POST", "/api/spotify/command", payload, function(data) {
+            spotifyState = data || spotifyState
+            spotifyPending = false
+        }, function() {
+            spotifyPending = false
+            showMessage("Spotify-Befehl konnte nicht ausgeführt werden.")
+        })
+    }
+
+    // Unified accessors so the single player bar can show either the local
+    // player or an active Spotify Connect session (see showSpotifyBar) --
+    // arbitration in internal/server already keeps the two mutually
+    // exclusive, this just decides what the shared bar renders/sends.
+    function currentDisplayTitle() {
+        if (root.showSpotifyBar) return (spotifyState.track && spotifyState.track.name) || "Spotify Connect"
+        var track = root.currentTrack()
+        return track ? track.title : "Such dir etwas aus"
+    }
+    function currentDisplaySubtitle() {
+        if (root.showSpotifyBar) {
+            var artists = spotifyState.track && spotifyState.track.artists
+            return (artists && artists.length ? artists.join(", ") : "Spotify Connect")
+        }
+        return root.playerState.folder || "Deine Medien warten auf dich."
+    }
+    function currentDisplayStatusLine() {
+        if (root.showSpotifyBar) return spotifyState.paused ? "Spotify · Pausiert" : "Spotify · Wiedergabe"
+        var queue = root.playerState.queue || []
+        if (!queue.length) return ""
+        var states = {"playing": "Wiedergabe", "paused": "Pausiert", "stopped": "Gestoppt", "error": "Fehler"}
+        return String(Number(root.playerState.index || 0) + 1) + " / " + String(queue.length) + " · " + (states[root.playerState.state] || "")
+    }
+    function currentCoverUrl() {
+        if (root.showSpotifyBar) return (spotifyState.track && spotifyState.track.cover) || ""
+        return root.coverUrl(root.playerState.cover || "")
+    }
+    function transportEnabled() {
+        if (root.showSpotifyBar) return root.backendOnline && spotifyState.connected
+        return root.backendOnline && (root.playerState.queue || []).length > 0
+    }
+    function toggleLabel() {
+        if (root.showSpotifyBar) return spotifyState.playing ? "Ⅱ" : "▶"
+        return root.playerState.state === "playing" ? "Ⅱ" : "▶"
+    }
+    function onPreviousTapped() {
+        if (root.showSpotifyBar) root.spotifyCommand({"action": "previous"})
+        else root.command({"action": "previous"})
+    }
+    function onToggleTapped() {
+        if (root.showSpotifyBar) root.spotifyCommand({"action": spotifyState.playing ? "pause" : "resume"})
+        else root.command({"action": "toggle"})
+    }
+    function onNextTapped() {
+        if (root.showSpotifyBar) root.spotifyCommand({"action": "next"})
+        else root.command({"action": "next"})
+    }
+    function currentPositionSeconds() {
+        if (root.showSpotifyBar) return (spotifyState.track ? Number(spotifyState.track.position_ms || 0) : 0) / 1000
+        return Number(root.playerState.position || 0)
+    }
+    function currentDurationSeconds() {
+        if (root.showSpotifyBar) return (spotifyState.track ? Number(spotifyState.track.duration_ms || 0) : 0) / 1000
+        return Number(root.playerState.duration || 0)
+    }
+    function seekEnabled() {
+        if (root.showSpotifyBar) return root.backendOnline && spotifyState.connected && root.currentDurationSeconds() > 0
+        return root.backendOnline && Number(root.playerState.duration || 0) > 0
+    }
+    function onSeekTapped(localX, trackWidth) {
+        var duration = root.currentDurationSeconds()
+        if (root.showSpotifyBar) root.spotifyCommand({"action": "seek", "value": Math.round(localX / trackWidth * duration * 1000)})
+        else root.command({"action": "seek", "value": Math.round(localX / trackWidth * duration)})
+    }
+    function currentVolume() {
+        if (root.showSpotifyBar) return Number(spotifyState.volume || 0)
+        return Number(root.playerState.volume || 0)
+    }
+    function currentMaxVolume() {
+        if (root.showSpotifyBar) return Number(spotifyState.volume_steps || 100)
+        return Number(root.playerState.max_volume || 60)
+    }
+    function onVolumeTapped(localX, trackWidth) {
+        var max = root.currentMaxVolume()
+        var value = Math.round(localX / trackWidth * max)
+        if (root.showSpotifyBar) root.spotifyCommand({"action": "volume", "value": value})
+        else root.command({"action": "volume", "value": value})
+    }
+
     function updateClock() {
         clockText = Qt.formatTime(new Date(), "hh:mm")
     }
@@ -284,12 +390,14 @@ Window {
             refreshSystem()
             refreshUIState()
             refreshStatus()
+            refreshSpotify()
         }, function() {
             backendOnline = false
         })
     }
 
     Timer { interval: 750; running: true; repeat: true; onTriggered: root.refreshStatus() }
+    Timer { interval: 1000; running: true; repeat: true; onTriggered: root.refreshSpotify() }
     Timer {
         interval: 2000
         running: true
@@ -720,7 +828,7 @@ Window {
                 Image {
                     id: nowCover
                     anchors.fill: parent
-                    source: root.coverUrl(root.playerState.cover || "")
+                    source: root.currentCoverUrl()
                     fillMode: Image.PreserveAspectCrop
                     asynchronous: true
                     visible: source !== ""
@@ -744,10 +852,7 @@ Window {
 
                 Text {
                     width: parent.width
-                    text: {
-                        var track = root.currentTrack()
-                        return track ? track.title : "Such dir etwas aus"
-                    }
+                    text: root.currentDisplayTitle()
                     color: root.textColor
                     font.pixelSize: root.largeUI ? 16 : 13
                     font.family: root.uiFont
@@ -756,7 +861,7 @@ Window {
                 }
                 Text {
                     width: parent.width
-                    text: root.playerState.folder || "Deine Medien warten auf dich."
+                    text: root.currentDisplaySubtitle()
                     color: root.mutedColor
                     font.pixelSize: 9
                     font.family: root.uiFont
@@ -764,12 +869,7 @@ Window {
                 }
                 Text {
                     width: parent.width
-                    text: {
-                        var queue = root.playerState.queue || []
-                        if (!queue.length) return ""
-                        var states = {"playing": "Wiedergabe", "paused": "Pausiert", "stopped": "Gestoppt", "error": "Fehler"}
-                        return String(Number(root.playerState.index || 0) + 1) + " / " + String(queue.length) + " · " + (states[root.playerState.state] || "")
-                    }
+                    text: root.currentDisplayStatusLine()
                     color: root.mutedColor
                     font.pixelSize: 9
                     font.family: root.uiFont
@@ -786,23 +886,23 @@ Window {
                 Rectangle {
                     width: root.largeUI ? 50 : 42; height: root.largeUI ? 50 : 42; radius: root.retroTheme ? 0 : width / 2
                     color: previousTouch.pressed ? root.lineColor : root.panelColor
-                    opacity: root.backendOnline && (root.playerState.queue || []).length ? 1 : 0.4
+                    opacity: root.transportEnabled() ? 1 : 0.4
                     Text { anchors.centerIn: parent; text: "❮❮"; color: root.textColor; font.pixelSize: 14 }
                     MouseArea {
                         id: previousTouch
                         anchors.fill: parent
-                        enabled: root.backendOnline && (root.playerState.queue || []).length > 0
-                        onClicked: root.command({"action": "previous"})
+                        enabled: root.transportEnabled()
+                        onClicked: root.onPreviousTapped()
                     }
                 }
 
                 Rectangle {
                     width: root.largeUI ? 58 : 48; height: root.largeUI ? 58 : 48; radius: root.retroTheme ? 0 : width / 2
                     color: toggleTouch.pressed ? root.accentPressedColor : root.accentColor
-                    opacity: root.backendOnline && (root.playerState.queue || []).length ? 1 : 0.4
+                    opacity: root.transportEnabled() ? 1 : 0.4
                     Text {
                         anchors.centerIn: parent
-                        text: root.playerState.state === "playing" ? "Ⅱ" : "▶"
+                        text: root.toggleLabel()
                         color: root.accentTextColor
                         font.pixelSize: 18
                         font.family: root.uiFont
@@ -810,21 +910,21 @@ Window {
                     MouseArea {
                         id: toggleTouch
                         anchors.fill: parent
-                        enabled: root.backendOnline && (root.playerState.queue || []).length > 0
-                        onClicked: root.command({"action": "toggle"})
+                        enabled: root.transportEnabled()
+                        onClicked: root.onToggleTapped()
                     }
                 }
 
                 Rectangle {
                     width: root.largeUI ? 50 : 42; height: root.largeUI ? 50 : 42; radius: root.retroTheme ? 0 : width / 2
                     color: nextTouch.pressed ? root.lineColor : root.panelColor
-                    opacity: root.backendOnline && (root.playerState.queue || []).length ? 1 : 0.4
+                    opacity: root.transportEnabled() ? 1 : 0.4
                     Text { anchors.centerIn: parent; text: "❯❯"; color: root.textColor; font.pixelSize: 14 }
                     MouseArea {
                         id: nextTouch
                         anchors.fill: parent
-                        enabled: root.backendOnline && (root.playerState.queue || []).length > 0
-                        onClicked: root.command({"action": "next"})
+                        enabled: root.transportEnabled()
+                        onClicked: root.onNextTapped()
                     }
                 }
             }
@@ -843,7 +943,7 @@ Window {
                     Text {
                         width: 28
                         anchors.verticalCenter: parent.verticalCenter
-                        text: root.formatTime(root.playerState.position)
+                        text: root.formatTime(root.currentPositionSeconds())
                         color: root.mutedColor
                         font.pixelSize: 8
                         font.family: root.uiFont
@@ -861,16 +961,16 @@ Window {
                             height: parent.height
                             radius: parent.radius
                             color: root.accentColor
-                            width: parent.width * Math.min(1, Number(root.playerState.position || 0) / Math.max(1, Number(root.playerState.duration || 0)))
+                            width: parent.width * Math.min(1, root.currentPositionSeconds() / Math.max(1, root.currentDurationSeconds()))
                         }
 
                         MouseArea {
                             anchors.fill: parent
                             anchors.margins: -10
-                            enabled: root.backendOnline && Number(root.playerState.duration || 0) > 0
+                            enabled: root.seekEnabled()
                             onReleased: function(mouse) {
                                 var localX = Math.max(0, Math.min(seekTrack.width, mouse.x + 10))
-                                root.command({"action": "seek", "value": Math.round(localX / seekTrack.width * Number(root.playerState.duration || 0))})
+                                root.onSeekTapped(localX, seekTrack.width)
                             }
                         }
                     }
@@ -879,7 +979,7 @@ Window {
                         width: 36
                         anchors.verticalCenter: parent.verticalCenter
                         horizontalAlignment: Text.AlignRight
-                        text: root.formatTime(root.playerState.duration)
+                        text: root.formatTime(root.currentDurationSeconds())
                         color: root.mutedColor
                         font.pixelSize: 8
                         font.family: root.uiFont
@@ -913,7 +1013,7 @@ Window {
                             height: parent.height
                             radius: parent.radius
                             color: root.accentColor
-                            width: parent.width * Math.min(1, Number(root.playerState.volume || 0) / Math.max(1, Number(root.playerState.max_volume || 60)))
+                            width: parent.width * Math.min(1, root.currentVolume() / Math.max(1, root.currentMaxVolume()))
                         }
 
                         MouseArea {
@@ -922,7 +1022,7 @@ Window {
                             enabled: root.backendOnline
                             onReleased: function(mouse) {
                                 var localX = Math.max(0, Math.min(volumeTrack.width, mouse.x + 10))
-                                root.command({"action": "volume", "value": Math.round(localX / volumeTrack.width * Number(root.playerState.max_volume || 60))})
+                                root.onVolumeTapped(localX, volumeTrack.width)
                             }
                         }
                     }
@@ -931,7 +1031,7 @@ Window {
                         width: 28
                         anchors.verticalCenter: parent.verticalCenter
                         horizontalAlignment: Text.AlignRight
-                        text: String(root.playerState.volume || 0)
+                        text: String(root.currentVolume())
                         color: root.mutedColor
                         font.pixelSize: 9
                         font.family: root.uiFont
@@ -1042,7 +1142,13 @@ Window {
 
         Rectangle {
             id: playerViewLayer
-            visible: root.largeUI && root.playerView && (root.playerState.queue || []).length > 0
+            // !showSpotifyBar: an active Spotify session must not stay
+            // hidden behind a stale local-folder overlay left open from an
+            // earlier session (the local queue can still be non-empty even
+            // though Spotify, not the local player, is now the active
+            // source) -- the persistent bottom playerBar already renders
+            // Spotify's controls once this overlay steps aside.
+            visible: root.largeUI && root.playerView && (root.playerState.queue || []).length > 0 && !root.showSpotifyBar
             anchors.left: parent.left
             anchors.right: parent.right
             anchors.top: statusBar.bottom

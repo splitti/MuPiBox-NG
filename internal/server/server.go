@@ -19,6 +19,7 @@ import (
 	"mupibox/internal/connectivity"
 	"mupibox/internal/core"
 	"mupibox/internal/library"
+	"mupibox/internal/providers/spotify"
 	"mupibox/internal/store"
 	"mupibox/internal/tts"
 	"mupibox/webui"
@@ -96,6 +97,7 @@ type API struct {
 	Connectivity        *connectivity.Manager
 	System              func() SystemStatus
 	TTSManager          *tts.Manager
+	Spotify             *spotify.Manager
 	NewAudioBackend     func() audio.Backend
 	Version             string
 	MusicDir            string
@@ -472,6 +474,7 @@ func (a *API) Handler() http.Handler {
 	a.registerSystemRoutes(mux)
 	a.registerTTSRoutes(mux)
 	a.registerAudioRoutes(mux)
+	a.registerSpotifyRoutes(mux)
 	mux.HandleFunc("GET /api/status", func(w http.ResponseWriter, r *http.Request) { jsonResponse(w, 200, a.Player.Status()) })
 	mux.HandleFunc("GET /api/system", func(w http.ResponseWriter, r *http.Request) { jsonResponse(w, 200, a.currentSystemStatus()) })
 	mux.HandleFunc("GET /api/connectivity/wifi/adapters", func(w http.ResponseWriter, r *http.Request) {
@@ -1026,7 +1029,34 @@ func (a *API) Handler() http.Handler {
 		mux.ServeHTTP(w, r)
 	})
 }
+// localPlaybackActions are core.Command actions that can make the local
+// player start or resume producing audio. Used to arbitrate against Spotify
+// (see pauseSpotifyIfPlaying): two independent music sources must never
+// play over each other, even though the shared dmix device would technically
+// allow it -- see docs/spotify.md and the Phase 3A architecture report.
+var localPlaybackActions = map[string]bool{
+	"folder": true, "resume": true, "play": true, "toggle": true,
+	"next": true, "previous": true,
+}
+
+// pauseSpotifyIfPlaying is the local-starts-so-Spotify-yields half of the
+// audio arbitration; the other half lives in registerSpotifyRoutes' event
+// handler (Spotify becomes externally active while local plays). Best
+// effort: a failed pause call must never block local playback.
+func (a *API) pauseSpotifyIfPlaying(action string) {
+	if a.Spotify == nil || !localPlaybackActions[action] {
+		return
+	}
+	if !a.Spotify.Status().Playing() {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	_ = a.Spotify.Client().Pause(ctx)
+}
+
 func (a *API) execute(w http.ResponseWriter, cmd core.Command) {
+	a.pauseSpotifyIfPlaying(cmd.Action)
 	if err := a.Player.Execute(cmd); err != nil {
 		problem(w, 400, err)
 		return

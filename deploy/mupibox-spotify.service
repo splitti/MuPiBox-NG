@@ -1,0 +1,30 @@
+[Unit]
+Description=go-librespot (Spotify Connect) for MuPiBox-NG
+Documentation=https://github.com/devgianlu/go-librespot
+After=network-online.target sound.target mupibox-ng.service
+Wants=network-online.target mupibox-ng.service
+
+[Service]
+Type=simple
+User=mupibox
+Group=mupibox
+SupplementaryGroups=audio
+# config.yml is written by mupibox-ng itself (internal/providers/spotify)
+# from settings.Audio.Device on every mupibox-ng start; wait for it briefly
+# rather than assuming systemd's After= ordering alone closes the race on a
+# fresh boot (mupibox-ng is only ordered to start first, not confirmed ready).
+ExecStartPre=/bin/sh -c 'for i in $(seq 1 50); do [ -f /var/lib/mupibox-ng/spotify/config.yml ] && exit 0; sleep 0.1; done; echo "config.yml not found in time" >&2; exit 1'
+ExecStart=/usr/local/lib/mupibox-ng/go-librespot --config_dir /var/lib/mupibox-ng/spotify
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=15
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/var/lib/mupibox-ng/spotify
+ProtectHome=true
+RestrictSUIDSGID=true
+
+[Install]
+WantedBy=multi-user.target

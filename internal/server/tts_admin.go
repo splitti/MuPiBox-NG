@@ -453,9 +453,15 @@ func (a *API) registerTTSRoutes(mux *http.ServeMux) {
 		}
 		// Never let an announcement and music playback talk over each
 		// other: pause first, predictably, rather than trying to duck/mix
-		// levels. The user can resume music explicitly afterwards.
+		// levels. The user can resume music explicitly afterwards. Covers
+		// both local playback and Spotify (Phase 3A audio arbitration).
 		if a.Player != nil && a.Player.Status().State == "playing" {
 			_ = a.Player.Execute(core.Command{Action: "pause"})
+		}
+		if a.Spotify != nil && a.Spotify.Status().Playing() {
+			pauseCtx, pauseCancel := context.WithTimeout(r.Context(), 3*time.Second)
+			_ = a.Spotify.Client().Pause(pauseCtx)
+			pauseCancel()
 		}
 		// Same budget as /api/admin/tts/test (RenderTestClip): a genuine
 		// cache miss means real Piper synthesis on Pi-class hardware, which

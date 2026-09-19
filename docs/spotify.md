@@ -16,6 +16,44 @@ Die Spotify Web API liefert Katalog-, Such-, Bibliotheks-, Playlist- und Player-
 
 Die konkrete Playback-Technik wird erst nach einem vollständigen Pi-3-/DietPi-Test festgelegt. Der offizielle Web Playback SDK erfordert Spotify Premium und läuft in einer Browserumgebung; `librespot` bleibt ein möglicher, aber inoffizieller Kandidat. Die Architektur darf keinen dieser Wege fest verdrahten.
 
+## Phase 3A – Spotify Connect (umgesetzt, real getestet)
+
+Playback läuft über [`go-librespot`](https://github.com/devgianlu/go-librespot) (GPL-3.0,
+`devgianlu/go-librespot`) als eigener, von `mupibox-spotify.service` verwalteter Prozess
+(`scripts/install-go-librespot.sh`, ARM64-Release-Binary) – kein Spotify-Protokoll wird selbst
+implementiert. Der Nutzer verbindet sein Spotify-Premium-Konto über **Zeroconf/Spotify Connect**
+(Geräteauswahl direkt in der offiziellen Spotify-App) – dafür ist **kein OAuth, kein Client
+Secret und keine Redirect-URI** nötig; das betrifft nur den optionalen, noch nicht umgesetzten
+Web-API-Teil (Bibliothek/Playlists/Suche, Phase 3B).
+
+`internal/providers/spotify` generiert go-librespots `config.yml` bei jedem Start aus
+`settings.Audio.Device` (`ALSADeviceFromMPV`, identischer ALSA/dmix-Pfad wie mpv und TTS – kein
+hardcodiertes MuPiHAT-Gerät) und spricht dessen lokale REST-API/WebSocket-Events
+(`127.0.0.1:3678`, nie netzwerkseitig erreichbar) über einen Go-Client an. `internal/server`
+spiegelt Status/Steuerung unter `GET /api/spotify/status` und `POST /api/spotify/command`
+(pause/resume/next/previous/seek/volume) für die Touch-/Web-UI.
+
+**Audio-Arbitration:** Lokale Wiedergabe, Spotify und TTS sind gegenseitig exklusiv, obwohl das
+gemeinsame ALSA-dmix-Gerät technisch gleichzeitige Streams erlaubt – die Steuerungsebene
+entscheidet bewusst, welche Quelle aktiv sein darf. Startet lokale Wiedergabe, wird eine
+aktive Spotify-Sitzung pausiert; wird Spotify von außen (Spotify-App) aktiviert, pausiert die
+lokale Wiedergabe; TTS pausiert wie bisher zusätzlich eine laufende Spotify-Wiedergabe, ohne
+automatisches Resume. Die Unterscheidung "von uns selbst ausgelöst" vs. "von der Spotify-App
+ausgelöst" nutzt das vorhandene `play_origin`-Feld des go-librespot-Protokolls, kein eigener
+Mechanismus.
+
+Zugangsdaten aus dem Zeroconf-Pairing werden von go-librespot selbst in `state.json` unterhalb
+von `/var/lib/mupibox-ng/spotify/` gespeichert (`persist_credentials: true`, damit ein
+Boxneustart keine erneute Kopplung erfordert); Verzeichnis `0700`, Datei `0600`
+(`UMask=0077` in `mupibox-spotify.service` erzwingt dies zusätzlich unabhängig von
+go-librespots eigener Schreibweise). MuPiBox-NG selbst liest oder loggt diese Datei nie.
+
+Auf echter Pi-4/MuPiHAT-V3.1-Hardware verifiziert: Gerät erscheint in der Spotify-App,
+Zeroconf-Pairing, hörbare Wiedergabe über MuPiHAT/dmix, Steuerung sowohl aus der Spotify-App als
+auch direkt am nativen Touchdisplay (Play/Pause/Next/Previous/Volume), Status-/Track-Anzeige,
+Neustart mit automatischer Wiederanmeldung, alle drei Audio-Arbitrations-Richtungen. Noch nicht
+umgesetzt: Web-API-Zugriff auf Bibliothek/Playlists/Suche mit OAuth+PKCE (Phase 3B).
+
 ## Einrichtung im Adminbereich
 
 Vorgesehener Ablauf:

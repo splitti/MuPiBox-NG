@@ -20,6 +20,7 @@ import (
 	"mupibox/internal/connectivity"
 	"mupibox/internal/core"
 	"mupibox/internal/library"
+	"mupibox/internal/providers/spotify"
 	"mupibox/internal/server"
 	"mupibox/internal/store"
 	"mupibox/internal/tts"
@@ -218,7 +219,21 @@ func run() error {
 			log.Printf("Bluetooth could not be enabled: %v", err)
 		}
 	}
-	api := &server.API{Player: p, Library: lib, Store: stateStore, Connectivity: connectivityManager, Version: version, MusicDir: cfg.MusicDir, BackupDir: filepath.Join(filepath.Dir(cfg.DatabasePath), "backups"), TTSManager: ttsManager, NewAudioBackend: newAudioBackend}
+	spotifyConfigDir := filepath.Join(filepath.Dir(cfg.DatabasePath), "spotify")
+	if spotifyErr := spotify.WriteConfig(spotify.Config{
+		ConfigDir: spotifyConfigDir, AudioDevice: settings.Audio.Device, DeviceName: "MuPiBox",
+		APIPort: spotify.DefaultAPIPort, PersistCredentials: true,
+	}); spotifyErr != nil {
+		log.Printf("spotify: could not write go-librespot config: %v", spotifyErr)
+	}
+	spotifyManager := spotify.NewManager(fmt.Sprintf("http://127.0.0.1:%d", spotify.DefaultAPIPort))
+	api := &server.API{Player: p, Library: lib, Store: stateStore, Connectivity: connectivityManager, Version: version, MusicDir: cfg.MusicDir, BackupDir: filepath.Join(filepath.Dir(cfg.DatabasePath), "backups"), TTSManager: ttsManager, Spotify: spotifyManager, NewAudioBackend: newAudioBackend}
+	// Wire arbitration before starting Run: an already-active Connect session
+	// at startup (box restarted while Spotify was playing) fires its first
+	// status refresh as soon as the event stream connects, and events are not
+	// replayed -- registering the handler after Run started could miss it.
+	api.WireSpotifyArbitration()
+	go spotifyManager.Run(ctx)
 	if ttsManager != nil {
 		// Startup/recovery: register whatever content is already known so a
 		// generation surviving a restart (or one built before this process
