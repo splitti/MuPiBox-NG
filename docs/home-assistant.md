@@ -29,7 +29,7 @@ One Home Assistant device is created per configured MuPiBox.
 | --- | --- | --- |
 | `media_player` Local Player | Local files: play/pause/stop, previous/next, seek, volume, media browser | `GET /api/status`, `GET /api/library`, `POST /api/command` |
 | `media_player` Spotify Connect | Spotify Connect status and transport/volume control | `GET /api/spotify/status`, `POST /api/spotify/command` |
-| `notify` Announcements | Local Piper TTS announcement on the box | `POST /api/speak` |
+| `notify` Announcements | Local Piper TTS announcement on the box | `POST /api/speak` |\n| `camera` Display | Current display screenshot on demand | `GET /api/admin/screenshot` |
 | Battery sensor | MuPiHAT/system battery percentage when available | `GET /api/system` |
 | Wi-Fi signal/quality | RSSI, quality and interface | `GET /api/system` |
 | Version / audio backend | Diagnostics | `GET /api/info`, `GET /api/status` |
