@@ -19,13 +19,14 @@ class MuPiBoxEntity(CoordinatorEntity[MuPiBoxCoordinator]):
         super().__init__(entry.runtime_data.coordinator)
         self.entry = entry
         self.api = entry.runtime_data.api
-        self._attr_unique_id = f"{entry.entry_id}_{suffix}"
+        stable_id = entry.unique_id or entry.entry_id
+        self._attr_unique_id = f"{stable_id}_{suffix}"
 
     @property
     def device_info(self) -> DeviceInfo:
         info = self.coordinator.data.info if self.coordinator.data else {}
         return DeviceInfo(
-            identifiers={(DOMAIN, self.entry.entry_id)},
+            identifiers={(DOMAIN, self.entry.unique_id or self.entry.entry_id)},
             name=self.entry.title,
             manufacturer="MuPiBox",
             model="MuPiBox-NG",
