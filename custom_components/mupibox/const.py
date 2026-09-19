@@ -17,4 +17,4 @@ LIBRARY_UPDATE_INTERVAL_SECONDS = 60
 INFO_UPDATE_INTERVAL_SECONDS = 300
 AUTH_UPDATE_INTERVAL_SECONDS = 60
 
-PLATFORMS = ["media_player", "sensor", "binary_sensor", "button", "notify"]
+PLATFORMS = ["media_player", "sensor", "binary_sensor", "button", "notify", "camera"]
